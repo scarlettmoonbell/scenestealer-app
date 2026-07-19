@@ -105,8 +105,22 @@ was the actual bug; the missing key just surfaced it.
 
 ## 🗓 Phase 7 — Next: Scheduling, billing, polish
 
-- Post scheduling, Stripe usage-based billing tiers, onboarding polish for
-  a non-technical audience.
+- Post scheduling, onboarding polish for a non-technical audience.
+- **Stripe billing — integration shape decided (2026-07-19), real tiers
+  still deferred.** Full plan and reasoning in `scenestealer-infra`'s
+  `ROADMAP.md` Phase 2b: Stripe-hosted Checkout with Managed Payments,
+  flat-rate pricing (one Product per tier), card-on-file trial (auto-
+  converts), Stripe-hosted Customer Portal for self-service, Smart
+  Retries for failed payments. `scenestealer-infra`'s `stripe.tf` already
+  has 3 **placeholder** tiers (Starter/Pro/Studio, $29/$79/$199/mo) live
+  in the test-mode account for integration testing — names, amounts, and
+  usage caps are round numbers with zero cost analysis or pricing-
+  strategy behind them, not real decisions. This phase's actual billing
+  work is: (1) build the Checkout Session + webhook + Customer Portal
+  code against the placeholder Price IDs (`stripe_price_id_starter`/
+  `_pro`/`_studio` outputs), (2) separately, do real cost/pricing
+  analysis and replace the placeholder Products before charging anyone
+  for real — treat these as two different tasks, not one.
 
 ## 📌 Accepted gaps today, named explicitly
 

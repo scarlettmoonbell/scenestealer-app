@@ -168,7 +168,7 @@ service-boundary approach above, before wiring it in during Phase 6.
 | Relational DB     | Neon Postgres                                         | Serverless, scales to zero, cheap at low volume, real relational model for tenants/connections/clips/posts                                                                                                                                                                                      |
 | Job handoff       | Cloudflare Queues                                     | Native to Workers, cheap; consumer triggers a Fly Machine per job                                                                                                                                                                                                                               |
 | Auth              | Clerk (Organizations = tenants)                       | Generous free tier; ready-made signup/invite UI matters for a non-technical audience — building that from scratch is the more expensive option once engineering time counts                                                                                                                     |
-| Billing           | Stripe                                                | Standard, no real alternative                                                                                                                                                                                                                                                                   |
+| Billing           | Stripe                                                | Standard, no real alternative. Integration shape decided 2026-07-19 (Checkout + Managed Payments, flat-rate/one-Product-per-tier, card-on-file trial, Customer Portal, Smart Retries) — see `scenestealer-infra`'s ROADMAP.md Phase 2b. Actual tier pricing still deferred pending cost analysis. |
 | Storage access    | rclone (self-hosted, called from the worker)          | Open source, already covers all 7 storage backends — see "Open-source building blocks" below                                                                                                                                                                                                    |
 | Social publishing | Postiz (self-hosted, its own small always-on service) | Open source, already covers YouTube/IG/FB OAuth + publish mechanics — lightweight and steady-state, so it doesn't fit the bursty Fly Machines pattern; a small always-on container (Fly or the cheapest Hetzner box) suits it better                                                            |
 
@@ -280,8 +280,12 @@ and in parallel with build, not after. YouTube has no equivalent gate.
 
 ## Verification (this is a 0-to-1 plan, so "verification" = de-risking before build starts)
 
-- Confirm the chosen name is available as a domain and isn't trademark-
-  conflicting before registering anything.
+- ~~Confirm the chosen name is available as a domain~~ — done: `scenestealer.app`
+  purchased via Namecheap (2026-07-19). DNS zone config lives in
+  `scenestealer-infra`'s `opentofu/cloudflare-dns.tf`; nameserver delegation
+  at Namecheap is still a manual, unapplied step — see that repo's README.md
+  Known Gaps. Trademark conflict was not separately checked — worth a quick
+  search before any public launch/marketing push, not blocking build.
 - Quick direct check of Klap/Reap reseller API pricing as a sanity check on
   the build-vs-buy call (see open assumption above).
 - Confirm Postiz's current Meta publish flow meets the Reels-tab spec and
