@@ -121,6 +121,18 @@ was the actual bug; the missing key just surfaced it.
   `_pro`/`_studio` outputs), (2) separately, do real cost/pricing
   analysis and replace the placeholder Products before charging anyone
   for real — treat these as two different tasks, not one.
+- **Processing add-on packs — designed 2026-07-19, not yet built.** Lets
+  a tenant buy extra processing capacity for the current period instead
+  of upgrading tiers. Full design in `PLAN.md`'s "Billing: tier add-ons"
+  section: one-time (not recurring) Checkout purchase, a new
+  `addon_purchases` table in `packages/db`, quota computed from tier cap
+  + purchased add-on units − `SourceVideo` count for the period. Depends
+  on: (a) the Checkout/webhook code from the item above existing first,
+  (b) `scenestealer-infra`'s `stripe.tf` gaining a placeholder add-on
+  Product/Price the same way the tiers did. Pack size and price are
+  deferred pending cost analysis, same as tier pricing — don't invent
+  numbers when building this, wire the mechanism against another
+  placeholder.
 
 ## 📌 Accepted gaps today, named explicitly
 

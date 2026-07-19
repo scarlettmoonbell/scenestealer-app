@@ -233,6 +233,47 @@ before Phase 3, but the cost math already strongly favors build.
 `Subscription`. `SourceVideo.storageConnectionId` is nullable — direct uploads
 have no `StorageConnection` at all.
 
+## Billing: tier add-ons (processing top-ups)
+
+Decided 2026-07-19: a tenant who's about to exceed their tier's monthly
+processing cap should be able to buy more capacity for the current period
+instead of being forced to upgrade to the next tier just to process one or
+two extra shows in a busy month.
+
+**Modeled as a one-time purchase, not a recurring add-on subscription
+item** — matches the "top-up when I need it" framing better than a
+permanent recurring bump, and is meaningfully simpler to build (a one-time
+Checkout Session vs. subscription-item quantity management or metered
+billing infrastructure).
+
+- **Stripe side**: a separate, tier-agnostic "Processing Add-on Pack"
+  Product with a one-time (non-recurring) Price — kept distinct from the
+  tier Products per the "one Product per catalog item" rule already
+  applied to the tiers (see `scenestealer-infra`'s `stripe.tf`). Purchased
+  via a Checkout Session in `mode: 'payment'` (not `'subscription'`) with
+  `adjustable_quantity` enabled, so a tenant can buy more than one pack at
+  once.
+- **Data model**: a new `addon_purchases` table (`packages/db`) —
+  `id`, `tenantId`, `stripeCheckoutSessionId`, `unitsPurchased`,
+  `periodStart`, `periodEnd`, `createdAt`. Fulfilled only on the
+  `checkout.session.completed` webhook, never granted client-side.
+- **Quota math**: available this period = tier's included cap (still
+  undefined, see below) + `sum(addon_purchases.unitsPurchased)` for
+  purchases whose period overlaps `subscriptions.currentPeriodEnd` −
+  count of `SourceVideo` rows created in that period. `SourceVideo` is
+  already the usage ledger — no separate running-counter table needed.
+  Deliberately purchase-log-first rather than a mutable counter: avoids
+  webhook-ordering/reset-timing bugs and gives a clean, auditable answer
+  to "why does this tenant have N units available right now."
+
+**Still deferred, same as the tier prices themselves**: the add-on pack's
+price and pack size (shows per pack) have no cost analysis behind them
+yet — should land with real margin above the marginal AI/rendering cost
+per show (see "AI highlight detection: build, don't buy" above — well
+under $1/show in raw AI cost) once that work happens, not be picked
+arbitrarily. Each tier's included monthly cap is *also* still undefined —
+this mechanism works regardless of what those numbers end up being.
+
 ## Platform constraints (confirmed via research, not assumed)
 
 - **Instagram**: Reels-tab eligibility needs 9:16, 5–90s, MP4 H.264 (HEVC also
