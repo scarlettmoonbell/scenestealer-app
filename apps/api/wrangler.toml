@@ -1,0 +1,14 @@
+name = "scenestealer-api"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Provisioned by scenestealer-infra — see that repo's opentofu/README.md.
+# [[queues.producers]]
+# queue = "scenestealer-jobs"
+# binding = "JOBS_QUEUE"
+
+[vars]
+# Non-secret config only. Secrets (DATABASE_URL, CLERK_SECRET_KEY,
+# STRIPE_SECRET_KEY, POSTIZ_API_KEY) are set via `wrangler secret put`,
+# never committed here.
