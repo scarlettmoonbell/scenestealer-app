@@ -102,6 +102,7 @@ was the actual bug; the missing key just surfaced it.
   (relying on turbo's normal cache invalidation) works fine. Neither is
   a config or code problem; noted here so the next session doesn't
   re-diagnose the same thing.
+  
 
 - **Separately, a real pre-existing gap fixed while investigating the
   above**: root `eslint.config.js` didn't exclude `next-env.d.ts`
@@ -112,19 +113,50 @@ was the actual bug; the missing key just surfaced it.
 - **`.dev.vars` (Wrangler's local-secrets file) was missing from
   `.gitignore` entirely** — added before it was ever used, not after.
 
-**Still remaining in this phase:**
+## ✅ Phase 2 (partial) — Done (2026-07-20): Clerk
 
-- **`apps/web`'s actual upload UI doesn't exist yet** — blocked on Clerk,
-  not on the backend above. `apps/web` is wrapped in `ClerkProvider`,
-  which needs a real `publishableKey` to render at all; no live Clerk
-  account exists yet (see `scenestealer-infra`'s Known Gaps). The backend
-  proven above is ready for a frontend the moment Clerk is set up.
+- **Real Clerk application created** (`SceneStealer`, Email + Google
+  sign-in), **Organizations enabled** — verified two ways before writing
+  keys anywhere: `GET /v1/organizations` succeeded (Clerk's API errors
+  outright if Organizations isn't enabled for the instance, so success
+  here is real confirmation, not just "the key works"), and a plain
+  `GET /v1/instance` call for good measure. Publishable + secret keys
+  wired into `apps/web/.env.local` and `apps/api/.dev.vars` (both
+  gitignored, neither committed).
+
+**Known gap, not yet resolved**: could not get `apps/web` actually
+**running** in this environment to verify Clerk renders correctly in a
+real browser. `next dev` and `next build` both hang indefinitely
+(confirmed genuinely stuck — zero CPU progress over 150s+, not just
+slow, ruled out via `sample`-style process inspection) at exactly
+"Creating an optimized production build" / equivalent dev-server startup
+point. Real diagnostic work done, not just "didn't try": confirmed `next
+--version` works fine (rules out a totally broken install); confirmed
+the hang is independent of `.env.local`/the Clerk keys (removed the file
+entirely, still hung — rules out Clerk-specific causes); ruled out
+output buffering (used `script` for a pseudo-TTY, still silent); ruled
+out disk/memory/process-limit exhaustion (`df`/`vm_stat`/`ulimit` all
+normal); ruled out a corrupted SWC native binary (file size looks
+correct) and Gatekeeper/quarantine blocking it (no `com.apple.quarantine`
+xattr present). Root cause not found. This is an environment issue, not
+a code or config problem — `apps/web`'s source hasn't materially changed
+since Phase 1, when `next build` succeeded quickly. _Revisit_: try from
+a plain interactive terminal outside this session (rules in/out whether
+it's specific to this session's process environment), or bisect further
+if it recurs.
+
+- **`apps/web`'s actual upload UI doesn't exist yet** — Clerk itself is
+  now set up (see above), but building/verifying the actual frontend is
+  still blocked by the `next dev`/`build` hang just documented. The
+  backend proven earlier in this phase is ready for a frontend the
+  moment either the hang is resolved or verification happens elsewhere.
 - **The temporary security gap in `apps/api/src/routes/uploads.ts`**:
-  `tenantId` is trusted directly from the request body, since there's no
-  Clerk session yet to derive it from. Fine for proving the mechanism
-  (done above); replace with a session-derived `tenantId` the moment
-  Clerk auth exists — anyone can currently write into any tenant if this
-  endpoint were reachable from a real client.
+  `tenantId` is still trusted directly from the request body. Clerk
+  itself now exists (see above), but nothing yet verifies session tokens
+  server-side in `apps/api` — that's real implementation work (wiring
+  `@clerk/backend`), not just a config flip. Replace the moment that's
+  built; anyone can currently write into any tenant if this endpoint
+  were reachable from a real client.
 - Stand up rclone; register an OAuth app for Google Drive first; implement
   `RcloneStorageProvider` in `scenestealer-connectors`.
 - Then Dropbox, OneDrive/SharePoint, Box (OAuth-consent group); then S3,
