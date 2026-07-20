@@ -63,13 +63,70 @@ per-tenant, so nothing should be statically prerendered in the first
 place. Static generation trying to run at all against an auth-gated app
 was the actual bug; the missing key just surfaced it.
 
-## 🗓 Phase 2 — Next: Ingestion
+## ✅ Phase 2 (partial) — Done (2026-07-19/20): Direct upload backend
 
+- **`packages/db`'s first migration generated and applied to the real
+  database** — `drizzle-kit generate` then `migrate`, all 9 tables
+  confirmed live via `psql \dt` (installed via the `libpq` Homebrew
+  formula purely for verification). Real snag: `drizzle-kit generate`
+  hung with zero output — waiting on an interactive prompt with no stdin
+  attached in this environment; fixed with `< /dev/null`.
+- **Direct-upload backend built and proven end-to-end against real
+  infrastructure, not mocked**: `apps/api` gained a presigned-URL
+  R2 upload flow (`POST /uploads/presign` → `POST /uploads/complete`),
+  using `aws4fetch` (the official AWS SDK doesn't run in Workers — no
+  Node.js APIs). Verified for real: called `/presign`, took the returned
+  URL and did an actual `curl -X PUT` with a test file, confirmed the
+  object landed in `scenestealer-media` via a direct signed `ListBucket`
+  call, called `/complete`, confirmed the resulting `source_videos` row
+  via `psql`. Test tenant/row/object all cleaned up afterward.
+- **Real bug caught by the schema itself**: the first `/complete` test
+  hit a foreign-key violation (`23503`) because the test `tenantId` had
+  no matching `tenants` row — correct behavior, but the endpoint returned
+  a bare 500. Fixed by catching `23503` specifically and returning a
+  clean `400 Unknown tenantId` instead of leaking a raw DB error.
+- **Real R2 presigned-URL gotcha, confirmed via research before writing
+  code**: with query-string signing (required for a browser-usable
+  presigned URL), `aws4fetch` only signs the `host` header — sending
+  `Content-Type` from the client makes R2 see an unsigned header and
+  reject the request. Documented directly in `r2.ts`'s comments, not
+  just here, so it isn't rediscovered the hard way later.
+- **Environment finding, not a code bug**: `npx <tool>` and `pnpm run
+  <script>` both hung indefinitely (near-zero CPU, genuinely blocked, not
+  slow) for `eslint` specifically in this session, while the identical
+  `tsc`/`drizzle-kit` commands only needed `< /dev/null` to unstick.
+  Root cause not fully isolated; workaround confirmed reliable: invoke
+  the binary directly (`node_modules/.bin/eslint` or via `turbo run
+  lint`, not `npx eslint`/`pnpm lint`). Also found `next build` hangs
+  specifically when forced via `turbo run build --force` — unforced
+  (relying on turbo's normal cache invalidation) works fine. Neither is
+  a config or code problem; noted here so the next session doesn't
+  re-diagnose the same thing.
+
+- **Separately, a real pre-existing gap fixed while investigating the
+  above**: root `eslint.config.js` didn't exclude `next-env.d.ts`
+  (gitignored, Next.js-generated) from linting — its triple-slash
+  reference tripped `@typescript-eslint/triple-slash-reference`. Not
+  caused by this session's changes, just never exercised by a full
+  workspace lint run until now.
+- **`.dev.vars` (Wrangler's local-secrets file) was missing from
+  `.gitignore` entirely** — added before it was ever used, not after.
+
+**Still remaining in this phase:**
+
+- **`apps/web`'s actual upload UI doesn't exist yet** — blocked on Clerk,
+  not on the backend above. `apps/web` is wrapped in `ClerkProvider`,
+  which needs a real `publishableKey` to render at all; no live Clerk
+  account exists yet (see `scenestealer-infra`'s Known Gaps). The backend
+  proven above is ready for a frontend the moment Clerk is set up.
+- **The temporary security gap in `apps/api/src/routes/uploads.ts`**:
+  `tenantId` is trusted directly from the request body, since there's no
+  Clerk session yet to derive it from. Fine for proving the mechanism
+  (done above); replace with a session-derived `tenantId` the moment
+  Clerk auth exists — anyone can currently write into any tenant if this
+  endpoint were reachable from a real client.
 - Stand up rclone; register an OAuth app for Google Drive first; implement
   `RcloneStorageProvider` in `scenestealer-connectors`.
-- Implement direct upload (dashboard → R2, no rclone needed) in `apps/web`
-  — fastest path to a working end-to-end demo since it skips OAuth
-  entirely.
 - Then Dropbox, OneDrive/SharePoint, Box (OAuth-consent group); then S3,
   Azure Blob, GCS (credential-based group). _Genuinely situational within
   this phase_: the credential-based group can slip later if no early
@@ -126,13 +183,13 @@ was the actual bug; the missing key just surfaced it.
   of upgrading tiers. Full design in `PLAN.md`'s "Billing: tier add-ons"
   section: one-time (not recurring) Checkout purchase, a new
   `addon_purchases` table in `packages/db`, quota computed from tier cap
-  + purchased add-on units − `SourceVideo` count for the period. Depends
-  on: (a) the Checkout/webhook code from the item above existing first,
-  (b) `scenestealer-infra`'s `stripe.tf` gaining a placeholder add-on
-  Product/Price the same way the tiers did. Pack size and price are
-  deferred pending cost analysis, same as tier pricing — don't invent
-  numbers when building this, wire the mechanism against another
-  placeholder.
+  - purchased add-on units − `SourceVideo` count for the period. Depends
+    on: (a) the Checkout/webhook code from the item above existing first,
+    (b) `scenestealer-infra`'s `stripe.tf` gaining a placeholder add-on
+    Product/Price the same way the tiers did. Pack size and price are
+    deferred pending cost analysis, same as tier pricing — don't invent
+    numbers when building this, wire the mechanism against another
+    placeholder.
 
 ## 📌 Accepted gaps today, named explicitly
 

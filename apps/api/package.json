@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@scenestealer/db": "workspace:*",
+    "aws4fetch": "^1.0.20",
     "hono": "^4.6.14"
   },
   "devDependencies": {

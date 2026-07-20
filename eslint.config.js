@@ -11,6 +11,10 @@ export default tseslint.config(
       "**/.next/**",
       "**/.turbo/**",
       "**/node_modules/**",
+      // Next.js's own generated file (gitignored, see root .gitignore) --
+      // its triple-slash reference trips @typescript-eslint's rule against
+      // them. Not our code to fix; exclude it instead.
+      "**/next-env.d.ts",
     ],
   },
   js.configs.recommended,
