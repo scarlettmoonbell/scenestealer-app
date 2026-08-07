@@ -124,39 +124,150 @@ was the actual bug; the missing key just surfaced it.
   wired into `apps/web/.env.local` and `apps/api/.dev.vars` (both
   gitignored, neither committed).
 
-**Known gap, not yet resolved**: could not get `apps/web` actually
-**running** in this environment to verify Clerk renders correctly in a
-real browser. `next dev` and `next build` both hang indefinitely
-(confirmed genuinely stuck — zero CPU progress over 150s+, not just
-slow, ruled out via `sample`-style process inspection) at exactly
-"Creating an optimized production build" / equivalent dev-server startup
-point. Real diagnostic work done, not just "didn't try": confirmed `next
---version` works fine (rules out a totally broken install); confirmed
-the hang is independent of `.env.local`/the Clerk keys (removed the file
-entirely, still hung — rules out Clerk-specific causes); ruled out
-output buffering (used `script` for a pseudo-TTY, still silent); ruled
-out disk/memory/process-limit exhaustion (`df`/`vm_stat`/`ulimit` all
-normal); ruled out a corrupted SWC native binary (file size looks
-correct) and Gatekeeper/quarantine blocking it (no `com.apple.quarantine`
-xattr present). Root cause not found. This is an environment issue, not
-a code or config problem — `apps/web`'s source hasn't materially changed
-since Phase 1, when `next build` succeeded quickly. _Revisit_: try from
-a plain interactive terminal outside this session (rules in/out whether
-it's specific to this session's process environment), or bisect further
-if it recurs.
+**`next dev`/`next build` hang — root-caused and fixed.** Two distinct bugs
+were involved, found in sequence:
 
-- **`apps/web`'s actual upload UI doesn't exist yet** — Clerk itself is
-  now set up (see above), but building/verifying the actual frontend is
-  still blocked by the `next dev`/`build` hang just documented. The
-  backend proven earlier in this phase is ready for a frontend the
-  moment either the hang is resolved or verification happens elsewhere.
-- **The temporary security gap in `apps/api/src/routes/uploads.ts`**:
-  `tenantId` is still trusted directly from the request body. Clerk
-  itself now exists (see above), but nothing yet verifies session tokens
-  server-side in `apps/api` — that's real implementation work (wiring
-  `@clerk/backend`), not just a config flip. Replace the moment that's
-  built; anyone can currently write into any tenant if this endpoint
-  were reachable from a real client.
+1. **Workspace-root misinference** (real, but not the whole story): with no
+   `outputFileTracingRoot` set, Next.js walks up from `apps/web` looking for
+   a lockfile to infer the monorepo root — and SceneStealer's sibling repos
+   (`scenestealer-connectors`, `-pipeline`, `-infra`) each carry their own,
+   so the walk went past this repo's actual root. The user reproduced this
+   directly in their own terminal and got a concrete error instead of a
+   silent hang: `EPERM: operation not permitted, scandir
+   '/Users/scarlettb/.Trash'` (TCC-protected on macOS). Fixed by setting
+   `outputFileTracingRoot: path.join(__dirname, "../..")` in
+   `apps/web/next.config.ts`. **This fix alone did not resolve the hang** —
+   confirmed by reproducing the build directly (not just trusting the fix):
+   it still stalled at "Creating an optimized production build" with the
+   config value verified correct via a temporary debug print (so it wasn't
+   a case of the config silently not loading).
+2. **A genuine upstream Next.js regression**, found by actually inspecting
+   the stuck process rather than guessing further: `sample <pid> 3` showed
+   every thread — including the Rust `tokio-runtime-worker` threads inside
+   `next-swc`'s native binary — parked in `kevent`/`__psynch_cvwait` with
+   about 1ms of real CPU time across the full 3-second sample. That's a
+   genuine deadlock in the native output-file-tracing engine, not a slow
+   directory scan. Ruled out a corrupted local install first (`pnpm install
+   --force`, full re-link from the store — hang persisted, so not cache
+   corruption) before treating it as version-specific and testing an older
+   Next release directly: **Next 15.2.3 builds and starts `next dev`
+   cleanly (`Ready in 1732ms`); the `^15.1.3` range had resolved to 15.5.20,
+   which reproducibly deadlocks.** Something regressed in Next's tracing
+   engine between those two versions for this pnpm-monorepo shape. Fixed by
+   pinning `apps/web/package.json`'s `next` dependency to the exact string
+   `"15.2.3"` (no caret) so a future `pnpm install` can't silently re-resolve
+   back into the broken range, and reinstalling to lock that into
+   `pnpm-lock.yaml`. `eslint-config-next` was left at `^15.1.3` —
+   unaffected, still resolves fine.
+
+**Verified working, not just "build completed"**: `next dev` started
+(`Ready in 1732ms`), the dashboard shell loaded in a real browser at
+`localhost:3000` (title "SceneStealer", the Phase 1 scaffold text), and the
+browser console showed Clerk initializing successfully with only the
+expected "loaded with development keys" warning — no errors. `next build`
+and `tsc --noEmit` both pass clean on the pinned version.
+
+_Revisit_: watch for a Next.js 15.x patch release that fixes this
+tracing-engine deadlock upstream (bisecting the exact regressing version
+between 15.2.3 and 15.5.20 wasn't done — 15.2.3 was chosen because it's the
+lowest version satisfying `@clerk/nextjs`'s peer range of `^15.2.3`, not
+because it's necessarily the newest working version), then re-test before
+unpinning.
+
+- **Closed (2026-07-20): `apps/web`'s upload UI.** `middleware.ts` runs
+  `clerkMiddleware()` (matcher copied from Clerk's current official Next.js
+  15 guidance, verified via their docs rather than assumed — Next 16 uses a
+  differently-named `proxy.ts` instead, doesn't apply here). `app/page.tsx`
+  is now a real Server Component: `<SignedOut>` shows `<SignIn />`;
+  `<SignedIn>` shows an `<OrganizationSwitcher hidePersonal />` +
+  `<UserButton />` header, then either `<CreateOrganization />` (no active
+  org yet) or the new `app/upload-panel.tsx` Client Component (active org
+  present). The upload panel drag-and-drops or file-picks a video, calls
+  `apps/api`'s `/uploads/presign` with the Clerk session as a Bearer token
+  (via `useAuth().getToken()`), PUTs straight to the returned R2 URL, then
+  calls `/uploads/complete` — exercising the real `requireTenant` auth path
+  built earlier this session, not a mocked one.
+
+  **New wiring this needed, not anticipated until now**: `apps/api` had no
+  CORS handling at all — a browser calling it cross-origin (different port
+  in dev, different subdomain in prod) with an `Authorization` header
+  triggers a preflight `OPTIONS` request that Hono doesn't handle by
+  default. Added `hono/cors` as the very first middleware (ahead of
+  `clerkMiddleware()`, so preflight requests short-circuit before hitting
+  auth logic at all), with `origin` as a per-request callback reading
+  `c.env.WEB_ORIGIN` — same Workers-env-isn't-available-at-setup-time
+  constraint already worked around for Clerk's own middleware. New
+  `WEB_ORIGIN` var: `http://localhost:3000` in `.dev.vars`,
+  `https://scenestealer.app` in `wrangler.toml`'s `[vars]` (non-secret).
+
+  **Verified, with an honest limit on how far**: loaded `localhost:3000` in
+  a real browser against both dev servers running together — signed-out
+  state renders Clerk's actual `<SignIn>` form correctly with a clean
+  console (only the expected dev-key warning). Typechecked and linted
+  clean across both apps. **Did not** sign in and exercise the
+  signed-in/upload path end-to-end — that needs a real account, and
+  creating one isn't something to do without you; the code path is
+  typechecked and reuses the already-independently-verified
+  presign/complete/requireTenant backend, but hasn't been clicked through
+  live. Try it yourself with `pnpm dev` and a real sign-in when you get a
+  chance — flag anything that doesn't work as expected.
+
+- **Closed (2026-07-20): the `apps/api/src/routes/uploads.ts` security
+  gap.** `tenantId` is no longer accepted from the request body at all —
+  `apps/api/src/auth.ts`'s `requireTenant` middleware (applied to every
+  `/uploads/*` route) verifies the Clerk session via `@clerk/hono`'s
+  `clerkMiddleware()`/`getAuth()`, then looks up the internal `tenants.id`
+  by the session's `orgId` against `tenants.clerkOrgId`, and only that
+  server-derived value is ever written to the DB. Chose `@clerk/hono` over
+  `@hono/clerk-auth`, which is now deprecated in favor of it (visible
+  directly in that package's own source as a runtime deprecation warning).
+  Verified against a live `wrangler dev` instance, not just typechecked:
+  `/healthz` stays public (200), `/uploads/presign` with no `Authorization`
+  header and with a garbage bearer token both correctly 401 with "Sign-in
+  with an active organization is required" — confirming the middleware
+  fails closed rather than silently letting requests through.
+  **New gap this surfaced**: nothing currently provisions a `tenants` row
+  when a Clerk Organization is created, so even a fully valid session for
+  a brand-new org will 403 with "No tenant provisioned for this
+  organization" until one exists. Needs an `organization.created` Clerk
+  webhook — see below, now closed.
+
+- **Closed (2026-07-20): `organization.created` Clerk webhook.** New
+  `apps/api/src/routes/webhooks.ts`, mounted at `POST /webhooks/clerk`.
+  Verifies the Svix signature via `@clerk/hono/webhooks`'s
+  `verifyWebhook(c, { signingSecret })` — had to pass `signingSecret`
+  explicitly rather than relying on its documented env-var fallback,
+  because that fallback reads `CLERK_WEBHOOK_SIGNING_SECRET` through
+  `@clerk/shared`'s Node-style `getEnvVariable` (effectively
+  `process.env`), which doesn't exist in Cloudflare Workers — found by
+  reading the installed package's actual source rather than trusting the
+  JSDoc, not by trial and error. On `organization.created`, inserts a
+  `tenants` row keyed by `clerkOrgId`/`name` from the event payload, with
+  `onConflictDoNothing({ target: tenants.clerkOrgId })` for idempotency
+  against Svix's at-least-once delivery.
+
+  **Verified for real, against a live `wrangler dev` instance and the
+  actual Neon database** — not just typechecked: wrote a throwaway script
+  using the same `standardwebhooks` package Clerk's SDK uses internally to
+  sign a synthetic `organization.created` payload with a matching test
+  secret, POSTed it, and confirmed a real `tenants` row landed in Neon
+  with the right `clerk_org_id`/`name` (queried directly via
+  `@neondatabase/serverless`, since this environment has no `psql`).
+  Replayed the identical event a second time and confirmed still exactly
+  one row — the `onConflictDoNothing` idempotency guard works, not just
+  compiles. Cleaned up the synthetic row afterward. One real bug caught
+  during this: the first signed payload failed verification with
+  "Message timestamp too old" — not a code bug, just `standardwebhooks`'
+  timestamp-freshness check rejecting a payload signed several tool-calls
+  earlier; resolved by signing and POSTing in the same step.
+
+  **Still a manual/pending step, same shape as the Clerk CLI note above**:
+  `CLERK_WEBHOOK_SIGNING_SECRET` in `.dev.vars` right now is a locally
+  generated synthetic secret, not one issued by Clerk — real webhook
+  *registration* (Clerk Dashboard → Webhooks → Add Endpoint, or
+  eventually the Clerk CLI) needs a public HTTPS URL for `apps/api`, which
+  doesn't exist until its first real deploy. Swap in the real secret via
+  `wrangler secret put CLERK_WEBHOOK_SIGNING_SECRET` at that point.
 - Stand up rclone; register an OAuth app for Google Drive first; implement
   `RcloneStorageProvider` in `scenestealer-connectors`.
 - Then Dropbox, OneDrive/SharePoint, Box (OAuth-consent group); then S3,
@@ -164,20 +275,137 @@ if it recurs.
   this phase_: the credential-based group can slip later if no early
   customer needs it — not blocking the rest of the build.
 
-## 🗓 Phase 3 — Next: First real publish loop
+## ✅ Phase 3 — Done (2026-08-02): First real publish loop proven end-to-end
 
-- Deploy self-hosted Postiz (`scenestealer-infra`).
-- Implement `PostizPublishProvider`; verify a manual YouTube full-video
-  publish through it end-to-end. Chosen first deliberately: no Meta App
-  Review gate, so this proves the Postiz integration before Meta enters
-  the picture.
+- **Done (2026-08-02): real `PostizPublishProvider.publish()` call
+  produced an actual published YouTube video** — polled `getStatus()`
+  until Postiz's own `Post.state` reached `PUBLISHED`, then confirmed a
+  real, live `releaseURL` came back (not just a "scheduled" response).
+  This is the core Phase 3 goal, now proven, not assumed. Two real bugs
+  found and fixed getting here — `UPLOAD_DIRECTORY` path mismatch with
+  nginx's hardcoded `/uploads/` alias, and a still-unexplained pattern
+  where the backend or orchestrator can hang silently post-deploy (fixed
+  each time with a plain `machine restart`) — full writeup in
+  `scenestealer-infra`'s ROADMAP.md Phase 3, Fifth incident.
+- **Done (2026-07-20): self-hosted Postiz deployed** to
+  `https://scenestealer-postiz.fly.dev` — `fly.toml` lives in this repo's
+  new `postiz/` directory (not `scenestealer-infra`, matching that repo's
+  own stated Fly.io convention). Verified live, not just "deploy
+  succeeded": real HTTP response with `<title>Postiz Register</title>`,
+  and all ~45 expected Prisma tables confirmed present in its dedicated
+  Neon database via a direct `information_schema.tables` query. Full
+  writeup — the Redis/storage/volume decisions and the real OOM bug hit
+  and fixed along the way — is in `scenestealer-infra`'s ROADMAP.md Phase
+  3, since that's where the underlying infra (Neon project, Fly Redis)
+  was provisioned.
+- **Done and already retired (both 2026-07-21):
+  `scenestealer-postiz-db-keepalive`** — an interim always-on Fly Machine
+  that pinged the Postiz Neon database every 3 minutes to stop free-tier
+  auto-suspend from crashing Postiz's backend. Replaced same day by the
+  real fix: Neon org upgraded to the Launch plan and auto-suspend
+  disabled outright on the Postiz compute (had to be applied via Neon's
+  API directly — the Terraform provider silently failed to apply it, a
+  real bug caught by testing actual suspend behavior). Fly app destroyed,
+  directory removed. Full incident writeup in `scenestealer-infra`'s
+  ROADMAP.md Phase 3.
+- **Done (2026-07-20): `PostizPublishProvider` implemented** in
+  `scenestealer-connectors` (`src/publish/postiz-provider.ts`) — calls
+  Postiz's public API directly (`/public/v1/upload-from-url` to hand off
+  the R2-hosted clip, `/public/v1/posts` to create it, `GET /public/v1/posts`
+  date-range list to poll status, since Postiz has no single-post-by-ID
+  endpoint). Request/response shapes and the per-platform `settings`
+  object (YouTube's required `title`/`type`, Instagram's required
+  `post_type`) came from reading Postiz's actual source on GitHub via
+  `gh api`/`gh search code` — its own public API docs don't fully cover
+  the create-post response or these settings shapes, a gap the Postiz
+  maintainers themselves acknowledge in
+  [issue #717](https://github.com/gitroomhq/postiz-app/issues/717).
+  This also surfaced a real, pre-existing gap in `PublishRequest` itself
+  (`scenestealer-connectors`' `publish/types.ts`): `caption` alone can't
+  express YouTube's required title/visibility or Instagram's required
+  post-type, so those became new optional `youtube`/`instagram` fields —
+  safe to add now since nothing consumes this interface yet.
+  Covered by a real test suite (13 cases, mocking `fetch`) that caught an
+  actual bug before it shipped: settings validation ran *after* the
+  media-upload network call instead of before, so invalid input still
+  triggered an upload first. Fixed and re-verified green. See
+  `scenestealer-connectors`' own README.md Status section for more.
+- **Done (2026-08-02): Postiz moved to `https://postiz.scenestealer.app`**,
+  off the raw `scenestealer-postiz.fly.dev` subdomain — root cause of a
+  multi-day "sign in but still land on the sign-in page" saga: `fly.dev`
+  is on the Public Suffix List's private-domains section, and Postiz's
+  own cookie-domain helper (`tldts.parse()` without
+  `allowPrivateDomains: true`) scoped every auth cookie to the bare
+  `.fly.dev` suffix, which every browser silently rejects. Verified fixed
+  with a direct `curl` login test (`Set-Cookie: ...Domain=.scenestealer.app`)
+  and a real user login on the new domain. Full incident writeup —
+  including a separate `invalid_grant` Google OAuth bug that's still not
+  fully root-caused — in `scenestealer-infra`'s ROADMAP.md Phase 3,
+  Fourth incident.
+- **Done (2026-08-02): first real YouTube channel connected to Postiz** —
+  `Integration` row confirmed in the DB (`providerIdentifier: "youtube"`,
+  `disabled: false`). `YOUTUBE_CLIENT_ID`/`YOUTUBE_CLIENT_SECRET` were
+  already live as Fly secrets (done 2026-07-21), but three *additional*
+  manual, non-scriptable steps in Google Cloud Console turned out to be
+  required before a real channel-connect actually worked end-to-end — a
+  human has to do each of these in Google's console, nothing here can
+  automate them:
+  1. **Authorized redirect URI must match the live frontend domain
+     exactly.** Broke when Postiz moved to `postiz.scenestealer.app` (see
+     `scenestealer-infra`'s ROADMAP.md Phase 3, Fourth incident) —
+     `https://postiz.scenestealer.app/integrations/social/youtube` had to
+     be added under the OAuth client's Authorized redirect URIs.
+  2. **OAuth consent screen is deliberately kept in "Testing" status**
+     (avoids the full Google verification review the sensitive
+     `.../auth/youtube` scope would otherwise require — days-to-weeks,
+     a near-identical gate to Meta App Review). Testing mode only allows
+     explicitly-approved accounts: every Google account that will connect
+     a channel or sign in via Google must be added under **OAuth consent
+     screen → Test users** first, or the consent flow fails with `Error
+     403: access_denied`.
+  3. **YouTube Data API v3 must be manually enabled** on the Cloud
+     project backing the OAuth client — creating the OAuth client/
+     credentials does *not* enable the API itself. Without this, consent
+     succeeds but Postiz's own channel lookup
+     (`youtube.provider.ts`'s `channels.list`) fails with a `403
+     accessNotConfigured` from Google, which surfaces in Postiz's UI as
+     nothing more than "channel not found" — root-caused by reading the
+     real error out of `backend-error.log` via `flyctl ssh console`
+     rather than guessing from the vague UI symptom. Enable at
+     `https://console.developers.google.com/apis/api/youtube.googleapis.com/overview?project=401866276467`
+     (a few minutes to propagate after enabling).
 
-## 🗓 Phase 4 — Next: AI auto-clip + manual editor
+## ✅ Phase 4 — Done (2026-08-06): AI auto-clip + manual editor
 
-- Implement `GroqTranscriber`, `PySceneDetectDetector.detectScenes`,
-  `detectAudioEnergyEvents`, `ClaudeHighlightScorer` in
-  `scenestealer-pipeline`.
-- Build the scrubbing/trim editor UI in `apps/web` (wavesurfer.js).
+- **Done: `GroqTranscriber`, `PySceneDetectDetector.detectScenes`,
+  `detectAudioEnergyEvents`, `ClaudeHighlightScorer` implemented** in
+  `scenestealer-pipeline`, replacing the Phase 1 "not implemented"
+  scaffolds. 18 vitest tests (`fetch`/`child_process.execFile` mocked).
+  Full writeup in that repo's own README.md Status section.
+- **Done: scrubbing/trim editor UI** in `apps/web`
+  (`app/videos/[id]/page.tsx` + `clip-editor.tsx`) — wavesurfer.js bound
+  directly to the `<video>` element (one network fetch serves both
+  playback and waveform decode, not two), one draggable/resizable region
+  per AI-suggested clip, Accept/Reject buttons, edits saved via a new
+  `PATCH /clips/:id` endpoint in `apps/api`.
+- **New in `apps/api`**: `GET /videos/:id/playback-url` (presigned R2 GET
+  — the browser can't sign R2 requests itself, only the Worker holds the
+  credentials) and `PATCH /clips/:id` (ownership checked through the
+  parent `source_videos.tenant_id`, since `clips` doesn't carry a
+  `tenantId` column of its own). Home page now lists a tenant's uploaded
+  videos linking into the editor.
+- **Still open, deliberately deferred, not part of this phase**: nothing
+  yet *invokes* the four pipeline functions end-to-end (a worker job
+  wiring ingest → transcribe → detect scenes → detect audio energy →
+  score highlights → write `Clip` rows) — the editor was built against
+  the existing `clips`/`source_videos` schema (already present from
+  earlier scaffolding) and works today against any clips however they
+  got created (manually inserted for now). That worker-job wiring is a
+  distinct piece of work, not yet scheduled to a phase.
+- Manual "draw a fully new clip" (vs. only adjusting AI suggestions) is
+  not implemented — the editor only edits/accepts/rejects clips that
+  already exist as rows. Worth adding alongside the worker-job wiring
+  above, not blocking Phase 4.
 
 ## 🗓 Phase 5 — Next: Templates + rendering
 

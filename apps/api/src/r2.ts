@@ -43,3 +43,33 @@ export async function createPresignedUploadUrl(
 
   return signed.url;
 }
+
+/**
+ * Presigned GET URL for the clip editor's video playback + wavesurfer.js
+ * waveform generation — same signing shape as the upload URL above, just
+ * GET instead of PUT.
+ */
+export async function createPresignedGetUrl(
+  config: R2Config,
+  key: string,
+  expiresInSeconds = 3600,
+): Promise<string> {
+  const client = new AwsClient({
+    accessKeyId: config.accessKeyId,
+    secretAccessKey: config.secretAccessKey,
+    region: "auto",
+    service: "s3",
+  });
+
+  const url = new URL(
+    `https://${config.accountId}.r2.cloudflarestorage.com/${config.bucket}/${key}`,
+  );
+  url.searchParams.set("X-Amz-Expires", String(expiresInSeconds));
+
+  const signed = await client.sign(url.toString(), {
+    method: "GET",
+    aws: { signQuery: true },
+  });
+
+  return signed.url;
+}

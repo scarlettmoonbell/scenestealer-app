@@ -3,6 +3,7 @@ dist/
 .next/
 .turbo/
 .wrangler/
+.vercel/
 .env
 .env.local
 .dev.vars
