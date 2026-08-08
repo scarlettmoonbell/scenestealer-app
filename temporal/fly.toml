@@ -1,0 +1,43 @@
+# Self-hosted Temporal for Postiz — Postiz's backend hard-requires a
+# reachable Temporal server to boot at all (confirmed the hard way: it
+# crashes on startup with a gRPC UNAVAILABLE trying to reach
+# localhost:7233 if none exists — see scenestealer-infra's ROADMAP.md).
+#
+# INTERIM SETUP, not production-grade — see "Production transition" note
+# in scenestealer-infra's ROADMAP.md Phase 3. This runs Temporal's own
+# `server start-dev` mode: a single binary with SQLite persistence and a
+# built-in Web UI, explicitly documented by Temporal as a dev-mode setup,
+# not a durable production one (Postiz's own docker-compose.yaml instead
+# runs `temporalio/auto-setup` against a real Postgres + Elasticsearch
+# cluster — a meaningfully bigger lift, deferred until this product is
+# past the "prove the publish loop works" stage). SQLite persistence
+# (--db-filename below, on the mounted volume) means workflow history
+# survives restarts, just without HA or Elasticsearch-backed visibility
+# queries.
+#
+# Deliberately has no [http_service] — nothing outside this Fly org
+# should ever reach this (the dev-server Web UI on 8233 has zero
+# authentication). Fly's private networking makes it reachable at
+# scenestealer-temporal.internal:7233 from sibling apps in this org
+# (Postiz) without any public exposure — same private-network pattern
+# already verified working for Postiz's own internal-only ports.
+#
+# Lives in scenestealer-app (not scenestealer-infra), matching the same
+# Fly.io convention as postiz/fly.toml — see that file's own comment.
+
+app = "scenestealer-temporal"
+primary_region = "iad"
+
+[build]
+  image = "temporalio/temporal:latest"
+
+[processes]
+  app = "server start-dev --ip 0.0.0.0 --db-filename /data/temporal.db"
+
+[[mounts]]
+  source = "temporal_data"
+  destination = "/data"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

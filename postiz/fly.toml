@@ -1,0 +1,114 @@
+# Deploy config for the self-hosted Postiz instance (social publishing —
+# YouTube/Instagram/Facebook). Lives here, not scenestealer-infra, because
+# Fly.io apps deploy via `flyctl` from this repo's own CI, matching
+# apps/worker — see scenestealer-infra's README.md "External services"
+# table. Postiz itself is a prebuilt third-party image, not our own
+# source, so it isn't one of the pnpm workspace apps/ packages.
+#
+# Runs as a small always-on service (min_machines_running = 1, no
+# scale-to-zero) rather than the bursty pay-per-second pattern used for
+# apps/worker — see PLAN.md's Infra choices table for why.
+
+app = "scenestealer-postiz"
+primary_region = "iad"
+
+[build]
+  image = "ghcr.io/gitroomhq/postiz-app:latest"
+
+# Secrets (DATABASE_URL, REDIS_URL, JWT_SECRET) are set via
+# `flyctl secrets set`, never committed here — see ROADMAP.md.
+[env]
+  # Single combined container on one public port, with an internal nginx
+  # (var/docker/nginx.conf in Postiz's own repo) splitting traffic on
+  # *path*, not just proxying everything to one process: `location /api/`
+  # -> localhost:3000 (backend), `location /` -> localhost:4200
+  # (frontend). NEXT_PUBLIC_BACKEND_URL — a browser-facing URL — MUST
+  # therefore include the `/api` prefix, or every backend call falls
+  # through nginx's `/` block to the frontend's own Next.js router, which
+  # 404s (hit this for real: registration broke with the frontend's 404
+  # page HTML dumped into its own error display, root-caused by reading
+  # Postiz's actual nginx.conf rather than guessing further). This is
+  # different from the bare-origin defaults in Postiz's .env.example,
+  # which are for its non-nginx local-dev mode (separate ports, no
+  # single-origin proxy) — not this standalone image. BACKEND_INTERNAL_URL
+  # is SSR-to-backend traffic that never goes through nginx at all, so it
+  # stays at plain localhost:3000.
+  # Moved off the raw *.fly.dev subdomain 2026-08-02: fly.dev is on the
+  # Public Suffix List's private-domains section, and Postiz's own
+  # cookie-domain helper (getCookieUrlFromDomain, via tldts without
+  # allowPrivateDomains) resolved it to the bare suffix "fly.dev" — every
+  # browser silently drops a Set-Cookie scoped to a public suffix, so no
+  # session ever actually persisted regardless of which auth path
+  # succeeded. postiz.scenestealer.app is an ordinary registrable domain,
+  # so the cookie scopes correctly. See scenestealer-infra's
+  # cloudflare-dns.tf and ROADMAP.md for the full incident.
+  FRONTEND_URL = "https://postiz.scenestealer.app"
+  NEXT_PUBLIC_BACKEND_URL = "https://postiz.scenestealer.app/api"
+  BACKEND_INTERNAL_URL = "http://localhost:3000"
+  # Known gap, deliberate for now: a Fly Machine can only mount one
+  # volume, and this image wants two (/uploads, /config). /config
+  # (likely OAuth/encryption state) gets the real volume below;
+  # /uploads (social-avatar cache, low-stakes, re-fetchable) stays on
+  # ephemeral container storage until it's worth a second R2 bucket +
+  # scoped token just for this. See ROADMAP.md.
+  STORAGE_PROVIDER = "local"
+  # MUST be exactly "/uploads" — nginx's own var/docker/nginx.conf hardcodes
+  # `location /uploads/ { alias /uploads/; }`, not driven by this env var at
+  # all. Originally set to /tmp/uploads on the (wrong) assumption that any
+  # writable ephemeral path would do; that broke silently for avatar images
+  # (fetched once, cached, never re-requested through nginx) but surfaced
+  # for real the first time an actual publish tried to re-fetch an uploaded
+  # video through this path and got a 404 (2026-08-02, see ROADMAP.md).
+  UPLOAD_DIRECTORY = "/uploads"
+  IS_GENERAL = "true"
+  # Postiz's backend hard-requires a reachable Temporal server to boot at
+  # all — crashes with a gRPC UNAVAILABLE on startup without one (hit this
+  # for real, see ../temporal/fly.toml and ROADMAP.md). Reached over Fly's
+  # private network, same org — no public exposure needed or wanted, since
+  # the dev-mode Temporal server has no auth on its own ports.
+  TEMPORAL_ADDRESS = "scenestealer-temporal.internal:7233"
+  # Postiz's orchestrator compiles a separate ~3MB webpack workflow bundle
+  # per platform task-queue at boot — sequentially, 30-90s each, ~30
+  # platforms — all on this machine's single shared vCPU. That compile
+  # storm is the prime suspect for the machine going totally unresponsive
+  # (HTTP 000 on every port while Fly still reports "started"): Fly
+  # throttles shared CPUs to a small baseline once burst credits are
+  # exhausted. EXCLUDE_QUEUE is Postiz's own supported knob for this (see
+  # its temporal.module.ts) — skip every queue except the three platforms
+  # this product actually publishes to (youtube/instagram/facebook; the
+  # `main` queue can't be excluded and stays). Queue names are the
+  # integration identifiers without a dash, taken from Postiz's own
+  # integration list.
+  EXCLUDE_QUEUE = "reddit,lemmy,pinterest,dribbble,tiktok,discord,slack,kick,twitch,x,linkedin,medium,devto,hashnode,wordpress,listmonk,gmb,wrapcast,threads,mastodon,bluesky,telegram,nostr,moltbook,vk,skool,mewe,tumblr,whop"
+
+[[mounts]]
+  source = "postiz_config"
+  destination = "/config"
+
+[http_service]
+  internal_port = 5000
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+[[vm]]
+  # Memory bumped from 1gb (2026-07-20) after the first total-hang
+  # incident (then suspected OOM). CPU bumped 1x -> 2x (2026-07-22),
+  # then 2x -> 4x same day after 2x still hung ~17 min post-boot —
+  # matching the user's own pre-agreed fallback trigger. Root mechanism,
+  # measured not guessed: load average 4.47 on a single shared vCPU whose
+  # guaranteed baseline is only ~6% of a core; boot storms drain Fly's
+  # burst credits and steady-state load never drops back below the
+  # baseline, so the machine stays throttled at the floor indefinitely.
+  # EXCLUDE_QUEUE (env var below) does NOT currently reduce that boot
+  # storm — found after 2x still hung: that feature was committed to
+  # Postiz's `main` branch 2026-06-29, a week AFTER the latest published
+  # release/image (v2.21.10, 2026-06-22) that `ghcr.io/gitroomhq/
+  # postiz-app:latest` is actually built from (container publish only
+  # triggers on release tags, confirmed via that repo's own
+  # build-containers.yml). The full ~31-queue compile storm runs on every
+  # boot regardless of this env var, until Postiz cuts a new release.
+  # See scenestealer-infra's ROADMAP.md for the full incident.
+  size = "shared-cpu-4x"
+  memory = "2gb"
