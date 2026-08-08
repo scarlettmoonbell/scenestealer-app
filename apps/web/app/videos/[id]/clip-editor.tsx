@@ -40,9 +40,9 @@ export function ClipEditor({
   const videoRef = useRef<HTMLVideoElement>(null);
   const waveformRef = useRef<HTMLDivElement>(null);
   const waveSurferRef = useRef<WaveSurferType | null>(null);
-  const regionsPluginRef = useRef<import("wavesurfer.js/dist/plugins/regions.js").default | null>(
-    null,
-  );
+  const regionsPluginRef = useRef<
+    import("wavesurfer.js/dist/plugins/regions.js").default | null
+  >(null);
 
   const authedFetch = useCallback(
     async (path: string, init?: RequestInit) => {
@@ -74,7 +74,10 @@ export function ClipEditor({
   }, [authedFetch, sourceVideoId]);
 
   const updateClip = useCallback(
-    async (clipId: string, patch: Partial<Pick<Clip, "startSec" | "endSec" | "status">>) => {
+    async (
+      clipId: string,
+      patch: Partial<Pick<Clip, "startSec" | "endSec" | "status">>,
+    ) => {
       try {
         const res = await authedFetch(`/clips/${clipId}`, {
           method: "PATCH",
@@ -101,10 +104,11 @@ export function ClipEditor({
 
     let cancelled = false;
     (async () => {
-      const [{ default: WaveSurfer }, { default: RegionsPlugin }] = await Promise.all([
-        import("wavesurfer.js"),
-        import("wavesurfer.js/dist/plugins/regions.js"),
-      ]);
+      const [{ default: WaveSurfer }, { default: RegionsPlugin }] =
+        await Promise.all([
+          import("wavesurfer.js"),
+          import("wavesurfer.js/dist/plugins/regions.js"),
+        ]);
       if (cancelled) return;
 
       const ws = WaveSurfer.create({
@@ -119,7 +123,10 @@ export function ClipEditor({
       regionsPluginRef.current = regions;
 
       for (const clip of clipList) {
-        const locked = clip.status === "rejected" || clip.status === "ready" || clip.status === "rendering";
+        const locked =
+          clip.status === "rejected" ||
+          clip.status === "ready" ||
+          clip.status === "rendering";
         regions.addRegion({
           id: clip.id,
           start: clip.startSec,
@@ -131,7 +138,10 @@ export function ClipEditor({
       }
 
       regions.on("region-updated", (region: Region) => {
-        void updateClip(region.id, { startSec: region.start, endSec: region.end });
+        void updateClip(region.id, {
+          startSec: region.start,
+          endSec: region.end,
+        });
       });
       regions.on("region-clicked", (region: Region, e: MouseEvent) => {
         e.stopPropagation();
@@ -154,7 +164,12 @@ export function ClipEditor({
     <div>
       {error && <p role="alert">{error}</p>}
 
-      <video ref={videoRef} src={playbackUrl ?? undefined} controls style={{ width: "100%", maxWidth: 720 }} />
+      <video
+        ref={videoRef}
+        src={playbackUrl ?? undefined}
+        controls
+        style={{ width: "100%", maxWidth: 720 }}
+      />
 
       <div ref={waveformRef} style={{ margin: "1rem 0" }} />
 
@@ -177,14 +192,26 @@ export function ClipEditor({
               {clip.aiReason ?? "Manually adjusted clip"}
               {clip.aiScore != null && ` (score ${clip.aiScore.toFixed(2)})`}
             </span>
-            <span style={{ fontSize: "0.85em", opacity: 0.7 }}>{clip.status}</span>
-            {clip.status !== "accepted" && clip.status !== "ready" && clip.status !== "rendering" && (
-              <button type="button" onClick={() => void updateClip(clip.id, { status: "accepted" })}>
-                Accept
-              </button>
-            )}
+            <span style={{ fontSize: "0.85em", opacity: 0.7 }}>
+              {clip.status}
+            </span>
+            {clip.status !== "accepted" &&
+              clip.status !== "ready" &&
+              clip.status !== "rendering" && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    void updateClip(clip.id, { status: "accepted" })
+                  }
+                >
+                  Accept
+                </button>
+              )}
             {clip.status !== "rejected" && (
-              <button type="button" onClick={() => void updateClip(clip.id, { status: "rejected" })}>
+              <button
+                type="button"
+                onClick={() => void updateClip(clip.id, { status: "rejected" })}
+              >
                 Reject
               </button>
             )}

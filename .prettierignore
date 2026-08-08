@@ -1,0 +1,9 @@
+# ROADMAP.md triggers a genuine, reproducible bug in Prettier's markdown
+# printer: some construct in this file (a long, deeply-nested bullet
+# history) makes `prettier --write` non-idempotent — verified directly,
+# running it twice in a row produces two DIFFERENT outputs, each adding
+# another stray whitespace-only line before the same bullet, growing on
+# every pass rather than converging. Not a real style violation to fix;
+# excluding this file rather than let `pnpm format`/CI block on a tool
+# bug. Revisit if a later Prettier release fixes the underlying case.
+ROADMAP.md

@@ -52,9 +52,14 @@ export function UploadPanel() {
           }),
         });
         if (!presignRes.ok) {
-          throw new Error(await readError(presignRes, "Failed to get an upload URL"));
+          throw new Error(
+            await readError(presignRes, "Failed to get an upload URL"),
+          );
         }
-        ({ uploadUrl, r2Key } = (await presignRes.json()) as { uploadUrl: string; r2Key: string });
+        ({ uploadUrl, r2Key } = (await presignRes.json()) as {
+          uploadUrl: string;
+          r2Key: string;
+        });
       } catch (e) {
         setError(`Requesting an upload URL failed: ${describeFetchError(e)}`);
         setStatus("error");
@@ -64,7 +69,9 @@ export function UploadPanel() {
       try {
         const putRes = await fetch(uploadUrl, { method: "PUT", body: file });
         if (!putRes.ok) {
-          throw new Error(`Storage rejected the upload (HTTP ${putRes.status})`);
+          throw new Error(
+            `Storage rejected the upload (HTTP ${putRes.status})`,
+          );
         }
       } catch (e) {
         setError(`Uploading to storage failed: ${describeFetchError(e)}`);
@@ -79,7 +86,9 @@ export function UploadPanel() {
           body: JSON.stringify({ r2Key, title: file.name }),
         });
         if (!completeRes.ok) {
-          throw new Error(await readError(completeRes, "Failed to record the upload"));
+          throw new Error(
+            await readError(completeRes, "Failed to record the upload"),
+          );
         }
       } catch (e) {
         setError(`Recording the upload failed: ${describeFetchError(e)}`);

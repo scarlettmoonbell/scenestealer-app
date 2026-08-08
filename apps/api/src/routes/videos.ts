@@ -21,7 +21,10 @@ export async function getOwnedSourceVideo(
     .select()
     .from(sourceVideos)
     .where(
-      and(eq(sourceVideos.id, sourceVideoId), eq(sourceVideos.tenantId, tenantId)),
+      and(
+        eq(sourceVideos.id, sourceVideoId),
+        eq(sourceVideos.tenantId, tenantId),
+      ),
     )
     .limit(1);
   return row;

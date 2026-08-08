@@ -41,7 +41,10 @@ export const requireTenant: MiddlewareHandler<{
     .limit(1);
 
   if (!tenant) {
-    return c.json({ error: "No tenant provisioned for this organization" }, 403);
+    return c.json(
+      { error: "No tenant provisioned for this organization" },
+      403,
+    );
   }
 
   c.set("tenantId", tenant.id);

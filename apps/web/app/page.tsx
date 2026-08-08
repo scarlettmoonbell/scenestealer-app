@@ -35,7 +35,11 @@ export default async function HomePage() {
 
       <SignedIn>
         <header
-          style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
         >
           <OrganizationSwitcher hidePersonal />
           <UserButton />

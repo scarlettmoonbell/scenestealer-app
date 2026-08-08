@@ -17,7 +17,10 @@ export async function VideoList({ tenantId }: { tenantId: string }) {
       <h2>Your recordings</h2>
       <ul style={{ listStyle: "none", padding: 0 }}>
         {videos.map((video) => (
-          <li key={video.id} style={{ padding: "0.5rem 0", borderBottom: "1px solid #333" }}>
+          <li
+            key={video.id}
+            style={{ padding: "0.5rem 0", borderBottom: "1px solid #333" }}
+          >
             <Link href={`/videos/${video.id}`}>{video.title ?? video.id}</Link>
           </li>
         ))}
