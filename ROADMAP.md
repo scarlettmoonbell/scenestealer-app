@@ -453,13 +453,26 @@ unpinning.
 
 ## 📌 Accepted gaps today, named explicitly
 
-- **CI is basic across all three code repos** — typecheck/lint/format/build
-  (+ test where applicable) on every PR, no SHA-pinning/Trivy/gitleaks yet.
-  Verified for real, not just written: `pnpm install` (generated a real
-  `pnpm-lock.yaml`, now committed) and `pnpm typecheck` both pass clean
-  across all four `scenestealer-app` packages. _Revisit_: before the first
-  real external contributor, or once Phase 2 code actually needs a
-  stronger merge gate.
+- **CI hardened across all four repos (2026-08-08)**: SHA-pinned actions,
+  `docs.yml`/`actionlint.yml`, Trivy (`security-scan`) and gitleaks
+  (`secret-scan`) added everywhere; `.pre-commit-config.yaml` mirrors it
+  all locally. Verified live, not just written — every new workflow ran
+  green on GitHub Actions after pushing.
+- **Known, tracked risk: `next` is pinned to 15.2.3**, which carries one
+  CRITICAL CVE (CVE-2025-55182, pre-auth RCE via React Server Components
+  request deserialization) and nine HIGH CVEs (SSRF, DoS) — full list and
+  reasoning in `scenestealer-app/.trivyignore`. The blocker is
+  `@cloudflare/next-on-pages@1.13.16` (latest release as of 2026-08-08):
+  verified directly that it cannot build any newer Next.js release,
+  including 15.5.2 (its own declared peer-dependency ceiling) — real
+  build failure (`/_not-found` not configured for the Edge Runtime), not
+  a stale warning. Discussed directly with the user given the severity;
+  decision was to accept this as a documented risk rather than force a
+  broken deploy or migrate deployment tooling under time pressure — this
+  app defines no `"use server"` Server Actions of its own, reducing the
+  most direct exploitation path. _Revisit_: the moment next-on-pages
+  ships a release that supports a patched Next.js, or sooner if real
+  user traffic/data volume changes the risk calculus.
 - **BSL 1.1 `LICENSE` text needs a legal read**, specifically the
   "Covenants of Licensor" clause's GPL-compatibility requirement on the
   Change License choice (Apache-2.0) — reproduced from the canonical
