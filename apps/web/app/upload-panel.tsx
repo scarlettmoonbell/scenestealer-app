@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
+import { describeFetchError } from "./fetch-error";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
@@ -27,13 +28,21 @@ export function UploadPanel() {
       setStatus("uploading");
       setError(null);
 
+      let authHeaders: { "Content-Type": string; Authorization: string };
       try {
         const token = await getToken();
-        const authHeaders = {
+        authHeaders = {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         };
+      } catch (e) {
+        setError(`Couldn't get an auth token: ${describeFetchError(e)}`);
+        setStatus("error");
+        return;
+      }
 
+      let uploadUrl: string, r2Key: string;
+      try {
         const presignRes = await fetch(`${API_URL}/uploads/presign`, {
           method: "POST",
           headers: authHeaders,
@@ -45,16 +54,25 @@ export function UploadPanel() {
         if (!presignRes.ok) {
           throw new Error(await readError(presignRes, "Failed to get an upload URL"));
         }
-        const { uploadUrl, r2Key } = (await presignRes.json()) as {
-          uploadUrl: string;
-          r2Key: string;
-        };
+        ({ uploadUrl, r2Key } = (await presignRes.json()) as { uploadUrl: string; r2Key: string });
+      } catch (e) {
+        setError(`Requesting an upload URL failed: ${describeFetchError(e)}`);
+        setStatus("error");
+        return;
+      }
 
+      try {
         const putRes = await fetch(uploadUrl, { method: "PUT", body: file });
         if (!putRes.ok) {
-          throw new Error("Upload to storage failed");
+          throw new Error(`Storage rejected the upload (HTTP ${putRes.status})`);
         }
+      } catch (e) {
+        setError(`Uploading to storage failed: ${describeFetchError(e)}`);
+        setStatus("error");
+        return;
+      }
 
+      try {
         const completeRes = await fetch(`${API_URL}/uploads/complete`, {
           method: "POST",
           headers: authHeaders,
@@ -63,13 +81,14 @@ export function UploadPanel() {
         if (!completeRes.ok) {
           throw new Error(await readError(completeRes, "Failed to record the upload"));
         }
-
-        setUploadedTitle(file.name);
-        setStatus("done");
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Upload failed");
+        setError(`Recording the upload failed: ${describeFetchError(e)}`);
         setStatus("error");
+        return;
       }
+
+      setUploadedTitle(file.name);
+      setStatus("done");
     },
     [getToken],
   );

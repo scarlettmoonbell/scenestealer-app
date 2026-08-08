@@ -5,6 +5,7 @@ import { useAuth } from "@clerk/nextjs";
 import type WaveSurferType from "wavesurfer.js";
 import type { Region } from "wavesurfer.js/dist/plugins/regions.js";
 import type { clips as clipsTable } from "@scenestealer/db";
+import { describeFetchError } from "../../fetch-error";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
@@ -69,21 +70,25 @@ export function ClipEditor({
         };
         setPlaybackUrl(url);
       })
-      .catch((e) => setError(e instanceof Error ? e.message : "Failed to load video"));
+      .catch((e) => setError(`Failed to load video: ${describeFetchError(e)}`));
   }, [authedFetch, sourceVideoId]);
 
   const updateClip = useCallback(
     async (clipId: string, patch: Partial<Pick<Clip, "startSec" | "endSec" | "status">>) => {
-      const res = await authedFetch(`/clips/${clipId}`, {
-        method: "PATCH",
-        body: JSON.stringify(patch),
-      });
-      if (!res.ok) {
-        setError("Failed to save clip change");
-        return;
+      try {
+        const res = await authedFetch(`/clips/${clipId}`, {
+          method: "PATCH",
+          body: JSON.stringify(patch),
+        });
+        if (!res.ok) {
+          setError("Failed to save clip change");
+          return;
+        }
+        const { clip } = (await res.json()) as { clip: Clip };
+        setClipList((prev) => prev.map((c) => (c.id === clip.id ? clip : c)));
+      } catch (e) {
+        setError(`Failed to save clip change: ${describeFetchError(e)}`);
       }
-      const { clip } = (await res.json()) as { clip: Clip };
-      setClipList((prev) => prev.map((c) => (c.id === clip.id ? clip : c)));
     },
     [authedFetch],
   );
