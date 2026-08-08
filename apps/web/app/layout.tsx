@@ -6,6 +6,12 @@ import type { ReactNode } from "react";
 // needing a live Clerk publishableKey just to prerender a static shell.
 export const dynamic = "force-dynamic";
 
+// Deployed via @cloudflare/next-on-pages, which requires every
+// server-rendered route to explicitly opt into the Edge Runtime (Workers
+// has no Node.js runtime for SSR) — set once here so it cascades to every
+// route under this layout instead of repeating it per page.
+export const runtime = "edge";
+
 export const metadata = {
   title: "SceneStealer",
   description: "Turn full-length show recordings into clips, automatically.",
