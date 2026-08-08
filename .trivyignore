@@ -1,0 +1,13 @@
+# Next.js is pinned to 15.2.3, below the fix version for these three
+# CVEs (all denial-of-service class, not RCE/data-exposure), because
+# @cloudflare/next-on-pages@1.13.16 (the latest release, as of
+# 2026-08-08) cannot build ANY newer 15.x release, including 15.5.2 —
+# its own declared peer-dependency ceiling. Verified directly: bumping
+# to 15.5.2 or 15.5.15 both produce a real build failure ("The
+# following routes were not configured to run with the Edge Runtime:
+# /_not-found"), not just a stale peer-range warning. Re-evaluate once
+# next-on-pages ships a release that actually supports a patched
+# Next.js version — this is a real gap, not a permanently accepted one.
+GHSA-h25m-26qc-wcjf
+GHSA-mwv6-3258-q52c
+GHSA-q4gf-8mx6-v5v3
