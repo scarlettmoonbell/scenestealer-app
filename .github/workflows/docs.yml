@@ -1,0 +1,24 @@
+name: Docs
+
+# Deliberately not path-filtered like checks.yml — this is the check that
+# always runs for docs-only PRs (README.md, ROADMAP.md, PLAN.md), which
+# otherwise have nothing to wait on.
+
+on:
+  pull_request:
+    paths:
+      - "**/*.md"
+
+jobs:
+  markdown-lint:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: markdownlint
+        uses: DavidAnson/markdownlint-cli2-action@21c1be1b93ad9ed58fa840aacc3f279cde2a72ff # v24.2.0
+        with:
+          globs: "**/*.md"

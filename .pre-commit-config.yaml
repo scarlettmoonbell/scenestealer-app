@@ -1,0 +1,48 @@
+# Mirrors checks.yml/docs.yml/actionlint.yml's static checks locally,
+# before a commit even happens - see CLAUDE.md for setup (`pipx install
+# pre-commit`, then `pre-commit install` once per clone).
+#
+# eslint/prettier run as local hooks against this project's own
+# pnpm-managed node_modules (via `pnpm run`), not a pre-commit-managed
+# copy - the whole point is checking with the *exact* devDependency
+# versions/config this project already pins in package.json, matching
+# what CI actually runs. typecheck/build are deliberately not included:
+# they're slower (a full Turborepo build across apps/web, apps/api,
+# apps/worker, packages/db) than the fast, focused local feedback
+# pre-commit hooks are for, and CI already covers them on every PR.
+#
+# actionlint/gitleaks/markdownlint-cli2 are hook-managed, self-bootstrapped
+# tools (Go/Node) that pre-commit installs into its own isolated per-hook
+# environment under ~/.cache/pre-commit - never touching system Node/Go.
+
+repos:
+  - repo: local
+    hooks:
+      - id: eslint
+        name: ESLint
+        entry: pnpm lint
+        language: system
+        files: \.([cm]?[jt]sx?)$
+        pass_filenames: false
+
+      - id: prettier-check
+        name: Prettier (check)
+        entry: pnpm format
+        language: system
+        files: \.([cm]?[jt]sx?|json|ya?ml|md)$
+        pass_filenames: false
+
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.12
+    hooks:
+      - id: actionlint
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks
+
+  - repo: https://github.com/DavidAnson/markdownlint-cli2
+    rev: v0.23.1
+    hooks:
+      - id: markdownlint-cli2

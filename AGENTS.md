@@ -24,6 +24,14 @@ Per-app, when you only need one:
   actual Docker image: `docker build -t scenestealer-worker apps/worker`
   (untested as of Phase 1 — see README.md Known Gaps).
 
+## Pre-commit hooks
+
+`.pre-commit-config.yaml` mirrors `checks.yml`/`docs.yml`/`actionlint.yml`
+locally, before a commit happens — see the comments at the top of that
+file for exactly what's included. Install once per machine (`brew install
+pipx && pipx install pre-commit`), then activate once per clone:
+`pre-commit install`.
+
 ## Documentation
 
 - [Next.js App Router docs](https://nextjs.org/docs) — `apps/web`.

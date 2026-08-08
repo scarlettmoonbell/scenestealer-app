@@ -1,0 +1,31 @@
+name: Actionlint
+
+# Static checker for the workflow YAML files themselves - catches invalid
+# expressions (typo'd secrets./steps. references), wrong permissions:
+# scopes, and (via its built-in shellcheck/pyflakes integration) issues in
+# the bash inside run: blocks.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/**"
+  pull_request:
+    paths:
+      - ".github/workflows/**"
+
+jobs:
+  actionlint:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Actionlint
+        uses: reviewdog/action-actionlint@d63ba7532e0942965320cd8d73cbae4c7b3c5283 # v1.73.1
+        with:
+          fail_level: error
