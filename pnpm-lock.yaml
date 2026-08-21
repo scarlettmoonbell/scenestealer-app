@@ -19,8 +19,8 @@ importers:
         specifier: ^9.17.0
         version: 9.39.5
       prettier:
-        specifier: ^3.4.2
-        version: 3.9.5
+        specifier: ^3.9.6
+        version: 3.9.6
       turbo:
         specifier: ^2.3.3
         version: 2.10.5
@@ -112,13 +112,13 @@ importers:
     dependencies:
       "@scenestealer/connectors":
         specifier: github:scarlettmoonbell/scenestealer-connectors#main
-        version: https://codeload.github.com/scarlettmoonbell/scenestealer-connectors/tar.gz/452a26e92485799a4a9cbe64a1a8dcc43d454f93
+        version: https://codeload.github.com/scarlettmoonbell/scenestealer-connectors/tar.gz/9ef2c8492da9b230eecadbefec49eb7e1c511283
       "@scenestealer/db":
         specifier: workspace:*
         version: link:../../packages/db
       "@scenestealer/pipeline":
         specifier: github:scarlettmoonbell/scenestealer-pipeline#main
-        version: https://codeload.github.com/scarlettmoonbell/scenestealer-pipeline/tar.gz/f6d8aeb33e058e6cb86b0dd4e66e3a72f97e70b7
+        version: https://codeload.github.com/scarlettmoonbell/scenestealer-pipeline/tar.gz/89edd64a2fd18678ba9f7996e5edc36f75fa3140
     devDependencies:
       "@types/node":
         specifier: ^22.10.0
@@ -1764,17 +1764,17 @@ packages:
         integrity: sha512-TvZbIpeKqGQQ7X0zSCvPH9riMSFQFSggnfBjFZ1mEoILW+UuXCKwOoPcgjMwiUtRqFZ8jWhPJc4um14vC6I4ag==,
       }
 
-  "@scenestealer/connectors@https://codeload.github.com/scarlettmoonbell/scenestealer-connectors/tar.gz/452a26e92485799a4a9cbe64a1a8dcc43d454f93":
+  "@scenestealer/connectors@https://codeload.github.com/scarlettmoonbell/scenestealer-connectors/tar.gz/9ef2c8492da9b230eecadbefec49eb7e1c511283":
     resolution:
       {
-        tarball: https://codeload.github.com/scarlettmoonbell/scenestealer-connectors/tar.gz/452a26e92485799a4a9cbe64a1a8dcc43d454f93,
+        tarball: https://codeload.github.com/scarlettmoonbell/scenestealer-connectors/tar.gz/9ef2c8492da9b230eecadbefec49eb7e1c511283,
       }
     version: 0.0.1
 
-  "@scenestealer/pipeline@https://codeload.github.com/scarlettmoonbell/scenestealer-pipeline/tar.gz/f6d8aeb33e058e6cb86b0dd4e66e3a72f97e70b7":
+  "@scenestealer/pipeline@https://codeload.github.com/scarlettmoonbell/scenestealer-pipeline/tar.gz/89edd64a2fd18678ba9f7996e5edc36f75fa3140":
     resolution:
       {
-        tarball: https://codeload.github.com/scarlettmoonbell/scenestealer-pipeline/tar.gz/f6d8aeb33e058e6cb86b0dd4e66e3a72f97e70b7,
+        tarball: https://codeload.github.com/scarlettmoonbell/scenestealer-pipeline/tar.gz/89edd64a2fd18678ba9f7996e5edc36f75fa3140,
       }
     version: 0.0.1
 
@@ -4225,10 +4225,10 @@ packages:
       }
     engines: { node: ">= 0.8.0" }
 
-  prettier@3.9.5:
+  prettier@3.9.6:
     resolution:
       {
-        integrity: sha512-/FVl766LpUfB5vXgCYOYa0MeV/441Ia99AeICQIQFTY/Nw0roZwULcXpku5i1/m5kt/baz+s4Zogspd839HSMg==,
+        integrity: sha512-OpN0zzVdiaiAhxpuuj5efpIS4sY9j7bY6uR5mnj5yPzGkdkjNKSJeUThPb60Jw29QuAZgA4o+/iB49kFiaBX6g==,
       }
     engines: { node: ">=14" }
     hasBin: true
@@ -5650,12 +5650,12 @@ snapshots:
 
   "@rushstack/eslint-patch@1.16.1": {}
 
-  "@scenestealer/connectors@https://codeload.github.com/scarlettmoonbell/scenestealer-connectors/tar.gz/452a26e92485799a4a9cbe64a1a8dcc43d454f93":
+  "@scenestealer/connectors@https://codeload.github.com/scarlettmoonbell/scenestealer-connectors/tar.gz/9ef2c8492da9b230eecadbefec49eb7e1c511283":
     {}
 
-  "@scenestealer/pipeline@https://codeload.github.com/scarlettmoonbell/scenestealer-pipeline/tar.gz/f6d8aeb33e058e6cb86b0dd4e66e3a72f97e70b7":
+  "@scenestealer/pipeline@https://codeload.github.com/scarlettmoonbell/scenestealer-pipeline/tar.gz/89edd64a2fd18678ba9f7996e5edc36f75fa3140":
     dependencies:
-      "@scenestealer/connectors": https://codeload.github.com/scarlettmoonbell/scenestealer-connectors/tar.gz/452a26e92485799a4a9cbe64a1a8dcc43d454f93
+      "@scenestealer/connectors": https://codeload.github.com/scarlettmoonbell/scenestealer-connectors/tar.gz/9ef2c8492da9b230eecadbefec49eb7e1c511283
 
   "@stablelib/base64@1.0.1": {}
 
@@ -6481,8 +6481,8 @@ snapshots:
       "@typescript-eslint/parser": 8.64.0(eslint@9.39.5)(typescript@5.9.3)
       eslint: 9.39.5
       eslint-import-resolver-node: 0.3.10
-      eslint-import-resolver-typescript: 3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.64.0(eslint@9.39.5)(typescript@5.9.3))(eslint@9.39.5))(eslint@9.39.5)
-      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.64.0(eslint@9.39.5)(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.64.0(eslint@9.39.5)(typescript@5.9.3))(eslint@9.39.5))(eslint@9.39.5))(eslint@9.39.5)
+      eslint-import-resolver-typescript: 3.10.1(eslint-plugin-import@2.32.0)(eslint@9.39.5)
+      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.64.0(eslint@9.39.5)(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.5)
       eslint-plugin-jsx-a11y: 6.10.2(eslint@9.39.5)
       eslint-plugin-react: 7.37.5(eslint@9.39.5)
       eslint-plugin-react-hooks: 5.2.0(eslint@9.39.5)
@@ -6501,7 +6501,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.64.0(eslint@9.39.5)(typescript@5.9.3))(eslint@9.39.5))(eslint@9.39.5):
+  eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0)(eslint@9.39.5):
     dependencies:
       "@nolyfill/is-core-module": 1.0.39
       debug: 4.4.3
@@ -6512,22 +6512,22 @@ snapshots:
       tinyglobby: 0.2.17
       unrs-resolver: 1.12.2
     optionalDependencies:
-      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.64.0(eslint@9.39.5)(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.64.0(eslint@9.39.5)(typescript@5.9.3))(eslint@9.39.5))(eslint@9.39.5))(eslint@9.39.5)
+      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.64.0(eslint@9.39.5)(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.5)
     transitivePeerDependencies:
       - supports-color
 
-  eslint-module-utils@2.14.0(@typescript-eslint/parser@8.64.0(eslint@9.39.5)(typescript@5.9.3))(eslint-import-resolver-node@0.3.10)(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.64.0(eslint@9.39.5)(typescript@5.9.3))(eslint@9.39.5))(eslint@9.39.5))(eslint@9.39.5):
+  eslint-module-utils@2.14.0(@typescript-eslint/parser@8.64.0(eslint@9.39.5)(typescript@5.9.3))(eslint-import-resolver-node@0.3.10)(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.5):
     dependencies:
       debug: 3.2.7
     optionalDependencies:
       "@typescript-eslint/parser": 8.64.0(eslint@9.39.5)(typescript@5.9.3)
       eslint: 9.39.5
       eslint-import-resolver-node: 0.3.10
-      eslint-import-resolver-typescript: 3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.64.0(eslint@9.39.5)(typescript@5.9.3))(eslint@9.39.5))(eslint@9.39.5)
+      eslint-import-resolver-typescript: 3.10.1(eslint-plugin-import@2.32.0)(eslint@9.39.5)
     transitivePeerDependencies:
       - supports-color
 
-  eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.64.0(eslint@9.39.5)(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.64.0(eslint@9.39.5)(typescript@5.9.3))(eslint@9.39.5))(eslint@9.39.5))(eslint@9.39.5):
+  eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.64.0(eslint@9.39.5)(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.5):
     dependencies:
       "@rtsao/scc": 1.1.0
       array-includes: 3.1.9
@@ -6538,7 +6538,7 @@ snapshots:
       doctrine: 2.1.0
       eslint: 9.39.5
       eslint-import-resolver-node: 0.3.10
-      eslint-module-utils: 2.14.0(@typescript-eslint/parser@8.64.0(eslint@9.39.5)(typescript@5.9.3))(eslint-import-resolver-node@0.3.10)(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.64.0(eslint@9.39.5)(typescript@5.9.3))(eslint@9.39.5))(eslint@9.39.5))(eslint@9.39.5)
+      eslint-module-utils: 2.14.0(@typescript-eslint/parser@8.64.0(eslint@9.39.5)(typescript@5.9.3))(eslint-import-resolver-node@0.3.10)(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.5)
       hasown: 2.0.4
       is-core-module: 2.16.2
       is-glob: 4.0.3
@@ -7256,7 +7256,7 @@ snapshots:
 
   prelude-ls@1.2.1: {}
 
-  prettier@3.9.5: {}
+  prettier@3.9.6: {}
 
   printable-characters@1.0.42: {}
 
