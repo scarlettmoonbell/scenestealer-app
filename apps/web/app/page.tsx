@@ -2,8 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import {
   CreateOrganization,
   OrganizationSwitcher,
-  SignedIn,
-  SignedOut,
+  Show,
   SignIn,
   UserButton,
 } from "@clerk/nextjs";
@@ -29,11 +28,11 @@ export default async function HomePage() {
     <main>
       <h1>SceneStealer</h1>
 
-      <SignedOut>
+      <Show when="signed-out">
         <SignIn />
-      </SignedOut>
+      </Show>
 
-      <SignedIn>
+      <Show when="signed-in">
         <header
           style={{
             display: "flex",
@@ -56,7 +55,7 @@ export default async function HomePage() {
             <CreateOrganization />
           </>
         )}
-      </SignedIn>
+      </Show>
     </main>
   );
 }
