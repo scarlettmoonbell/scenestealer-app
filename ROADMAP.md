@@ -458,21 +458,27 @@ unpinning.
   (`secret-scan`) added everywhere; `.pre-commit-config.yaml` mirrors it
   all locally. Verified live, not just written — every new workflow ran
   green on GitHub Actions after pushing.
-- **Known, tracked risk: `next` is pinned to 15.2.3**, which carries one
-  CRITICAL CVE (CVE-2025-55182, pre-auth RCE via React Server Components
-  request deserialization) and nine HIGH CVEs (SSRF, DoS) — full list and
-  reasoning in `scenestealer-app/.trivyignore`. The blocker is
-  `@cloudflare/next-on-pages@1.13.16` (latest release as of 2026-08-08):
-  verified directly that it cannot build any newer Next.js release,
-  including 15.5.2 (its own declared peer-dependency ceiling) — real
-  build failure (`/_not-found` not configured for the Edge Runtime), not
-  a stale warning. Discussed directly with the user given the severity;
-  decision was to accept this as a documented risk rather than force a
-  broken deploy or migrate deployment tooling under time pressure — this
-  app defines no `"use server"` Server Actions of its own, reducing the
-  most direct exploitation path. _Revisit_: the moment next-on-pages
-  ships a release that supports a patched Next.js, or sooner if real
-  user traffic/data volume changes the risk calculus.
+- **Known, tracked risk: `next` is pinned to 15.4.11**, the actual
+  ceiling `@cloudflare/next-on-pages@1.13.16` (latest release as of
+  2026-08-20) can build — bisected directly against the real
+  `pages:build` pipeline: every version from 15.2.8 through 15.4.11
+  builds cleanly, 15.5.0 breaks immediately (`/_not-found` not
+  configured for the Edge Runtime) and stays broken through at least
+  15.5.15, so the ceiling is the 15.4→15.5 boundary itself, not
+  next-on-pages's own declared `<=15.5.2` peer range (also broken in
+  practice). Originally discovered as one CRITICAL CVE
+  (CVE-2025-55182, pre-auth RCE via React Server Components request
+  deserialization) plus ten HIGH CVEs (SSRF, DoS) while `next` was
+  still on 15.2.3; getting to 15.4.11 (forced by an unrelated Clerk
+  v7 bump requiring `next>=15.2.8`) already cleared the CRITICAL one
+  and one HIGH, both fixed at 15.2.6/15.2.7. The remaining nine HIGH
+  CVEs (full list and reasoning in `scenestealer-app/.trivyignore`)
+  all have fix floors at 15.5.x+, unreachable within the working
+  15.4.x line. This app defines no `"use server"` Server Actions of
+  its own, reducing the most direct exploitation path for what's
+  left. _Revisit_: the moment next-on-pages ships a release that
+  supports 15.5.x+, or sooner if real user traffic/data volume
+  changes the risk calculus.
 - **BSL 1.1 `LICENSE` text needs a legal read**, specifically the
   "Covenants of Licensor" clause's GPL-compatibility requirement on the
   Change License choice (Apache-2.0) — reproduced from the canonical
