@@ -1,0 +1,36 @@
+# Deploy config for apps/worker's always-on HTTP mode (src/server.ts) —
+# a deliberately smaller first cut than PLAN.md's eventual architecture
+# (Cloudflare Queue -> consumer Worker -> Fly Machines API -> a fresh
+# Machine spawned per job). None of that queue/Machines-API wiring
+# exists yet; apps/api's POST /videos/:id/analyze instead proxies
+# directly to this one small Fly app's /analyze route. See ROADMAP.md.
+#
+# Lives here (not scenestealer-infra), matching postiz/fly.toml and
+# temporal/fly.toml's convention — Fly.io apps deploy via `flyctl` from
+# this repo's own tooling, not Terraform.
+#
+# Scaled to zero when idle (min_machines_running = 0, auto_stop/start),
+# unlike Postiz's always-on config — this workload is sporadic (one
+# analysis per uploaded video), not steady-state traffic.
+
+app = "scenestealer-worker"
+primary_region = "iad"
+
+[build]
+
+# Secrets (DATABASE_URL, GROQ_API_KEY, ANTHROPIC_API_KEY, R2_ACCOUNT_ID,
+# R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET, WORKER_SHARED_SECRET)
+# are set via `flyctl secrets set`, never committed here.
+[env]
+  PORT = "8080"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[vm]]
+  size = "shared-cpu-2x"
+  memory = "1gb"

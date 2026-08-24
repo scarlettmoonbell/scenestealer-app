@@ -21,6 +21,10 @@ RUN npm install --omit=dev
 
 COPY dist ./dist
 
-# Started by Fly Machines on demand, per job — see ../../README.md's
-# Infra choices table for why this runs pay-per-second rather than always-on.
-CMD ["node", "dist/index.js"]
+# server.ts's always-on HTTP mode — the deployed target for this app's
+# Fly deployment (fly.toml), scaled to zero via Fly's own auto-stop/
+# auto-start rather than the per-job dynamic Machine-spawn model
+# PLAN.md eventually calls for (not built yet — see fly.toml's comment).
+# index.ts's one-shot CLI mode (dist/index.js) is what that future model
+# will actually invoke, and stays available for local testing today.
+CMD ["node", "dist/server.js"]

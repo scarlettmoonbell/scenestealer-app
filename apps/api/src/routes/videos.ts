@@ -51,3 +51,31 @@ videos.get("/:id/playback-url", async (c) => {
 
   return c.json({ playbackUrl });
 });
+
+// Proxies to apps/worker's own /analyze route (a small always-on Fly
+// app — see apps/worker/fly.toml) rather than running the pipeline
+// here: this Worker can't spawn the ffmpeg/scenedetect subprocesses the
+// pipeline functions need. Synchronous for now — no queue, no job
+// status polling — see ROADMAP.md for the deferred Cloudflare Queue /
+// Fly Machines API architecture this stands in for.
+videos.post("/:id/analyze", async (c) => {
+  const tenantId = c.get("tenantId");
+  const db = createDb(c.env.DATABASE_URL);
+
+  const video = await getOwnedSourceVideo(db, tenantId, c.req.param("id"));
+  if (!video) {
+    return c.json({ error: "Source video not found" }, 404);
+  }
+
+  const workerRes = await fetch(`${c.env.WORKER_URL}/analyze`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${c.env.WORKER_SHARED_SECRET}`,
+    },
+    body: JSON.stringify({ sourceVideoId: video.id }),
+  });
+
+  const body = await workerRes.json();
+  return c.json(body, workerRes.status as 200 | 400 | 401 | 500);
+});

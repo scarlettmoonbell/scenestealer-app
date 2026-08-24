@@ -21,6 +21,8 @@ export interface Env {
   R2_SECRET_ACCESS_KEY: string;
   R2_BUCKET_NAME: string;
   WEB_ORIGIN: string;
+  WORKER_URL: string;
+  WORKER_SHARED_SECRET: string;
 }
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();

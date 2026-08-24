@@ -1,16 +1,26 @@
-// Entry point for a single job run — this Machine is started per job by
-// Cloudflare Queues (via the Fly Machines API) and exits when done, not a
-// long-running server. See ../../README.md's Infra choices table.
-//
-// Not implemented yet — this is the Phase 1 scaffold. See README.md's
-// Status section for the build sequence.
+// One-shot CLI entry point — the shape the future per-job Fly Machine
+// model will actually invoke (see ../../README.md's Infra choices
+// table). Today's real trigger is server.ts's always-on HTTP mode
+// (see fly.toml); this stays for local testing (`JOB_TYPE=analyze
+// SOURCE_VIDEO_ID=... pnpm --filter @scenestealer/worker dev`) and as
+// the target shape once the Queue/Machines-API wiring exists.
+
+import { runAnalyze } from "./analyze.js";
 
 async function main() {
   const jobType = process.env.JOB_TYPE;
   switch (jobType) {
+    case "analyze": {
+      const sourceVideoId = process.env.SOURCE_VIDEO_ID;
+      if (!sourceVideoId) {
+        throw new Error("SOURCE_VIDEO_ID env var is required for analyze");
+      }
+      const result = await runAnalyze(sourceVideoId);
+      console.log(`Created ${result.clipsCreated} clip(s)`);
+      break;
+    }
     case "ingest":
     case "transcribe":
-    case "analyze":
     case "render":
     case "publish":
       throw new Error(
