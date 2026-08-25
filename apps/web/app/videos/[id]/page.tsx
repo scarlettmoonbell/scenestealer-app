@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { eq, and } from "drizzle-orm";
 import { createDb, tenants, sourceVideos, clips } from "@scenestealer/db";
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { ClipEditor } from "./clip-editor";
 
 // Reads straight from the DB via @scenestealer/db (DATABASE_URL is
@@ -48,6 +49,7 @@ export default async function VideoPage({
 
   return (
     <main>
+      <Link href="/">&larr; Back to recordings</Link>
       <h1>{video.title ?? "Untitled recording"}</h1>
       <ClipEditor sourceVideoId={video.id} initialClips={videoClips} />
     </main>

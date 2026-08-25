@@ -3,7 +3,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { clips, createDb, sourceVideos } from "@scenestealer/db";
 import {
   ClaudeHighlightScorer,
@@ -98,6 +98,21 @@ export async function runAnalyze(
       audioEvents,
       scenes,
     );
+
+    // Re-running analysis on the same video (retry after a failure, or
+    // just triggered twice) shouldn't pile up duplicate suggestions —
+    // confirmed for real, this created two identical clips for the same
+    // ~5s window on a short test video. Only "suggested" (not yet
+    // reviewed) clips are replaced; accepted/rejected/rendering/ready
+    // clips reflect a real decision already made and are left alone.
+    await db
+      .delete(clips)
+      .where(
+        and(
+          eq(clips.sourceVideoId, sourceVideoId),
+          eq(clips.status, "suggested"),
+        ),
+      );
 
     if (highlights.length === 0) return { clipsCreated: 0 };
 
