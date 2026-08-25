@@ -1,0 +1,120 @@
+name: deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  # A direct push to main (not just a merged, checks-gated PR) is possible
+  # in this repo — happened for real this session — so this re-verifies
+  # rather than trusting that checks.yml already ran. Deploy jobs below
+  # each still redo their own `pnpm install`/build: GitHub Actions jobs
+  # don't share a filesystem, and each target needs a different build
+  # step anyway (pages:build vs. plain tsc vs. a Docker image), so there's
+  # nothing meaningful this job's build output could hand off.
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        with:
+          version: "9.15.0"
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: "22.12.0"
+          cache: "pnpm"
+      - name: Force HTTPS for GitHub git dependencies
+        run: git config --global url."https://github.com/".insteadOf "git@github.com:"
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm build
+
+  deploy-web:
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        with:
+          version: "9.15.0"
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: "22.12.0"
+          cache: "pnpm"
+      - name: Force HTTPS for GitHub git dependencies
+        run: git config --global url."https://github.com/".insteadOf "git@github.com:"
+      - run: pnpm install --frozen-lockfile
+      # apps/web imports @scenestealer/db's dist output (its package.json
+      # "main" points there) — a workspace package, not something
+      # `pnpm install` builds on its own.
+      - run: pnpm --filter @scenestealer/db build
+      # next-on-pages's own build (not part of turbo's `build` task) —
+      # runs a second, independent `next build` internally. See
+      # ROADMAP.md for the NEXT_PUBLIC_API_URL bug this once caused;
+      # apps/web/.env.production is the fix, nothing to pass here.
+      - run: pnpm --filter @scenestealer/web run pages:build
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@da0e0dfe58b7a431659754fdf3f186c529afbe65 # v3.14.1
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: apps/web
+          packageManager: pnpm
+          command: pages deploy .vercel/output/static --project-name=scenestealer-web --branch=main
+
+  deploy-api:
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        with:
+          version: "9.15.0"
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: "22.12.0"
+          cache: "pnpm"
+      - name: Force HTTPS for GitHub git dependencies
+        run: git config --global url."https://github.com/".insteadOf "git@github.com:"
+      - run: pnpm install --frozen-lockfile
+      # wrangler's own bundler resolves @scenestealer/db's dist output
+      # (its package.json "main") at deploy time — same reason deploy-web
+      # builds it first.
+      - run: pnpm --filter @scenestealer/db build
+      - name: Deploy to Cloudflare Workers
+        uses: cloudflare/wrangler-action@da0e0dfe58b7a431659754fdf3f186c529afbe65 # v3.14.1
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: apps/api
+          packageManager: pnpm
+          command: deploy
+
+  deploy-worker:
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        with:
+          version: "9.15.0"
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: "22.12.0"
+          cache: "pnpm"
+      - name: Force HTTPS for GitHub git dependencies
+        run: git config --global url."https://github.com/".insteadOf "git@github.com:"
+      - run: pnpm install --frozen-lockfile
+      # apps/worker/Dockerfile only COPYs prebuilt dist/ in — it doesn't
+      # run tsc itself, matching the existing image's convention (see
+      # that file's own top-of-file comment).
+      - run: pnpm --filter @scenestealer/db build
+      - run: pnpm --filter @scenestealer/worker build
+      - uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # v1.6
+      # Build context must be the repo root, not apps/worker — this image
+      # needs packages/db alongside apps/worker itself. See Dockerfile.
+      - name: Deploy to Fly.io
+        run: flyctl deploy --config apps/worker/fly.toml --dockerfile apps/worker/Dockerfile
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

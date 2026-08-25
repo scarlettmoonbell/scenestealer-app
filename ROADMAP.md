@@ -511,22 +511,21 @@ unpinning.
   left. _Revisit_: the moment next-on-pages ships a release that
   supports 15.5.x+, or sooner if real user traffic/data volume
   changes the risk calculus.
-- **Found (2026-08-24): `apps/web` has no CI/CD deploy pipeline at
+- **Fixed (2026-08-24): `apps/web` had no CI/CD deploy pipeline at
   all**, despite `scenestealer-infra`'s `cloudflare.tf` comment
   claiming "the site repo's CI builds and pushes via
-  cloudflare/wrangler-action once checks pass" — `checks.yml` only
-  runs `on: pull_request` (typecheck/lint/format/build, no deploy
-  step), and no other workflow file in `.github/workflows/` deploys
-  anything. Concretely surfaced when a real push to `main` (the render
-  loop work) didn't show up live at scenestealer.app — the site had
-  been deployed manually at some earlier point and simply never
-  redeployed since. Worked around for now with a manual
-  `pnpm run pages:build && wrangler pages deploy .vercel/output/static
-  --project-name=scenestealer-web --branch=main` from `apps/web`.
-  _Revisit_: add a real `on: push: branches: [main]` deploy workflow
-  (or fix the infra repo's claim to match reality) before this bites
-  again — every future `apps/web` change needs this manual step until
-  then.
+  cloudflare/wrangler-action once checks pass" — `checks.yml` only ran
+  `on: pull_request` (typecheck/lint/format/build, no deploy step),
+  and no other workflow file deployed anything. Concretely surfaced
+  when a real push to `main` (the render loop work) didn't show up
+  live at scenestealer.app — the site had been deployed manually at
+  some earlier point and simply never redeployed since. Fixed for real
+  with a new `deploy.yml` (`on: push: branches: [main]`) that deploys
+  all three targets — `apps/web` (Pages), `apps/api` (Workers),
+  `apps/worker` (Fly) — each behind a shared `verify` job, using the
+  `CLOUDFLARE_API_TOKEN`/`CLOUDFLARE_ACCOUNT_ID`/`FLY_API_TOKEN` repo
+  secrets that already existed (provisioned but unused until now). See
+  `.github/workflows/README.md` for the full per-job breakdown.
 - **BSL 1.1 `LICENSE` text needs a legal read**, specifically the
   "Covenants of Licensor" clause's GPL-compatibility requirement on the
   Change License choice (Apache-2.0) — reproduced from the canonical
