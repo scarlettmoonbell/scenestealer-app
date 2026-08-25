@@ -1,0 +1,11 @@
+# apps/worker's Dockerfile builds from the repo root (see its own
+# comment for why) — without this, the whole workspace's node_modules
+# and .git get uploaded as build context on every deploy (measured:
+# 960MB), even though the Dockerfile only ever COPYs specific files.
+node_modules/
+.git/
+.next/
+.turbo/
+.wrangler/
+.vercel/
+*.log
