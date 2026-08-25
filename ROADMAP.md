@@ -511,6 +511,22 @@ unpinning.
   left. _Revisit_: the moment next-on-pages ships a release that
   supports 15.5.x+, or sooner if real user traffic/data volume
   changes the risk calculus.
+- **Found (2026-08-24): `apps/web` has no CI/CD deploy pipeline at
+  all**, despite `scenestealer-infra`'s `cloudflare.tf` comment
+  claiming "the site repo's CI builds and pushes via
+  cloudflare/wrangler-action once checks pass" — `checks.yml` only
+  runs `on: pull_request` (typecheck/lint/format/build, no deploy
+  step), and no other workflow file in `.github/workflows/` deploys
+  anything. Concretely surfaced when a real push to `main` (the render
+  loop work) didn't show up live at scenestealer.app — the site had
+  been deployed manually at some earlier point and simply never
+  redeployed since. Worked around for now with a manual
+  `pnpm run pages:build && wrangler pages deploy .vercel/output/static
+  --project-name=scenestealer-web --branch=main` from `apps/web`.
+  _Revisit_: add a real `on: push: branches: [main]` deploy workflow
+  (or fix the infra repo's claim to match reality) before this bites
+  again — every future `apps/web` change needs this manual step until
+  then.
 - **BSL 1.1 `LICENSE` text needs a legal read**, specifically the
   "Covenants of Licensor" clause's GPL-compatibility requirement on the
   Change License choice (Apache-2.0) — reproduced from the canonical
