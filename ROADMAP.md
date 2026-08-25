@@ -394,18 +394,25 @@ unpinning.
   parent `source_videos.tenant_id`, since `clips` doesn't carry a
   `tenantId` column of its own). Home page now lists a tenant's uploaded
   videos linking into the editor.
-- **Still open, deliberately deferred, not part of this phase**: nothing
-  yet *invokes* the four pipeline functions end-to-end (a worker job
-  wiring ingest → transcribe → detect scenes → detect audio energy →
-  score highlights → write `Clip` rows) — the editor was built against
-  the existing `clips`/`source_videos` schema (already present from
-  earlier scaffolding) and works today against any clips however they
-  got created (manually inserted for now). That worker-job wiring is a
-  distinct piece of work, not yet scheduled to a phase.
+- **Done (2026-08-24): the worker-job wiring** that was originally left
+  open here — `apps/worker`'s `analyze` job now genuinely invokes all
+  four pipeline functions in sequence against a real downloaded video
+  and writes suggested `Clip` rows; `apps/api`'s new
+  `POST /videos/:id/analyze` proxies to it. Verified for real multiple
+  times over: locally, against the deployed Fly container directly,
+  and through a real signed-in browser session accepting/rejecting the
+  resulting clips. Full writeup and the real bugs it surfaced (in this
+  repo and both `scenestealer-pipeline`/`scenestealer-connectors`) are
+  in that day's commits — see the Accepted Gaps section below for the
+  Groq file-size follow-up it also surfaced.
+- **Still open**: "Accept" currently only sets `clips.status =
+  "accepted"` — nothing renders or otherwise touches `renderedR2Key`,
+  so an accepted clip has no downstream effect yet and produces no
+  file a tenant could actually use. That's exactly Phase 5's job
+  (below), not a Phase 4 gap.
 - Manual "draw a fully new clip" (vs. only adjusting AI suggestions) is
-  not implemented — the editor only edits/accepts/rejects clips that
-  already exist as rows. Worth adding alongside the worker-job wiring
-  above, not blocking Phase 4.
+  still not implemented — the editor only edits/accepts/rejects clips
+  that already exist as rows.
 
 ## 🗓 Phase 5 — Next: Templates + rendering
 
@@ -485,16 +492,33 @@ unpinning.
   template but not independently verified against a lawyer. _Revisit_:
   before this license is truly load-bearing (i.e., before any real
   external usage/contribution happens under it).
-- **`apps/worker`'s Dockerfile is written to spec but not build-verified.**
-  The TS build it depends on passes (`pnpm --filter @scenestealer/worker
-build`); the actual `docker build -t scenestealer-worker apps/worker`
-  was attempted and could not complete in this environment (no Docker
-  daemon running) — genuinely unverified, not just "probably fine."
-  _Revisit_: before Phase 2 relies on this image for real.
-- **No live external accounts** (Clerk, Stripe, Neon, Cloudflare, Fly.io,
-  Groq, Anthropic) — every `.env.example` documents what's needed;
-  creating the accounts themselves is a manual, human step. _Revisit_:
-  immediately, this blocks all of Phase 2 onward.
+- **`apps/worker`'s Dockerfile is now build-verified and deployed for
+  real** (2026-08-24) — three real bugs found and fixed doing so
+  (missing `unzip`/`git` in the base image, `workspace:*` not
+  resolvable by plain `npm install`); see that commit for the full
+  writeup. Deployed as a small always-on-when-warm Fly app
+  (`scenestealer-worker.fly.dev`, scaled to zero via auto-stop/start)
+  exposing one HTTP route (`/analyze`) that `apps/api` proxies to —
+  still the smaller first cut described in Phase 4's writeup below,
+  not PLAN.md's eventual Cloudflare Queue -> Fly Machines API
+  architecture.
+- **Live external accounts**: Clerk, Neon, Cloudflare, Fly.io, Groq,
+  and Anthropic are all live and in real use as of Phase 4. Stripe is
+  configured (test-mode placeholder tiers, see Phase 7) but no billing
+  code exists yet to actually call it.
+- **Known, accepted limit: Groq's free-tier 25MB file-size cap on the
+  transcription endpoint** (100MB on their paid dev tier) caps how
+  long a recording `runAnalyze` can transcribe — confirmed for real,
+  a 30.5MB raw video 413'd. Extracting audio-only first (64kbps mono
+  mp3, already done — see `analyze.ts`) buys real headroom: ~55
+  minutes of audio fits in 25MB, ~3.6 hours in 100MB. Since this
+  product's actual target (full live-theater show recordings) can
+  exceed either ceiling, the real fix is chunking long recordings into
+  segments and stitching the timestamped transcript back together —
+  deliberately deferred to a beta-phase feature, not needed while
+  still developing against short test clips. Free tier is fine for
+  now. _Revisit_: before onboarding a real tenant with real
+  show-length recordings, or sooner if a 413 shows up again.
 
 ## How to use this document
 
