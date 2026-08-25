@@ -1,0 +1,25 @@
+{
+  // Belt-and-suspenders: markdownlint-cli2 is supposed to honor
+  // .gitignore's node_modules/ on its own, but adding this config file
+  // changed that in local testing — explicit ignore instead of trusting
+  // the default.
+  "ignores": ["**/node_modules/**"],
+  // docs.yml only started actually running against real content once this
+  // PR touched .md files for the first time — these two defaults conflict
+  // with deliberate, repo-wide conventions rather than catching real
+  // mistakes, so they're disabled here instead of reformatting content to
+  // satisfy them. Same conventions exist unmodified in the sibling repos
+  // (scenestealer-pipeline, scenestealer-connectors); revisit there too if
+  // their own docs.yml ever gets exercised.
+  "config": {
+    // AGENTS.md/CLAUDE.md deliberately open with "## Development", not an
+    // H1 — CLAUDE.md is a symlink to AGENTS.md, and neither is meant to
+    // read as a standalone document with its own title.
+    "MD041": false,
+    // PLAN.md's infra-choices table is genuinely wide (multi-sentence
+    // "Why" cells) — Markdown tables can't be soft-wrapped without
+    // breaking their syntax, so there's no fix short of gutting the
+    // table's content.
+    "MD013": false,
+  },
+}

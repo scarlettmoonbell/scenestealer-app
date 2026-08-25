@@ -1,6 +1,6 @@
 ## Development
 
-```
+```bash
 pnpm install
 pnpm dev          # turbo run dev — starts apps/web (Next.js) and apps/api
                    # (wrangler dev) together; apps/worker has no persistent

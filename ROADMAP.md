@@ -91,10 +91,11 @@ was the actual bug; the missing key just surfaced it.
   `Content-Type` from the client makes R2 see an unsigned header and
   reject the request. Documented directly in `r2.ts`'s comments, not
   just here, so it isn't rediscovered the hard way later.
-- **Environment finding, not a code bug**: `npx <tool>` and `pnpm run
-  <script>` both hung indefinitely (near-zero CPU, genuinely blocked, not
-  slow) for `eslint` specifically in this session, while the identical
-  `tsc`/`drizzle-kit` commands only needed `< /dev/null` to unstick.
+- **Environment finding, not a code bug**: both `npx <tool>` and a
+  `pnpm run`-invoked script hung indefinitely (near-zero CPU, genuinely
+  blocked, not slow) for `eslint` specifically in this session, while
+  the identical `tsc`/`drizzle-kit` commands only needed `< /dev/null`
+  to unstick.
   Root cause not fully isolated; workaround confirmed reliable: invoke
   the binary directly (`node_modules/.bin/eslint` or via `turbo run
   lint`, not `npx eslint`/`pnpm lint`). Also found `next build` hangs
@@ -102,7 +103,6 @@ was the actual bug; the missing key just surfaced it.
   (relying on turbo's normal cache invalidation) works fine. Neither is
   a config or code problem; noted here so the next session doesn't
   re-diagnose the same thing.
-  
 
 - **Separately, a real pre-existing gap fixed while investigating the
   above**: root `eslint.config.js` didn't exclude `next-env.d.ts`
@@ -264,7 +264,7 @@ unpinning.
   **Still a manual/pending step, same shape as the Clerk CLI note above**:
   `CLERK_WEBHOOK_SIGNING_SECRET` in `.dev.vars` right now is a locally
   generated synthetic secret, not one issued by Clerk — real webhook
-  *registration* (Clerk Dashboard → Webhooks → Add Endpoint, or
+  _registration_ (Clerk Dashboard → Webhooks → Add Endpoint, or
   eventually the Clerk CLI) needs a public HTTPS URL for `apps/api`, which
   doesn't exist until its first real deploy. Swap in the real secret via
   `wrangler secret put CLERK_WEBHOOK_SIGNING_SECRET` at that point.
@@ -326,7 +326,7 @@ unpinning.
   post-type, so those became new optional `youtube`/`instagram` fields —
   safe to add now since nothing consumes this interface yet.
   Covered by a real test suite (13 cases, mocking `fetch`) that caught an
-  actual bug before it shipped: settings validation ran *after* the
+  actual bug before it shipped: settings validation ran _after_ the
   media-upload network call instead of before, so invalid input still
   triggered an upload first. Fixed and re-verified green. See
   `scenestealer-connectors`' own README.md Status section for more.
@@ -345,7 +345,7 @@ unpinning.
 - **Done (2026-08-02): first real YouTube channel connected to Postiz** —
   `Integration` row confirmed in the DB (`providerIdentifier: "youtube"`,
   `disabled: false`). `YOUTUBE_CLIENT_ID`/`YOUTUBE_CLIENT_SECRET` were
-  already live as Fly secrets (done 2026-07-21), but three *additional*
+  already live as Fly secrets (done 2026-07-21), but three _additional_
   manual, non-scriptable steps in Google Cloud Console turned out to be
   required before a real channel-connect actually worked end-to-end — a
   human has to do each of these in Google's console, nothing here can
@@ -365,7 +365,7 @@ unpinning.
      403: access_denied`.
   3. **YouTube Data API v3 must be manually enabled** on the Cloud
      project backing the OAuth client — creating the OAuth client/
-     credentials does *not* enable the API itself. Without this, consent
+     credentials does _not_ enable the API itself. Without this, consent
      succeeds but Postiz's own channel lookup
      (`youtube.provider.ts`'s `channels.list`) fails with a `403
      accessNotConfigured` from Google, which surfaces in Postiz's UI as
@@ -503,30 +503,32 @@ unpinning.
   deserialization) plus ten HIGH CVEs (SSRF, DoS) while `next` was
   still on 15.2.3; getting to 15.4.11 (forced by an unrelated Clerk
   v7 bump requiring `next>=15.2.8`) already cleared the CRITICAL one
-  and one HIGH, both fixed at 15.2.6/15.2.7. The remaining nine HIGH
-  CVEs (full list and reasoning in `scenestealer-app/.trivyignore`)
-  all have fix floors at 15.5.x+, unreachable within the working
-  15.4.x line. This app defines no `"use server"` Server Actions of
-  its own, reducing the most direct exploitation path for what's
-  left. _Revisit_: the moment next-on-pages ships a release that
-  supports 15.5.x+, or sooner if real user traffic/data volume
+  and one HIGH, both fixed at 15.2.6/15.2.7. The remaining ten HIGH
+  CVEs (nine originally found, plus CVE-2026-44574 — authorization
+  bypass via crafted query — first caught 2026-08-25 when
+  security-scan actually ran end-to-end against a PR again; full list
+  and reasoning in `scenestealer-app/.trivyignore`) all have fix
+  floors at 15.5.x+, unreachable within the working 15.4.x line. This
+  app defines no `"use server"` Server Actions of its own, reducing
+  the most direct exploitation path for what's left. _Revisit_: the
+  moment next-on-pages ships a release that supports 15.5.x+, or
+  sooner if real user traffic/data volume
   changes the risk calculus.
-- **Found (2026-08-24): `apps/web` has no CI/CD deploy pipeline at
+- **Fixed (2026-08-24): `apps/web` had no CI/CD deploy pipeline at
   all**, despite `scenestealer-infra`'s `cloudflare.tf` comment
   claiming "the site repo's CI builds and pushes via
-  cloudflare/wrangler-action once checks pass" — `checks.yml` only
-  runs `on: pull_request` (typecheck/lint/format/build, no deploy
-  step), and no other workflow file in `.github/workflows/` deploys
-  anything. Concretely surfaced when a real push to `main` (the render
-  loop work) didn't show up live at scenestealer.app — the site had
-  been deployed manually at some earlier point and simply never
-  redeployed since. Worked around for now with a manual
-  `pnpm run pages:build && wrangler pages deploy .vercel/output/static
-  --project-name=scenestealer-web --branch=main` from `apps/web`.
-  _Revisit_: add a real `on: push: branches: [main]` deploy workflow
-  (or fix the infra repo's claim to match reality) before this bites
-  again — every future `apps/web` change needs this manual step until
-  then.
+  cloudflare/wrangler-action once checks pass" — `checks.yml` only ran
+  `on: pull_request` (typecheck/lint/format/build, no deploy step),
+  and no other workflow file deployed anything. Concretely surfaced
+  when a real push to `main` (the render loop work) didn't show up
+  live at scenestealer.app — the site had been deployed manually at
+  some earlier point and simply never redeployed since. Fixed for real
+  with a new `deploy.yml` (`on: push: branches: [main]`) that deploys
+  all three targets — `apps/web` (Pages), `apps/api` (Workers),
+  `apps/worker` (Fly) — each behind a shared `verify` job, using the
+  `CLOUDFLARE_API_TOKEN`/`CLOUDFLARE_ACCOUNT_ID`/`FLY_API_TOKEN` repo
+  secrets that already existed (provisioned but unused until now). See
+  `.github/workflows/README.md` for the full per-job breakdown.
 - **BSL 1.1 `LICENSE` text needs a legal read**, specifically the
   "Covenants of Licensor" clause's GPL-compatibility requirement on the
   Change License choice (Apache-2.0) — reproduced from the canonical
