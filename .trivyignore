@@ -18,6 +18,14 @@
 # Re-evaluate the moment next-on-pages ships a release that supports
 # 15.5.x+, or sooner if real user traffic/data volume changes the risk
 # calculus.
+#
+# CVE-2026-44574 (HIGH, authorization bypass via crafted query, fixed at
+# 15.5.16/16.2.5) added 2026-08-25 — same advisory batch as the ones
+# below (sequential CVE numbering), same fix floor, same reasoning.
+# First seen when security-scan actually ran end-to-end against a PR
+# again (see the deploy.yml PR) — nothing before this changed on the
+# Next.js side.
+CVE-2026-44574
 CVE-2026-44573
 CVE-2026-44575
 CVE-2026-44578

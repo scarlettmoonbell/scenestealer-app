@@ -11,7 +11,7 @@ monorepo and most changes touch more than one package).
   workspace, resolving the two sibling git dependencies —
   `@scenestealer/connectors` and `@scenestealer/pipeline` — via their own
   `prepare` build hooks), then `pnpm typecheck` / `pnpm lint` / `pnpm
-  format` / `pnpm build`, each via `turbo run <task>` so only affected
+format` / `pnpm build`, each via `turbo run <task>` so only affected
   packages actually re-run.
 - **security-scan** — Trivy filesystem scan (`CRITICAL,HIGH`, fails the
   job on a hit; documented exceptions live in `.trivyignore`).

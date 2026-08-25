@@ -51,7 +51,7 @@ independent of the SaaS wrapper.
 product, kept as one small internal `pnpm` + Turborepo workspace because these
 pieces deploy in lockstep and share job-payload/DB types:
 
-```
+```text
 scenestealer-app/
   apps/web    — Next.js dashboard (Cloudflare Pages): signup/org mgmt,
                  connection OAuth flows, clip review + scrubbing editor,
