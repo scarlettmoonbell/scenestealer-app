@@ -405,20 +405,45 @@ unpinning.
   repo and both `scenestealer-pipeline`/`scenestealer-connectors`) are
   in that day's commits — see the Accepted Gaps section below for the
   Groq file-size follow-up it also surfaced.
-- **Still open**: "Accept" currently only sets `clips.status =
-  "accepted"` — nothing renders or otherwise touches `renderedR2Key`,
-  so an accepted clip has no downstream effect yet and produces no
-  file a tenant could actually use. That's exactly Phase 5's job
-  (below), not a Phase 4 gap.
 - Manual "draw a fully new clip" (vs. only adjusting AI suggestions) is
   still not implemented — the editor only edits/accepts/rejects clips
   that already exist as rows.
 
-## 🗓 Phase 5 — Next: Templates + rendering
+## ✅ Phase 5 (partial) — Done (2026-08-24): `FfmpegRenderer` + render loop
 
-- Templating engine (caption variables) in `apps/web`/`apps/api`.
-- Implement `FfmpegRenderer` (platform-spec encode + face-tracked vertical
-  reframe) in `scenestealer-pipeline`.
+- **Done: `FfmpegRenderer`** in `scenestealer-pipeline`, replacing the
+  Phase 1 "not implemented" scaffold — trims a clip's in/out points,
+  center-crops to 9:16 for `instagram-reels` (h264, yuv420p, closed
+  GOP), leaves `youtube-full`'s source aspect untouched, validates
+  clip duration against the target platform spec before ever touching
+  ffmpeg. 5 new vitest tests (`child_process.execFile` mocked, matching
+  the package's established pattern).
+- **Done: the render job wiring**, same shape as Phase 4's `analyze`
+  job — `apps/worker`'s new `runRender(clipId)` downloads the source
+  video from R2, calls `FfmpegRenderer`, uploads the output to R2
+  under `<tenantId>/renders/<clipId>.mp4`, and flips the clip to
+  `status: "ready"` with `renderedR2Key` set (or back to `"accepted"`
+  on failure — never left stuck on `"rendering"`). `apps/api` gained
+  `POST /clips/:id/render` (proxies to the worker, same shape as
+  `POST /videos/:id/analyze`) and `GET /clips/:id/playback-url`
+  (presigned R2 GET for the rendered file, same shape as the existing
+  source-video playback-url route). `apps/web`'s clip editor now shows
+  a "Render" button on accepted clips (a separate, explicit action —
+  not auto-triggered by Accept, to avoid several concurrent ffmpeg
+  encodes contending on the worker's single small Fly instance) and a
+  "Get rendered clip" / download link once one's ready. Verified for
+  real: local CLI run against a real accepted clip, downloaded the
+  resulting R2 object and confirmed via `ffprobe` it's actually
+  2160x3840 (9:16) h264/yuv420p/aac, then redeployed both
+  `scenestealer-worker` (Fly) and `apps/api` (Workers) and smoke-tested
+  the live `/render` route's auth gate.
+- **Deferred to a beta-phase feature**: `smartReframe` (face-tracked
+  vertical reframe, vs. this pass's plain center-crop) — requesting it
+  throws explicitly rather than silently downgrading to a worse result.
+  Real face detection/tracking is a meaningfully bigger undertaking
+  than the mechanical encode/crop implemented here.
+- **Still open**: templating engine (caption variables) in
+  `apps/web`/`apps/api` — the rest of Phase 5.
 
 ## 🗓 Phase 6 — Next: Meta
 

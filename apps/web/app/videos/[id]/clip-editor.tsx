@@ -73,6 +73,54 @@ export function ClipEditor({
       .catch((e) => setError(`Failed to load video: ${describeFetchError(e)}`));
   }, [authedFetch, sourceVideoId]);
 
+  const [renderedUrls, setRenderedUrls] = useState<Record<string, string>>({});
+  const [renderingIds, setRenderingIds] = useState<Set<string>>(new Set());
+
+  const renderClip = useCallback(
+    async (clipId: string) => {
+      setRenderingIds((prev) => new Set(prev).add(clipId));
+      try {
+        const res = await authedFetch(`/clips/${clipId}/render`, {
+          method: "POST",
+        });
+        if (!res.ok) {
+          setError("Failed to render clip");
+          return;
+        }
+        const { clip } = (await res.json()) as { clip: Clip };
+        setClipList((prev) => prev.map((c) => (c.id === clip.id ? clip : c)));
+      } catch (e) {
+        setError(`Failed to render clip: ${describeFetchError(e)}`);
+      } finally {
+        setRenderingIds((prev) => {
+          const next = new Set(prev);
+          next.delete(clipId);
+          return next;
+        });
+      }
+    },
+    [authedFetch],
+  );
+
+  const fetchRenderedUrl = useCallback(
+    async (clipId: string) => {
+      try {
+        const res = await authedFetch(`/clips/${clipId}/playback-url`);
+        if (!res.ok) {
+          setError("Failed to load rendered clip");
+          return;
+        }
+        const { playbackUrl: url } = (await res.json()) as {
+          playbackUrl: string;
+        };
+        setRenderedUrls((prev) => ({ ...prev, [clipId]: url }));
+      } catch (e) {
+        setError(`Failed to load rendered clip: ${describeFetchError(e)}`);
+      }
+    },
+    [authedFetch],
+  );
+
   const updateClip = useCallback(
     async (
       clipId: string,
@@ -215,6 +263,34 @@ export function ClipEditor({
                 Reject
               </button>
             )}
+            {clip.status === "accepted" && (
+              <button
+                type="button"
+                disabled={renderingIds.has(clip.id)}
+                onClick={() => void renderClip(clip.id)}
+              >
+                {renderingIds.has(clip.id) ? "Rendering…" : "Render"}
+              </button>
+            )}
+            {clip.status === "rendering" && <span>Rendering…</span>}
+            {clip.status === "ready" &&
+              clip.renderedR2Key &&
+              (renderedUrls[clip.id] ? (
+                <a
+                  href={renderedUrls[clip.id]}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Download
+                </a>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => void fetchRenderedUrl(clip.id)}
+                >
+                  Get rendered clip
+                </button>
+              ))}
           </li>
         ))}
       </ul>

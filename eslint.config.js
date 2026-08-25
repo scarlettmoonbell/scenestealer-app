@@ -9,6 +9,7 @@ export default tseslint.config(
     ignores: [
       "**/dist/**",
       "**/.next/**",
+      "**/.vercel/**",
       "**/.turbo/**",
       "**/node_modules/**",
       // Next.js's own generated file (gitignored, see root .gitignore) --

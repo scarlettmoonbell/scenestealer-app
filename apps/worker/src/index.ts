@@ -6,6 +6,7 @@
 // the target shape once the Queue/Machines-API wiring exists.
 
 import { runAnalyze } from "./analyze.js";
+import { runRender } from "./render.js";
 
 async function main() {
   const jobType = process.env.JOB_TYPE;
@@ -19,9 +20,17 @@ async function main() {
       console.log(`Created ${result.clipsCreated} clip(s)`);
       break;
     }
+    case "render": {
+      const clipId = process.env.CLIP_ID;
+      if (!clipId) {
+        throw new Error("CLIP_ID env var is required for render");
+      }
+      const result = await runRender(clipId);
+      console.log(`Rendered clip to ${result.renderedR2Key}`);
+      break;
+    }
     case "ingest":
     case "transcribe":
-    case "render":
     case "publish":
       throw new Error(
         `not implemented — job type "${jobType}" (see README.md Status section)`,

@@ -1,5 +1,6 @@
 import { createServer } from "node:http";
 import { runAnalyze } from "./analyze.js";
+import { runRender } from "./render.js";
 
 // Always-on entrypoint for the Fly app deployment — see fly.toml. Deferred:
 // the full PLAN.md architecture (Cloudflare Queue -> Fly Machines API ->
@@ -28,7 +29,10 @@ const server = createServer(async (req, res) => {
     return;
   }
 
-  if (req.method !== "POST" || req.url !== "/analyze") {
+  if (
+    req.method !== "POST" ||
+    (req.url !== "/analyze" && req.url !== "/render")
+  ) {
     res.writeHead(404).end();
     return;
   }
@@ -40,18 +44,45 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  if (req.url === "/analyze") {
+    try {
+      const { sourceVideoId } = JSON.parse(await readBody(req)) as {
+        sourceVideoId?: string;
+      };
+      if (!sourceVideoId) {
+        res
+          .writeHead(400, { "content-type": "application/json" })
+          .end(JSON.stringify({ error: "sourceVideoId is required" }));
+        return;
+      }
+
+      const result = await runAnalyze(sourceVideoId);
+      res
+        .writeHead(200, { "content-type": "application/json" })
+        .end(JSON.stringify(result));
+    } catch (err) {
+      console.error(err);
+      res.writeHead(500, { "content-type": "application/json" }).end(
+        JSON.stringify({
+          error: err instanceof Error ? err.message : "Analysis failed",
+        }),
+      );
+    }
+    return;
+  }
+
   try {
-    const { sourceVideoId } = JSON.parse(await readBody(req)) as {
-      sourceVideoId?: string;
+    const { clipId } = JSON.parse(await readBody(req)) as {
+      clipId?: string;
     };
-    if (!sourceVideoId) {
+    if (!clipId) {
       res
         .writeHead(400, { "content-type": "application/json" })
-        .end(JSON.stringify({ error: "sourceVideoId is required" }));
+        .end(JSON.stringify({ error: "clipId is required" }));
       return;
     }
 
-    const result = await runAnalyze(sourceVideoId);
+    const result = await runRender(clipId);
     res
       .writeHead(200, { "content-type": "application/json" })
       .end(JSON.stringify(result));
@@ -59,7 +90,7 @@ const server = createServer(async (req, res) => {
     console.error(err);
     res.writeHead(500, { "content-type": "application/json" }).end(
       JSON.stringify({
-        error: err instanceof Error ? err.message : "Analysis failed",
+        error: err instanceof Error ? err.message : "Render failed",
       }),
     );
   }

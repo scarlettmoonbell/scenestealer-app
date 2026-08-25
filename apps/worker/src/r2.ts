@@ -31,3 +31,27 @@ export async function downloadFromR2(
   }
   return res.arrayBuffer();
 }
+
+export async function uploadToR2(
+  config: R2Config,
+  key: string,
+  body: Uint8Array,
+  contentType = "video/mp4",
+): Promise<void> {
+  const client = new AwsClient({
+    accessKeyId: config.accessKeyId,
+    secretAccessKey: config.secretAccessKey,
+    region: "auto",
+    service: "s3",
+  });
+
+  const url = `https://${config.accountId}.r2.cloudflarestorage.com/${config.bucket}/${key}`;
+  const res = await client.fetch(url, {
+    method: "PUT",
+    body,
+    headers: { "Content-Type": contentType },
+  });
+  if (!res.ok) {
+    throw new Error(`R2 upload failed for ${key}: ${res.status}`);
+  }
+}
