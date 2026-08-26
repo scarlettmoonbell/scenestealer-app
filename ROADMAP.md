@@ -450,6 +450,52 @@ unpinning.
 - **Submit Meta App Review** — should actually start in parallel with
   Phase 2, not wait until here; it's the single longest lead-time
   dependency in the whole project (2-4 weeks per submission).
+  - **Done (2026-08-25): the hard prerequisite Meta checks for before
+    letting an app request advanced permissions** — a live, linked
+    Privacy Policy and Terms of Service. Added `apps/web/app/privacy/`
+    and `apps/web/app/terms/`, footer-linked from every page. Both
+    reflect this project's actual architecture (real data flows, real
+    third-party processors, a dedicated section on exactly what
+    Instagram/Facebook data is requested and why — Meta reviewers
+    check that section specifically). **Needs a real legal read**
+    before fully relied on, same as this project's software license
+    (see the BSL entry below); Terms' "Governing law" section is a
+    placeholder pending that.
+  - **Blocking, not yet done**: `support@scenestealer.app` — the
+    contact address both new pages use — isn't a live mailbox yet.
+    Only DNS is provisioned; mailbox creation is a `scenestealer-infra`
+    Known Gap (its own ROADMAP.md Phase 4). Create it before actually
+    submitting for review, since reviewers can and do check that a
+    listed contact address works.
+  - **Exact requirements confirmed against Postiz's own docs**
+    (`docs.postiz.com/providers/facebook`,
+    `docs.postiz.com/providers/instagram`) — Postiz needs
+    `FACEBOOK_APP_ID`/`FACEBOOK_APP_SECRET` as Fly secrets on
+    `scenestealer-postiz` (the "Facebook Business" flow covers both
+    Facebook Pages and Instagram-via-linked-Business-account; no
+    separate Instagram app needed). Redirect URIs to register in the
+    Meta app's Facebook Login product:
+    `https://postiz.scenestealer.app/integrations/social/facebook` and
+    `https://postiz.scenestealer.app/integrations/social/instagram`.
+    Permissions to eventually request App Review for: `pages_show_list`,
+    `pages_manage_posts`, `pages_manage_engagement`,
+    `pages_read_engagement`, `read_insights`, `instagram_basic`,
+    `instagram_content_publish`, `instagram_manage_comments`,
+    `instagram_manage_insights`, `business_management`. (PLAN.md's
+    infra-choices table names the permission
+    `instagram_business_content_publish` — Meta has renamed Instagram
+    Graph API permissions before; double-check the current exact name
+    in the Meta dashboard at submission time rather than trusting
+    either doc.)
+  - **Still open, needs the account holder (not scriptable)**: create/
+    confirm a Meta Business Manager account, a Facebook Page for
+    SceneStealer, and an Instagram Professional account linked to that
+    Page; create the Meta developer app itself and add the redirect
+    URIs above; keep the app in Development mode with test users added
+    while assembling the review submission (mirrors the YouTube
+    OAuth-consent "Testing" status workaround below); record the
+    required demo screencast showing the actual accept-clip ->
+    render -> publish flow; then submit.
 - Wire IG/FB publish through Postiz once approved.
 
 ## 🗓 Phase 7 — Next: Scheduling, billing, polish
