@@ -1,4 +1,5 @@
 import { ClerkProvider } from "@clerk/nextjs";
+import Link from "next/link";
 import type { ReactNode } from "react";
 
 // Every route in this app is behind Clerk auth and per-tenant, so nothing
@@ -22,6 +23,19 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="en">
       <body>
         <ClerkProvider>{children}</ClerkProvider>
+        <footer
+          style={{
+            display: "flex",
+            gap: "1rem",
+            justifyContent: "center",
+            padding: "2rem 1rem",
+            fontSize: "0.85em",
+            opacity: 0.7,
+          }}
+        >
+          <Link href="/privacy">Privacy Policy</Link>
+          <Link href="/terms">Terms of Service</Link>
+        </footer>
       </body>
     </html>
   );
