@@ -129,11 +129,8 @@ export default function PrivacyPolicyPage() {
       <p>
         We retain your uploaded recordings and generated clips for as long as
         your account is active, so you can continue to review and publish from
-        them. If you close your account or ask us to delete your data, contact
-        us at{" "}
-        <a href="mailto:support@scenestealer.app">support@scenestealer.app</a>{" "}
-        and we will delete your stored recordings, clips, and connected platform
-        tokens.
+        them. See our <a href="/data-deletion">Data Deletion Instructions</a>{" "}
+        for how to request deletion of your data.
       </p>
 
       <h2>Data security</h2>
