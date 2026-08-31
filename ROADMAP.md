@@ -445,8 +445,13 @@ unpinning.
 - **Still open**: templating engine (caption variables) in
   `apps/web`/`apps/api` — the rest of Phase 5.
 
-## 🗓 Phase 6 — Next: Meta
+## 🗓 Phase 6 — Resumed (2026-08-31): Meta
 
+- **Resumed (2026-08-31)**: SceneStealer is now a registered LLC —
+  the entity blocker noted below (2026-08-27) is cleared. Meta
+  Business Verification can now use real business-name documents in
+  SceneStealer's own legal name. Everything below was already ready
+  to resume the moment this happened.
 - **Submit Meta App Review** — should actually start in parallel with
   Phase 2, not wait until here; it's the single longest lead-time
   dependency in the whole project (2-4 weeks per submission).
@@ -461,12 +466,12 @@ unpinning.
     before fully relied on, same as this project's software license
     (see the BSL entry below); Terms' "Governing law" section is a
     placeholder pending that.
-  - **Blocking, not yet done**: `support@scenestealer.app` — the
-    contact address both new pages use — isn't a live mailbox yet.
-    Only DNS is provisioned; mailbox creation is a `scenestealer-infra`
-    Known Gap (its own ROADMAP.md Phase 4). Create it before actually
-    submitting for review, since reviewers can and do check that a
-    listed contact address works.
+  - **Done (2026-08-27)**: `support@scenestealer.app` — the contact
+    address both new pages use — is a live, working mailbox; Migadu's
+    own DNS "Check Configuration" pass has also confirmed the MX/DKIM/
+    SPF/DMARC records in `scenestealer-infra` are correct. Both were
+    the last "reviewers can and do check this" prerequisites blocking
+    an actual submission, on top of the LLC itself.
   - **Exact requirements confirmed against Postiz's own docs**
     (`docs.postiz.com/providers/facebook`,
     `docs.postiz.com/providers/instagram`) — Postiz needs
