@@ -40,6 +40,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         >
           <Link href="/privacy">Privacy Policy</Link>
           <Link href="/terms">Terms of Service</Link>
+          <Link href="/data-deletion">Data Deletion</Link>
         </footer>
       </body>
     </html>
