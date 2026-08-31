@@ -16,6 +16,11 @@ export const runtime = "edge";
 export const metadata = {
   title: "SceneStealer",
   description: "Turn full-length show recordings into clips, automatically.",
+  // Meta's domain-verification step for the Facebook Page/app —
+  // proves control of scenestealer.app, doesn't grant Meta any access.
+  other: {
+    "facebook-domain-verification": "zdqliv5rchz1qpnarwxwktp9klsxvi",
+  },
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
