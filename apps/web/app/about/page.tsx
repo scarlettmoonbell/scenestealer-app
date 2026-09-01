@@ -29,7 +29,7 @@ export default function AboutPage() {
         Theater companies, dance companies, concert venues, comedy clubs &mdash;
         any organization that records live performances and wants an easier way
         to share the best of them on social media, without hiring an editor or
-        learning one.
+        learning to become one.
       </p>
 
       <h2 style={{ marginTop: "2rem" }}>Who&rsquo;s behind it</h2>
