@@ -1,6 +1,7 @@
 import { ClerkProvider } from "@clerk/nextjs";
 import Link from "next/link";
 import type { ReactNode } from "react";
+import "./globals.css";
 
 // Every route in this app is behind Clerk auth and per-tenant, so nothing
 // here should be statically prerendered — also sidesteps `next build`
@@ -38,6 +39,8 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             opacity: 0.7,
           }}
         >
+          <Link href="/about">About</Link>
+          <Link href="/contact">Contact</Link>
           <Link href="/privacy">Privacy Policy</Link>
           <Link href="/terms">Terms of Service</Link>
           <Link href="/data-deletion">Data Deletion</Link>

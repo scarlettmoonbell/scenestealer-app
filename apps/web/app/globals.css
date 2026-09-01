@@ -1,0 +1,125 @@
+@import url("https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,400;0,6..96,500;0,6..96,600;1,6..96,500&family=Work+Sans:wght@400;500;600;700&display=swap");
+
+/* Light is the default palette; dark applies via prefers-color-scheme,
+   overridable either direction with data-theme on <html> so a future
+   manual toggle has something to hook into. */
+:root {
+  --bg: #faf7f2;
+  --surface: #ffffff;
+  --surface-raised: #f3efe8;
+  --text: #1f1b24;
+  --muted: #6b6470;
+  --heading: #3d1f47;
+  --accent: #4f8ef7;
+  --accent-hover: #2f6fe0;
+  /* Text-on-light needs a darker blue than --accent to clear WCAG AA
+     (#4f8ef7 on white is ~3.1:1, even worse than the old #3b82f6);
+     dark mode's --accent already clears it against near-black, so
+     there it's just an alias. */
+  --accent-text: #1d4ed8;
+  --warm: #c97a12;
+  --border: rgba(61, 31, 71, 0.13);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0a0a0f;
+    --surface: #15151d;
+    --surface-raised: #1c1c26;
+    --text: #e4e4e9;
+    --muted: #9a9aa5;
+    --heading: #ffffff;
+    --accent: #4f8ef7;
+    --accent-hover: #6ea3fa;
+    --accent-text: #4f8ef7;
+    --warm: #f5b342;
+    --border: rgba(255, 255, 255, 0.09);
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #0a0a0f;
+  --surface: #15151d;
+  --surface-raised: #1c1c26;
+  --text: #e4e4e9;
+  --muted: #9a9aa5;
+  --heading: #ffffff;
+  --accent: #4f8ef7;
+  --accent-hover: #6ea3fa;
+  --accent-text: #4f8ef7;
+  --warm: #f5b342;
+  --border: rgba(255, 255, 255, 0.09);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Work Sans", system-ui, sans-serif;
+}
+
+h1,
+h2,
+h3 {
+  font-family: "Bodoni Moda", Georgia, serif;
+  color: var(--heading);
+  margin: 0;
+}
+
+p {
+  margin: 0;
+}
+
+a {
+  color: var(--accent-text);
+  text-decoration: none;
+}
+
+a:hover {
+  color: var(--accent-hover);
+}
+
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 52px;
+  padding: 0 28px;
+  border-radius: 8px;
+  border: none;
+  background: var(--accent);
+  /* Dark navy, not white/var(--text) — both --accent shades (light
+     #3b82f6, dark #4f8ef7) are too mid-bright for white text to clear
+     WCAG AA; this navy clears it against both. */
+  color: #0a1628;
+  font-family: "Work Sans", sans-serif;
+  font-weight: 600;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.btn-primary:hover {
+  background: var(--accent-hover);
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--heading);
+  font-size: 14px;
+  font-weight: 500;
+  background: var(--surface);
+}
