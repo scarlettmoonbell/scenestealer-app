@@ -7,6 +7,7 @@ import {
 } from "@clerk/nextjs";
 import { eq } from "drizzle-orm";
 import { createDb, tenants } from "@scenestealer/db";
+import { SiteHeader } from "./site-header";
 import { ThemedSignIn } from "./themed-sign-in";
 import { UploadPanel } from "./upload-panel";
 import { VideoList } from "./video-list";
@@ -84,35 +85,7 @@ const performanceTypes = [
 function SignedOutLanding() {
   return (
     <>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "center",
-          borderBottom: "1px solid var(--border)",
-        }}
-      >
-        <div
-          style={{
-            width: "100%",
-            maxWidth: 1160,
-            padding: "22px 24px",
-            display: "flex",
-            alignItems: "center",
-          }}
-        >
-          <span
-            style={{
-              fontFamily: "'Bodoni Moda', Georgia, serif",
-              fontSize: 22,
-              fontWeight: 600,
-              color: "var(--heading)",
-              letterSpacing: "0.3px",
-            }}
-          >
-            SceneStealer
-          </span>
-        </div>
-      </div>
+      <SiteHeader />
 
       <div style={{ display: "flex", justifyContent: "center" }}>
         <div
@@ -120,22 +93,23 @@ function SignedOutLanding() {
             width: "100%",
             maxWidth: 1160,
             padding: "56px 24px 80px",
-            display: "grid",
-            gridTemplateColumns: "minmax(0, 1fr)",
-            gap: 48,
-            alignItems: "center",
+            display: "flex",
+            flexDirection: "column",
+            gap: 40,
           }}
         >
-          <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-            <h1
-              style={{
-                fontSize: 42,
-                lineHeight: 1.12,
-                fontWeight: 500,
-              }}
-            >
-              Your show&rsquo;s best moments, ready to share
-            </h1>
+          <h1
+            style={{
+              fontSize: 42,
+              lineHeight: 1.12,
+              fontWeight: 500,
+              maxWidth: 720,
+            }}
+          >
+            Your show&rsquo;s best moments, ready to share
+          </h1>
+
+          <div className="hero-grid">
             <p
               style={{
                 fontSize: 18,
@@ -148,24 +122,27 @@ function SignedOutLanding() {
               approve them, and they go straight to YouTube, Instagram, and
               Facebook.
             </p>
-          </div>
 
-          <div
-            style={{
-              background: "var(--surface)",
-              border: "1px solid var(--border)",
-              borderRadius: 14,
-              padding: 28,
-              maxWidth: 420,
-            }}
-          >
-            <div style={{ marginBottom: 16 }}>
-              <h3 style={{ fontSize: 20, fontWeight: 500 }}>Sign in</h3>
-              <p style={{ fontSize: 14, color: "var(--muted)", marginTop: 6 }}>
-                Get started with your organization
-              </p>
+            <div
+              style={{
+                background: "var(--surface)",
+                border: "1px solid var(--border)",
+                borderRadius: 14,
+                padding: 28,
+                justifySelf: "end",
+                width: "100%",
+              }}
+            >
+              <div style={{ marginBottom: 16 }}>
+                <h3 style={{ fontSize: 20, fontWeight: 500 }}>Sign in</h3>
+                <p
+                  style={{ fontSize: 14, color: "var(--muted)", marginTop: 6 }}
+                >
+                  Get started with your organization
+                </p>
+              </div>
+              <ThemedSignIn />
             </div>
-            <ThemedSignIn />
           </div>
         </div>
       </div>
@@ -314,31 +291,16 @@ export default async function HomePage() {
       </Show>
 
       <Show when="signed-in">
-        <div style={{ maxWidth: 1160, margin: "0 auto", padding: "0 24px" }}>
-          <header
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              padding: "22px 0",
-            }}
-          >
-            <span
-              style={{
-                fontFamily: "'Bodoni Moda', Georgia, serif",
-                fontSize: 22,
-                fontWeight: 600,
-                color: "var(--heading)",
-              }}
-            >
-              SceneStealer
-            </span>
+        <SiteHeader
+          right={
             <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
               <OrganizationSwitcher hidePersonal />
               <UserButton />
             </div>
-          </header>
+          }
+        />
 
+        <div style={{ maxWidth: 1160, margin: "0 auto", padding: "24px" }}>
           {tenant ? (
             <>
               <UploadPanel />

@@ -22,6 +22,21 @@ export const metadata = {
   other: {
     "facebook-domain-verification": "zdqliv5rchz1qpnarwxwktp9klsxvi",
   },
+  icons: {
+    // Same two self-contained icon badges the header swaps between —
+    // media-matched so the tab icon follows the browser's own theme.
+    icon: [
+      {
+        url: "/logo-light.svg",
+        media: "(prefers-color-scheme: light)",
+      },
+      {
+        url: "/logo-dark.svg",
+        media: "(prefers-color-scheme: dark)",
+      },
+      { url: "/logo-light.svg" },
+    ],
+  },
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
