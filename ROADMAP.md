@@ -452,6 +452,11 @@ unpinning.
   Business Verification can now use real business-name documents in
   SceneStealer's own legal name. Everything below was already ready
   to resume the moment this happened.
+- **Done (2026-09-01): Meta Business Verification** — completed in
+  Meta Business Manager against SceneStealer's real LLC documents.
+  Clears the way for advanced access on the permissions listed below;
+  what's left is the account-holder setup, screencast, and reviewer
+  instructions noted further down.
 - **Submit Meta App Review** — should actually start in parallel with
   Phase 2, not wait until here; it's the single longest lead-time
   dependency in the whole project (2-4 weeks per submission).
