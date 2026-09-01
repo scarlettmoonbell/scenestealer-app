@@ -59,7 +59,9 @@ export function SiteHeader({ right }: { right?: ReactNode }) {
               letterSpacing: "0.3px",
             }}
           >
-            SceneStealer
+            Scene
+            {/* Matches the icon's accent blue. */}
+            <span style={{ color: "#4f8ef7" }}>Stealer</span>
           </span>
         </Link>
         {right}

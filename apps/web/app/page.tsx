@@ -117,7 +117,8 @@ function SignedOutLanding() {
               >
                 Upload the full recording. SceneStealer finds the highlights,
                 you approve them, and they go straight to YouTube, Instagram,
-                and Facebook.
+                and Facebook. Apply your own caption templates and schedule each
+                post for exactly when your audience is watching.
               </p>
             </div>
 
