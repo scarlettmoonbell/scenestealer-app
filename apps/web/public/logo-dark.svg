@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="SceneStealer dark mode app icon">
+  <defs>
+    <linearGradient id="brand" x1="180" y1="140" x2="840" y2="860" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4f8ef7"/>
+      <stop offset="0.58" stop-color="#7A67F8"/>
+      <stop offset="1" stop-color="#9E5CF4"/>
+    </linearGradient>
+    <linearGradient id="brandSoft" x1="230" y1="180" x2="780" y2="820" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#6AA0FA"/>
+      <stop offset="1" stop-color="#8B70F8"/>
+    </linearGradient>
+    
+  </defs>
+
+  <rect x="32" y="32" width="960" height="960" rx="220" fill="#071426" />
+  <rect x="45" y="45" width="934" height="934" rx="208" fill="none" stroke="url(#brandSoft)" stroke-width="6" opacity="0.28"/>
+
+  <!-- Squirrel silhouette -->
+  <g fill="none" stroke="url(#brand)" stroke-linecap="round" stroke-linejoin="round">
+    <!-- tail -->
+    <path d="M392 612
+             C261 609 176 533 176 415
+             C176 325 231 263 309 260
+             C386 257 431 309 427 376
+             C423 437 373 469 324 475
+             C352 426 351 384 319 360
+             C286 335 242 346 202 383
+             C213 278 296 202 402 204
+             C510 205 572 281 557 376
+             C545 454 487 505 430 548
+             C395 574 378 595 392 612" stroke-width="38"/>
+    <!-- body/head profile -->
+    <path d="M401 613
+             C389 554 411 507 454 473
+             C504 433 539 402 548 357
+             L535 312
+             L561 270
+             L555 202
+             L602 245
+             L624 187
+             L646 249
+             C711 260 767 305 786 359
+             C800 398 786 430 752 452
+             C731 466 702 472 674 473
+             C655 488 648 510 653 532
+             C626 545 607 566 597 594
+             C560 621 502 638 446 632
+             C426 630 411 623 401 613" stroke-width="34"/>
+    <!-- eye -->
+    <circle cx="685" cy="350" r="15" fill="url(#brand)" stroke="none"/>
+    <!-- front paw -->
+    <path d="M454 552 C475 569 502 580 529 579" stroke-width="30"/>
+  </g>
+
+  <!-- Clapperboard -->
+  <g stroke="url(#brand)" stroke-width="24" stroke-linejoin="round">
+    <rect x="520" y="520" width="292" height="193" rx="30" fill="none"/>
+    <path d="M497 505 L801 448 L815 509 L515 565 Z" fill="none"/>
+    <path d="M548 496 L582 538 M621 482 L657 525 M697 468 L732 512 M772 455 L806 497" fill="none" stroke-width="18"/>
+  </g>
+
+  <!-- Brand name -->
+  <text x="666" y="643" text-anchor="middle" font-family="Inter, SF Pro Display, Helvetica Neue, Arial, sans-serif" font-size="52" font-weight="800" letter-spacing="-2">
+    <tspan fill="#F7FAFF">Scene</tspan><tspan fill="#4f8ef7">Stealer</tspan>
+  </text>
+
+  <!-- Performance category row -->
+  <g transform="translate(0,28)">
+    <line x1="362" y1="760" x2="362" y2="886" stroke="#4f8ef7" stroke-width="6" opacity="0.72"/>
+    <line x1="662" y1="760" x2="662" y2="886" stroke="#4f8ef7" stroke-width="6" opacity="0.72"/>
+
+    <!-- theater masks -->
+    <g fill="none" stroke="url(#brand)" stroke-width="15" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M148 783 L247 767 L257 833 C260 877 229 906 190 900 C154 895 132 861 139 824 Z"/>
+      <path d="M225 799 L300 820 L285 879 C275 913 239 928 207 909" opacity="0.85"/>
+      <path d="M170 827 Q184 815 198 827 M216 820 Q230 808 243 820 M169 855 Q199 882 232 851"/>
+      <path d="M241 851 Q255 837 270 850 M234 882 Q252 865 270 883"/>
+    </g>
+
+    <!-- microphone -->
+    <g fill="none" stroke="url(#brand)" stroke-width="16" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="463" y="776" width="73" height="117" rx="36" transform="rotate(38 499.5 834.5)"/>
+      <path d="M477 871 L439 913 M421 912 H500"/>
+    </g>
+
+    <!-- music/guitar -->
+    <g fill="none" stroke="url(#brand)" stroke-width="15" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M771 825 C742 807 710 815 697 840 C684 864 701 890 729 897 C749 902 765 893 777 877
+               C789 892 814 895 833 881 C857 863 851 831 829 817 C808 805 786 812 771 825 Z"/>
+      <circle cx="772" cy="854" r="13"/>
+      <path d="M804 820 L867 757 M847 763 L881 797"/>
+      <path d="M876 769 L891 753"/>
+      <path d="M892 803 V753 M892 753 C919 748 925 770 906 779"/>
+    </g>
+  </g>
+
+  <!-- tiny accessibility-safe visual polish -->
+  <circle cx="821" cy="447" r="10" fill="#4f8ef7"/>
+</svg>

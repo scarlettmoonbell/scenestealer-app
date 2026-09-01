@@ -123,3 +123,68 @@ a:hover {
   font-weight: 500;
   background: var(--surface);
 }
+
+/* The "Dark" logo variant is a badge with its own dark background —
+   shown against light mode; the "Light" variant against dark mode,
+   so the badge always contrasts against the page around it. */
+.logo-dark {
+  display: none;
+}
+
+.logo-light {
+  display: block;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .logo-light {
+    display: none;
+  }
+
+  :root:not([data-theme="light"]) .logo-dark {
+    display: block;
+  }
+}
+
+:root[data-theme="dark"] .logo-light {
+  display: none;
+}
+
+:root[data-theme="dark"] .logo-dark {
+  display: block;
+}
+
+.hero-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 40px;
+  align-items: start;
+}
+
+@media (min-width: 860px) {
+  .hero-grid {
+    grid-template-columns: minmax(0, 1fr) 420px;
+    align-items: center;
+  }
+}
+
+/* Clerk generates its own CSS-in-JS at runtime, injected after this
+   stylesheet in <head> — on an !important tie, source order decides,
+   and theirs loses last. Qualifying with the .cl-rootBox ancestor
+   bumps specificity so ours wins outright instead of relying on
+   load order. Covers .cl-card's default width (wider than our
+   container) and the near-invisible default button border. */
+.cl-rootBox.cl-rootBox .cl-cardBox,
+.cl-rootBox.cl-rootBox .cl-card {
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+/* Literal hex, not var(--accent): Clerk defines its own same-named
+   --accent custom property scoped to these buttons, which would win
+   over ours regardless of !important (custom property resolution
+   isn't affected by !important on the declaration that reads it). */
+.cl-rootBox.cl-rootBox .cl-formButtonPrimary,
+.cl-rootBox.cl-rootBox .cl-socialButtonsIconButton,
+.cl-rootBox.cl-rootBox .cl-socialButtonsBlockButton {
+  border: 1.5px solid #4f8ef7 !important;
+}
