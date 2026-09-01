@@ -502,6 +502,26 @@ unpinning.
     required demo screencast showing the actual accept-clip ->
     render -> publish flow; then submit.
 - Wire IG/FB publish through Postiz once approved.
+  - **Design confirmed (2026-08-31), not yet built**: how a tenant
+    connects their own Facebook/Instagram account without ever
+    touching Postiz's own UI — confirmed directly against Postiz's
+    public API docs. `apps/api` calls Postiz's
+    `GET /social/{integration}` (e.g. `/social/facebook`,
+    `/social/instagram`), gets back `{ url }`, and redirects the
+    tenant's browser straight there; they authenticate with their own
+    account and land back through the callback URIs already
+    registered with Meta. Postiz's own "customers" grouping feature
+    exists but its docs don't confirm it's a real access boundary
+    (reads as calendar/sidebar organization, not enforcement) — real
+    tenant isolation stays where it already lives: the `socialConnections`
+    table (`tenantId` + `postizIntegrationId`) and `apps/api`'s
+    ownership checks, same pattern as every other per-tenant resource
+    in this app. **Still needs investigating before building**: exactly
+    how `apps/api` reliably identifies _which_ new Postiz integration
+    a given tenant's connect flow produced (a `state` param, a
+    pre-known ID, a before/after diff against `GET /integrations`) —
+    not yet verified against Postiz's fuller docs, don't assume a
+    mechanism without checking.
 
 ## 🗓 Phase 7 — Next: Scheduling, billing, polish
 
