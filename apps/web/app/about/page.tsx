@@ -34,10 +34,10 @@ export default function AboutPage() {
 
       <h2 style={{ marginTop: "2rem" }}>Who&rsquo;s behind it</h2>
       <p style={{ marginTop: "1rem" }}>
-        <Brand /> was founded by Scarlett Bell, an improviser from Austin, TX
-        with a determination to remove toil and automate everything. The goal
-        from day one: make this process easy &mdash; and maybe even a little
-        fun.
+        <Brand /> was founded by Scarlett Bell, an improviser and director from
+        Austin, TX with a determination to remove toil and automate everything.
+        The goal from day one: make this process easy &mdash; and maybe even a
+        little fun.
       </p>
 
       <h2 style={{ marginTop: "2rem" }}>Get in touch</h2>
