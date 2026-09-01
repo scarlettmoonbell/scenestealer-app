@@ -17,18 +17,19 @@ export default function PrivacyPolicyPage() {
 
       <p>
         SceneStealer (&ldquo;we,&rdquo; &ldquo;us&rdquo;) provides software that
-        helps live-theater operators turn full-length show recordings into short
-        highlight clips for social media. This policy explains what data we
-        collect, why, and how you can control it.
+        helps live-performance operators turn full-length show recordings into
+        short highlight clips for social media. This policy explains what data
+        we collect, why, and how you can control it.
       </p>
 
       <h2>Who this applies to</h2>
       <p>
         SceneStealer is a business-to-business product. Our customers
-        (&ldquo;tenants&rdquo;) are theater companies and similar organizations;
-        each tenant&rsquo;s own staff are the people who sign in and use the
-        product. This policy covers both tenants and the individual people who
-        use a tenant&rsquo;s account.
+        (&ldquo;tenants&rdquo;) are theater companies, dance companies, concert
+        venues, and similar live-performance organizations; each tenant&rsquo;s
+        own staff are the people who sign in and use the product. This policy
+        covers both tenants and the individual people who use a tenant&rsquo;s
+        account.
       </p>
 
       <h2>What we collect</h2>

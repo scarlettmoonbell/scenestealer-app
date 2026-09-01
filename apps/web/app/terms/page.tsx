@@ -29,7 +29,7 @@ export default function TermsOfServicePage() {
 
       <h2>Accounts</h2>
       <p>
-        Accounts are organized by tenant (typically one per theater company or
+        Accounts are organized by tenant (typically one per live-performance
         organization). You&rsquo;re responsible for the people you invite into
         your organization and for keeping your account credentials secure.
       </p>
