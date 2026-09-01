@@ -1,3 +1,5 @@
+import { Brand } from "../brand-name";
+
 export const metadata = {
   title: "Privacy Policy — SceneStealer",
 };
@@ -16,7 +18,7 @@ export default function PrivacyPolicyPage() {
       </p>
 
       <p>
-        SceneStealer (&ldquo;we,&rdquo; &ldquo;us&rdquo;) provides software that
+        <Brand /> (&ldquo;we,&rdquo; &ldquo;us&rdquo;) provides software that
         helps live-performance operators turn full-length show recordings into
         short highlight clips for social media. This policy explains what data
         we collect, why, and how you can control it.
@@ -24,7 +26,7 @@ export default function PrivacyPolicyPage() {
 
       <h2>Who this applies to</h2>
       <p>
-        SceneStealer is a business-to-business product. Our customers
+        <Brand /> is a business-to-business product. Our customers
         (&ldquo;tenants&rdquo;) are theater companies, dance companies, concert
         venues, and similar live-performance organizations; each tenant&rsquo;s
         own staff are the people who sign in and use the product. This policy
@@ -72,8 +74,8 @@ export default function PrivacyPolicyPage() {
 
       <h2>Third-party service providers</h2>
       <p>
-        We rely on the following providers to run SceneStealer. Each only
-        receives the data it needs to perform its specific function:
+        We rely on the following providers to run <Brand />. Each only receives
+        the data it needs to perform its specific function:
       </p>
       <ul>
         <li>
@@ -118,12 +120,12 @@ export default function PrivacyPolicyPage() {
         We do not request or access your personal messages, contacts, friends
         list, or any content beyond what&rsquo;s needed to publish the clips you
         approve. We do not post anything to your connected accounts unless
-        you&rsquo;ve explicitly triggered that publish action in SceneStealer.
+        you&rsquo;ve explicitly triggered that publish action in <Brand />.
       </p>
       <p>
-        You can disconnect a connected account at any time from within
-        SceneStealer, which revokes our access token immediately. You can also
-        revoke access directly from your Meta account&rsquo;s settings.
+        You can disconnect a connected account at any time from within <Brand />
+        , which revokes our access token immediately. You can also revoke access
+        directly from your Meta account&rsquo;s settings.
       </p>
 
       <h2>Data retention and deletion</h2>
@@ -143,8 +145,8 @@ export default function PrivacyPolicyPage() {
 
       <h2>Children&rsquo;s privacy</h2>
       <p>
-        SceneStealer is a business tool and is not directed at, or knowingly
-        used by, children under 13.
+        <Brand /> is a business tool and is not directed at, or knowingly used
+        by, children under 13.
       </p>
 
       <h2>Changes to this policy</h2>
