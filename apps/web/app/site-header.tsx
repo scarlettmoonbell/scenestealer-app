@@ -18,7 +18,7 @@ export function SiteHeader({ right }: { right?: ReactNode }) {
         style={{
           width: "100%",
           maxWidth: 1160,
-          padding: "18px 24px",
+          padding: "22px 24px",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
@@ -38,23 +38,23 @@ export function SiteHeader({ right }: { right?: ReactNode }) {
           <img
             src="/logo-light.svg"
             alt=""
-            width={44}
-            height={44}
+            width={58}
+            height={58}
             className="logo-light"
-            style={{ borderRadius: 10 }}
+            style={{ borderRadius: 13 }}
           />
           <img
             src="/logo-dark.svg"
             alt=""
-            width={44}
-            height={44}
+            width={58}
+            height={58}
             className="logo-dark"
-            style={{ borderRadius: 10 }}
+            style={{ borderRadius: 13 }}
           />
           <span
             style={{
               fontFamily: "'Bodoni Moda', Georgia, serif",
-              fontSize: 28,
+              fontSize: 36,
               fontWeight: 600,
               letterSpacing: "0.3px",
             }}
