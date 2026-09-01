@@ -34,6 +34,11 @@ pipx && pipx install pre-commit`), then activate once per clone:
 
 ## Documentation
 
+- [`.conventions/CONVENTIONS.md`](.conventions/CONVENTIONS.md),
+  [`.conventions/DEVOPS.md`](.conventions/DEVOPS.md),
+  [`.conventions/INTERFACE.md`](.conventions/INTERFACE.md) — this
+  account's cross-project engineering conventions; read before starting
+  any nontrivial work.
 - [Next.js App Router docs](https://nextjs.org/docs) — `apps/web`.
 - [Clerk + Next.js docs](https://clerk.com/docs/quickstarts/nextjs) —
   auth/Organizations wiring in `apps/web`.
