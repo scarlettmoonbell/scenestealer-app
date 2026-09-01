@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { Brand } from "./brand-name";
 
 // Two logo variants ship as static assets (self-contained square badges,
 // each with its own background) — swapping which one is visible is done
@@ -59,9 +60,7 @@ export function SiteHeader({ right }: { right?: ReactNode }) {
               letterSpacing: "0.3px",
             }}
           >
-            Scene
-            {/* Matches the icon's accent blue. */}
-            <span style={{ color: "#4f8ef7" }}>Stealer</span>
+            <Brand />
           </span>
         </Link>
         {right}

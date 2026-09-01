@@ -7,72 +7,12 @@ import {
 } from "@clerk/nextjs";
 import { eq } from "drizzle-orm";
 import { createDb, tenants } from "@scenestealer/db";
+import { Brand } from "./brand-name";
+import { LandingTabs } from "./landing-tabs";
 import { SiteHeader } from "./site-header";
 import { ThemedSignIn } from "./themed-sign-in";
 import { UploadPanel } from "./upload-panel";
 import { VideoList } from "./video-list";
-
-const steps = [
-  {
-    title: "Upload your recording",
-    body: "Drop in the full-length video of your show — any length, no prep needed.",
-    icon: (
-      <svg
-        width="26"
-        height="26"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <path d="M12 16V4" />
-        <path d="M7 9l5-5 5 5" />
-        <path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" />
-      </svg>
-    ),
-  },
-  {
-    title: "We find the highlights",
-    body: "Scene detection and audience-reaction analysis surface the moments worth sharing.",
-    icon: (
-      <svg
-        width="26"
-        height="26"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <path d="M12 3v4M12 17v4M3 12h4M17 12h4" />
-        <path d="M6.5 6.5l2 2M15.5 15.5l2 2M17.5 6.5l-2 2M8.5 15.5l-2 2" />
-      </svg>
-    ),
-  },
-  {
-    title: "Review, then publish",
-    body: "Approve the clips you want. Publish straight to your connected accounts.",
-    icon: (
-      <svg
-        width="26"
-        height="26"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <path d="M14 3h7v7" />
-        <path d="M21 3l-9 9" />
-        <path d="M19 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h6" />
-      </svg>
-    ),
-  },
-];
 
 const performanceTypes = [
   "Theater",
@@ -115,9 +55,9 @@ function SignedOutLanding() {
                   maxWidth: 520,
                 }}
               >
-                Upload the full recording. SceneStealer finds the highlights,
-                you approve them, and they go straight to YouTube, Instagram,
-                and Facebook. Apply your own caption templates and schedule each
+                Upload the full recording. <Brand /> finds the highlights, you
+                approve them, and they go straight to YouTube, Instagram, and
+                Facebook. Apply your own caption templates and schedule each
                 post for exactly when your audience is watching.
               </p>
             </div>
@@ -146,81 +86,7 @@ function SignedOutLanding() {
         </div>
       </div>
 
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "center",
-          background: "var(--surface)",
-        }}
-      >
-        <div style={{ width: "100%", maxWidth: 1160, padding: "72px 24px" }}>
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: 10,
-              marginBottom: 40,
-              maxWidth: 560,
-            }}
-          >
-            <span
-              style={{
-                fontSize: 13,
-                fontWeight: 600,
-                letterSpacing: "0.08em",
-                textTransform: "uppercase",
-                color: "var(--accent-text)",
-              }}
-            >
-              How it works
-            </span>
-            <h2 style={{ fontSize: 30, fontWeight: 500 }}>
-              From full recording to social-ready clip
-            </h2>
-          </div>
-
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-              gap: 32,
-            }}
-          >
-            {steps.map((step) => (
-              <div
-                key={step.title}
-                style={{ display: "flex", flexDirection: "column", gap: 16 }}
-              >
-                <div
-                  style={{
-                    width: 48,
-                    height: 48,
-                    borderRadius: 10,
-                    background: "var(--surface-raised)",
-                    border: "1px solid var(--border)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: "var(--accent-text)",
-                  }}
-                >
-                  {step.icon}
-                </div>
-                <h3 style={{ fontSize: 18, fontWeight: 500 }}>{step.title}</h3>
-                <p
-                  style={{
-                    fontSize: 15,
-                    lineHeight: 1.6,
-                    color: "var(--muted)",
-                  }}
-                >
-                  {step.body}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
+      <LandingTabs />
 
       <div style={{ display: "flex", justifyContent: "center" }}>
         <div
@@ -247,7 +113,7 @@ function SignedOutLanding() {
             }}
           >
             Theater. Dance. Concerts. Comedy. If it&rsquo;s performed live and
-            recorded, SceneStealer turns it into clips worth sharing.
+            recorded, <Brand /> turns it into clips worth sharing.
           </p>
           <div
             style={{

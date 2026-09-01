@@ -1,3 +1,5 @@
+import { Brand } from "../brand-name";
+
 export const metadata = {
   title: "Terms of Service — SceneStealer",
 };
@@ -14,14 +16,14 @@ export default function TermsOfServicePage() {
       </p>
 
       <p>
-        These terms govern your use of SceneStealer. By creating an organization
-        or using the service, you agree to them on behalf of yourself and, if
+        These terms govern your use of <Brand />. By creating an organization or
+        using the service, you agree to them on behalf of yourself and, if
         applicable, the organization you represent.
       </p>
 
       <h2>The service</h2>
       <p>
-        SceneStealer lets you upload full-length recordings, review AI-suggested
+        <Brand /> lets you upload full-length recordings, review AI-suggested
         highlight clips, accept or reject them, render accepted clips for
         specific platforms, and publish them to social and video platforms you
         choose to connect.
@@ -45,13 +47,15 @@ export default function TermsOfServicePage() {
       </p>
 
       <h2>Acceptable use</h2>
-      <p>You agree not to use SceneStealer to:</p>
+      <p>
+        You agree not to use <Brand /> to:
+      </p>
       <ul>
         <li>Upload or publish content you don&rsquo;t have the rights to.</li>
         <li>
-          Violate the terms of any third-party platform you connect through
-          SceneStealer (YouTube, Instagram, Facebook, and others as
-          they&rsquo;re added).
+          Violate the terms of any third-party platform you connect through{" "}
+          <Brand /> (YouTube, Instagram, Facebook, and others as they&rsquo;re
+          added).
         </li>
         <li>
           Attempt to disrupt, reverse-engineer, or gain unauthorized access to
@@ -77,15 +81,15 @@ export default function TermsOfServicePage() {
 
       <h2>Disclaimers</h2>
       <p>
-        SceneStealer is provided &ldquo;as is.&rdquo; AI-generated clip
-        suggestions are exactly that &mdash; suggestions for your review, not
-        guaranteed to be accurate or complete. You&rsquo;re responsible for
-        reviewing any clip before accepting or publishing it.
+        <Brand /> is provided &ldquo;as is.&rdquo; AI-generated clip suggestions
+        are exactly that &mdash; suggestions for your review, not guaranteed to
+        be accurate or complete. You&rsquo;re responsible for reviewing any clip
+        before accepting or publishing it.
       </p>
 
       <h2>Limitation of liability</h2>
       <p>
-        To the extent permitted by law, SceneStealer is not liable for indirect,
+        To the extent permitted by law, <Brand /> is not liable for indirect,
         incidental, or consequential damages arising from your use of the
         service.
       </p>

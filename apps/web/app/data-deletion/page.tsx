@@ -1,3 +1,5 @@
+import { Brand } from "../brand-name";
+
 export const metadata = {
   title: "Data Deletion Instructions — SceneStealer",
 };
@@ -15,7 +17,7 @@ export default function DataDeletionPage() {
       </p>
 
       <p>
-        You can request deletion of your data from SceneStealer at any time.
+        You can request deletion of your data from <Brand /> at any time.
       </p>
 
       <h2>How to request deletion</h2>
@@ -52,8 +54,8 @@ export default function DataDeletionPage() {
       <h2>Disconnecting a platform without deleting everything</h2>
       <p>
         If you only want to revoke our access to a connected Instagram or
-        Facebook account &mdash; without deleting your other SceneStealer data
-        &mdash; you can disconnect it from within SceneStealer, or revoke access
+        Facebook account &mdash; without deleting your other <Brand /> data
+        &mdash; you can disconnect it from within <Brand />, or revoke access
         directly from your Meta account&rsquo;s settings. Either way takes
         effect immediately.
       </p>

@@ -1,3 +1,5 @@
+import { Brand } from "../brand-name";
+
 export const metadata = {
   title: "About — SceneStealer",
 };
@@ -5,15 +7,17 @@ export const metadata = {
 export default function AboutPage() {
   return (
     <main style={{ maxWidth: 720, margin: "0 auto", padding: "2rem 1rem" }}>
-      <h1>About SceneStealer</h1>
+      <h1>
+        About <Brand />
+      </h1>
       <p style={{ marginTop: "1rem" }}>
-        SceneStealer turns full-length live-performance recordings into short,
+        <Brand /> turns full-length live-performance recordings into short,
         share-ready highlight clips.
       </p>
 
       <h2 style={{ marginTop: "2rem" }}>What we do</h2>
       <p style={{ marginTop: "1rem" }}>
-        Upload a full recording of a show, concert, or performance. SceneStealer
+        Upload a full recording of a show, concert, or performance. <Brand />{" "}
         automatically finds the moments worth sharing &mdash; scene changes,
         audience reactions, standout beats &mdash; and gets them ready to
         publish. Review the suggestions, approve the ones you want, and publish
