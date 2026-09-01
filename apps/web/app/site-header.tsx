@@ -38,23 +38,23 @@ export function SiteHeader({ right }: { right?: ReactNode }) {
           <img
             src="/logo-light.svg"
             alt=""
-            width={32}
-            height={32}
+            width={44}
+            height={44}
             className="logo-light"
-            style={{ borderRadius: 8 }}
+            style={{ borderRadius: 10 }}
           />
           <img
             src="/logo-dark.svg"
             alt=""
-            width={32}
-            height={32}
+            width={44}
+            height={44}
             className="logo-dark"
-            style={{ borderRadius: 8 }}
+            style={{ borderRadius: 10 }}
           />
           <span
             style={{
               fontFamily: "'Bodoni Moda', Georgia, serif",
-              fontSize: 22,
+              fontSize: 28,
               fontWeight: 600,
               letterSpacing: "0.3px",
             }}
