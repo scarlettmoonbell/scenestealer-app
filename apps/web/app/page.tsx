@@ -93,35 +93,33 @@ function SignedOutLanding() {
             width: "100%",
             maxWidth: 1160,
             padding: "56px 24px 80px",
-            display: "flex",
-            flexDirection: "column",
-            gap: 40,
           }}
         >
-          <h1
-            style={{
-              fontSize: 42,
-              lineHeight: 1.12,
-              fontWeight: 500,
-              maxWidth: 720,
-            }}
-          >
-            Your show&rsquo;s best moments, ready to share
-          </h1>
-
           <div className="hero-grid">
-            <p
-              style={{
-                fontSize: 18,
-                lineHeight: 1.55,
-                color: "var(--muted)",
-                maxWidth: 520,
-              }}
-            >
-              Upload the full recording. SceneStealer finds the highlights, you
-              approve them, and they go straight to YouTube, Instagram, and
-              Facebook.
-            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+              <h1
+                style={{
+                  fontSize: 42,
+                  lineHeight: 1.12,
+                  fontWeight: 500,
+                  maxWidth: 520,
+                }}
+              >
+                Your show&rsquo;s best moments, ready to share
+              </h1>
+              <p
+                style={{
+                  fontSize: 18,
+                  lineHeight: 1.55,
+                  color: "var(--muted)",
+                  maxWidth: 520,
+                }}
+              >
+                Upload the full recording. SceneStealer finds the highlights,
+                you approve them, and they go straight to YouTube, Instagram,
+                and Facebook.
+              </p>
+            </div>
 
             <div
               style={{
