@@ -1,15 +1,9 @@
 import { auth } from "@clerk/nextjs/server";
-import {
-  CreateOrganization,
-  OrganizationSwitcher,
-  Show,
-  UserButton,
-} from "@clerk/nextjs";
+import { CreateOrganization, Show } from "@clerk/nextjs";
 import { eq } from "drizzle-orm";
 import { createDb, tenants } from "@scenestealer/db";
 import { Brand } from "./brand-name";
 import { LandingTabs } from "./landing-tabs";
-import { SiteHeader } from "./site-header";
 import { ThemedSignIn } from "./themed-sign-in";
 import { UploadPanel } from "./upload-panel";
 import { VideoList } from "./video-list";
@@ -25,8 +19,6 @@ const performanceTypes = [
 function SignedOutLanding() {
   return (
     <>
-      <SiteHeader />
-
       <div style={{ display: "flex", justifyContent: "center" }}>
         <div
           style={{
@@ -156,15 +148,6 @@ export default async function HomePage() {
       </Show>
 
       <Show when="signed-in">
-        <SiteHeader
-          right={
-            <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-              <OrganizationSwitcher hidePersonal />
-              <UserButton />
-            </div>
-          }
-        />
-
         <div style={{ maxWidth: 1160, margin: "0 auto", padding: "24px" }}>
           {tenant ? (
             <>
