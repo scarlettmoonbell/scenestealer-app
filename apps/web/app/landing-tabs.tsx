@@ -127,6 +127,8 @@ function WhySceneStealer() {
         flexDirection: "column",
         gap: 16,
         maxWidth: 640,
+        margin: "0 auto",
+        textAlign: "center",
       }}
     >
       <p style={{ fontSize: 16, lineHeight: 1.6, color: "var(--muted)" }}>
@@ -150,8 +152,11 @@ function WhatYouNeed() {
       style={{
         display: "flex",
         flexDirection: "column",
+        alignItems: "center",
         gap: 20,
         maxWidth: 640,
+        margin: "0 auto",
+        textAlign: "center",
       }}
     >
       <p style={{ fontSize: 16, lineHeight: 1.6, color: "var(--muted)" }}>
@@ -176,6 +181,7 @@ function WhatYouNeed() {
               gridTemplateColumns: "200px 1fr",
               gap: 12,
               alignItems: "baseline",
+              textAlign: "left",
             }}
           >
             <span style={{ fontWeight: 600, color: "var(--heading)" }}>

@@ -1,7 +1,13 @@
-import { ClerkProvider } from "@clerk/nextjs";
+import {
+  ClerkProvider,
+  OrganizationSwitcher,
+  Show,
+  UserButton,
+} from "@clerk/nextjs";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import "./globals.css";
+import { SiteHeader } from "./site-header";
 
 // Every route in this app is behind Clerk auth and per-tenant, so nothing
 // here should be statically prerendered — also sidesteps `next build`
@@ -43,7 +49,19 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <body>
-        <ClerkProvider>{children}</ClerkProvider>
+        <ClerkProvider>
+          <SiteHeader
+            right={
+              <Show when="signed-in">
+                <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                  <OrganizationSwitcher hidePersonal />
+                  <UserButton />
+                </div>
+              </Show>
+            }
+          />
+          {children}
+        </ClerkProvider>
         <footer
           style={{
             display: "flex",
