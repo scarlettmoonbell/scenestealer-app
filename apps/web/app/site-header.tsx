@@ -29,7 +29,7 @@ export function SiteHeader({ right }: { right?: ReactNode }) {
           href="/"
           style={{
             display: "flex",
-            alignItems: "center",
+            alignItems: "flex-end",
             gap: 10,
             color: "var(--heading)",
             textDecoration: "none",
@@ -38,18 +38,18 @@ export function SiteHeader({ right }: { right?: ReactNode }) {
           <img
             src="/logo-light.svg"
             alt=""
-            width={58}
-            height={58}
+            width={87}
+            height={87}
             className="logo-light"
-            style={{ borderRadius: 13 }}
+            style={{ borderRadius: 20 }}
           />
           <img
             src="/logo-dark.svg"
             alt=""
-            width={58}
-            height={58}
+            width={87}
+            height={87}
             className="logo-dark"
-            style={{ borderRadius: 13 }}
+            style={{ borderRadius: 20 }}
           />
           <span
             style={{
