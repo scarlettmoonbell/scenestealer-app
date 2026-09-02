@@ -77,6 +77,18 @@ export const sourceVideos = pgTable("source_videos", {
   r2Key: text("r2_key").notNull(),
   durationSec: real("duration_sec"),
   title: text("title"),
+  // Below: read from the uploaded file's own metadata (ffprobe) during
+  // analyze, when present — most uploads won't have all of these, some
+  // will have none. venueName/cityName come from reverse-geocoding
+  // gpsLat/gpsLon (OpenStreetMap Nominatim, alpha-phase choice — see
+  // ROADMAP.md); venueName only gets set when the coordinate resolves
+  // to an actual tagged business/POI, never a raw street address.
+  recordedAt: timestamp("recorded_at"),
+  deviceModel: text("device_model"),
+  venueName: text("venue_name"),
+  cityName: text("city_name"),
+  gpsLat: real("gps_lat"),
+  gpsLon: real("gps_lon"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

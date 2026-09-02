@@ -26,24 +26,56 @@ interface IntegrationSettingsResponse {
   };
 }
 
+export interface VideoMetadata {
+  recordedAt: Date | null;
+  deviceModel: string | null;
+  venueName: string | null;
+  cityName: string | null;
+}
+
+function formatDuration(sec: number): string {
+  const total = Math.round(sec);
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return m > 0 ? `${m}:${String(s).padStart(2, "0")}` : `${s}s`;
+}
+
 function renderTemplate(
   template: string,
-  vars: { video_title: string; date: string; organization: string },
+  vars: {
+    video_title: string;
+    date: string;
+    organization: string;
+    venue: string;
+    city: string;
+    recorded_date: string;
+    device: string;
+    duration: string;
+  },
 ): string {
   return template
     .replaceAll("{{video_title}}", vars.video_title)
     .replaceAll("{{date}}", vars.date)
-    .replaceAll("{{organization}}", vars.organization);
+    .replaceAll("{{organization}}", vars.organization)
+    .replaceAll("{{venue}}", vars.venue)
+    .replaceAll("{{city}}", vars.city)
+    .replaceAll("{{recorded_date}}", vars.recorded_date)
+    .replaceAll("{{device}}", vars.device)
+    .replaceAll("{{duration}}", vars.duration);
 }
 
 export function PublishControl({
   clipId,
   videoTitle,
   organizationName,
+  videoMetadata,
+  clipDurationSec,
 }: {
   clipId: string;
   videoTitle: string;
   organizationName: string;
+  videoMetadata: VideoMetadata;
+  clipDurationSec: number;
 }) {
   const authedFetch = useAuthedFetch();
   const [open, setOpen] = useState(false);
@@ -119,6 +151,13 @@ export function PublishControl({
           video_title: videoTitle,
           date: new Date().toLocaleDateString(),
           organization: organizationName,
+          venue: videoMetadata.venueName ?? "",
+          city: videoMetadata.cityName ?? "",
+          recorded_date: videoMetadata.recordedAt
+            ? new Date(videoMetadata.recordedAt).toLocaleDateString()
+            : "",
+          device: videoMetadata.deviceModel ?? "",
+          duration: formatDuration(clipDurationSec),
         }),
       );
     }

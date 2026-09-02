@@ -11,6 +11,7 @@ import {
   GroqTranscriber,
   PySceneDetectDetector,
 } from "@scenestealer/pipeline";
+import { extractVideoMetadata, reverseGeocode } from "./metadata.js";
 import { downloadFromR2 } from "./r2.js";
 
 const execFileAsync = promisify(execFile);
@@ -79,6 +80,30 @@ export async function runAnalyze(
       video.r2Key,
     );
     await writeFile(videoPath, Buffer.from(bytes));
+
+    // Best-effort — a video with no useful tags, or a transient
+    // ffprobe/geocoding hiccup, shouldn't fail the actual analysis
+    // this job exists for.
+    try {
+      const meta = await extractVideoMetadata(videoPath);
+      const geocode =
+        meta.gpsLat != null && meta.gpsLon != null
+          ? await reverseGeocode(meta.gpsLat, meta.gpsLon)
+          : { venue: null, city: null };
+      await db
+        .update(sourceVideos)
+        .set({
+          recordedAt: meta.recordedAt,
+          deviceModel: meta.deviceModel,
+          gpsLat: meta.gpsLat,
+          gpsLon: meta.gpsLon,
+          venueName: geocode.venue,
+          cityName: geocode.city,
+        })
+        .where(eq(sourceVideos.id, sourceVideoId));
+    } catch (e) {
+      console.error("Video metadata extraction failed (non-fatal):", e);
+    }
 
     const audioPath = join(tmpDir, "audio.mp3");
     await extractAudio(videoPath, audioPath);

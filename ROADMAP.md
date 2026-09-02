@@ -560,6 +560,31 @@ unpinning.
     /videos/:id`, cascades through clips and their R2 objects, nulls
     rather than drags down any `posts` history) — self-serve cleanup
     that didn't exist anywhere before.
+- **Done: richer template variables from video file metadata**
+  (`{{duration}}`, `{{recorded_date}}`, `{{device}}`, `{{venue}}`,
+  `{{city}}`, alongside the existing `{{video_title}}`/`{{date}}`/
+  `{{organization}}`). `apps/worker`'s `analyze` job now runs `ffprobe`
+  against the already-downloaded source video (confirmed for real:
+  ffprobe ships in the same Debian `ffmpeg` apt package already in the
+  worker's Docker image, no Dockerfile change needed) and writes
+  `sourceVideos.recordedAt`/`deviceModel`/`gpsLat`/`gpsLon` — best-effort,
+  never fails the analyze job over a missing tag or a geocoding hiccup.
+  GPS (from QuickTime's `location.ISO6709` tag, common on phone-recorded
+  MOV files) gets reverse-geocoded via **OpenStreetMap Nominatim — a
+  deliberate alpha-phase choice, free and no API key, chosen with the
+  explicit understanding that a paid provider (Mapbox/Google/OpenCage)
+  should be re-evaluated in beta if real tenant volume puts pressure on
+  Nominatim's ~1 req/sec usage policy.** Confirmed for real against the
+  live Nominatim API before relying on it: the field that flags a
+  business/POI is `category` (not `class`, which the initial plan
+  assumed) — `venueName` only gets set when `category` is one of
+  `amenity`/`shop`/`tourism`/`leisure`/`office`, `cityName` always gets
+  the coarse city/town/village breakdown. Never stores or exposes exact
+  coordinates or a street address. `{{ai_reason}}` was considered and
+  deliberately **not** added — `clips.aiReason` is reviewer shorthand
+  (checked the real `ClaudeHighlightScorer` prompt and its own test
+  fixture, e.g. `"applause + strong line"`), not written for public
+  copy.
 
 ## 🗓 Phase 7 — Next: Scheduling, billing, polish
 
