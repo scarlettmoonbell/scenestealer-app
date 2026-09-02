@@ -117,18 +117,144 @@ export default function TemplatesPage() {
       <DashboardTabs />
       <h1>Caption templates</h1>
       <p style={{ marginTop: "1rem", color: "var(--muted)" }}>
-        Reusable captions for publishing. Available variables:{" "}
-        <code>{"{{video_title}}"}</code>, <code>{"{{date}}"}</code>,{" "}
-        <code>{"{{organization}}"}</code>, <code>{"{{duration}}"}</code>,{" "}
-        <code>{"{{recorded_date}}"}</code>, <code>{"{{device}}"}</code>,{" "}
-        <code>{"{{venue}}"}</code>, and <code>{"{{city}}"}</code> — they get
-        filled in when you publish. Not every video has every field (e.g. a
-        screen recording won&rsquo;t have a device or location) — a variable
-        with nothing to fill just gets dropped from the caption.
+        Reusable captions for publishing — write a caption once, reuse it with
+        these variables filled in automatically. Not every video has every field
+        (e.g. a screen recording won&rsquo;t have a device or location) — a
+        variable with nothing to fill just gets dropped from the caption.
       </p>
+
+      <div style={{ marginTop: "1.25rem", overflowX: "auto" }}>
+        <table
+          style={{
+            borderCollapse: "collapse",
+            width: "100%",
+            maxWidth: 720,
+            fontSize: "0.95em",
+          }}
+        >
+          <thead>
+            <tr>
+              <th
+                scope="col"
+                style={{
+                  textAlign: "left",
+                  padding: "0.5rem 0.75rem 0.5rem 0",
+                  borderBottom: "1px solid var(--border)",
+                  color: "var(--heading)",
+                }}
+              >
+                Variable
+              </th>
+              <th
+                scope="col"
+                style={{
+                  textAlign: "left",
+                  padding: "0.5rem 0.75rem",
+                  borderBottom: "1px solid var(--border)",
+                  color: "var(--heading)",
+                }}
+              >
+                Example
+              </th>
+              <th
+                scope="col"
+                style={{
+                  textAlign: "left",
+                  padding: "0.5rem 0 0.5rem 0.75rem",
+                  borderBottom: "1px solid var(--border)",
+                  color: "var(--heading)",
+                }}
+              >
+                Where it comes from
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {[
+              {
+                variable: "{{video_title}}",
+                example: "Opening Night — Act II",
+                notes: "The recording's title",
+              },
+              {
+                variable: "{{organization}}",
+                example: "Motherwound Theatre Co.",
+                notes: "Your organization's name",
+              },
+              {
+                variable: "{{duration}}",
+                example: "0:45",
+                notes: "This clip's length",
+              },
+              {
+                variable: "{{date}}",
+                example: "9/2/2026",
+                notes: "Today's date, when you publish",
+              },
+              {
+                variable: "{{recorded_date}}",
+                example: "8/8/2026",
+                notes:
+                  "When the video was actually recorded, if the file has that metadata",
+              },
+              {
+                variable: "{{device}}",
+                example: "iPhone 14 Pro",
+                notes: "What recorded it, if the file has that metadata",
+              },
+              {
+                variable: "{{venue}}",
+                example: "Zach Theatre",
+                notes: (
+                  <>
+                    Business/venue name at the recording location, when
+                    OpenStreetMap has one mapped there
+                  </>
+                ),
+              },
+              {
+                variable: "{{city}}",
+                example: "Austin, Texas",
+                notes:
+                  "City where it was recorded, from the same location data",
+              },
+            ].map((row) => (
+              <tr key={row.variable}>
+                <td
+                  style={{
+                    padding: "0.5rem 0.75rem 0.5rem 0",
+                    borderBottom: "1px solid var(--border)",
+                  }}
+                >
+                  <code>{row.variable}</code>
+                </td>
+                <td
+                  style={{
+                    padding: "0.5rem 0.75rem",
+                    borderBottom: "1px solid var(--border)",
+                    color: "var(--muted)",
+                  }}
+                >
+                  {row.example}
+                </td>
+                <td
+                  style={{
+                    padding: "0.5rem 0 0.5rem 0.75rem",
+                    borderBottom: "1px solid var(--border)",
+                    color: "var(--muted)",
+                  }}
+                >
+                  {row.notes}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
       <p
         style={{
-          marginTop: "0.5rem",
+          marginTop: "0.75rem",
           color: "var(--muted)",
           fontSize: "0.85em",
         }}
