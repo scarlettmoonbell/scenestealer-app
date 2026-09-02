@@ -1,0 +1,16 @@
+title = "SceneStealer gitleaks config"
+
+[extend]
+useDefault = true
+
+# False positive, not a real secret: the `generic-api-key` rule's entropy
+# heuristic flags `renderedR2Key: clips.renderedR2Key` (a Drizzle
+# .select() column alias in apps/api/src/routes/videos.ts) — the mixed-
+# case "R2" plus identifier length crosses its entropy threshold. The
+# same identifier appears elsewhere in this codebase (schema.ts,
+# clips.ts, clip-editor.tsx, render.ts) without tripping this; only this
+# specific object-literal shape does. Allowlisted by exact match text
+# rather than by commit fingerprint so it stays suppressed across future
+# commits/rebases, not just the one that first hit it.
+[allowlist]
+regexes = ['''renderedR2Key: clips\.renderedR2Key''']
