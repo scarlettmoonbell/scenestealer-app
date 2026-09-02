@@ -27,10 +27,12 @@ function formatTime(sec: number): string {
 export function ClipEditor({
   sourceVideoId,
   videoTitle,
+  organizationName,
   initialClips,
 }: {
   sourceVideoId: string;
   videoTitle: string;
+  organizationName: string;
   initialClips: Clip[];
 }) {
   const [clipList, setClipList] = useState<Clip[]>(initialClips);
@@ -286,7 +288,11 @@ export function ClipEditor({
                 ))}
             </div>
             {clip.status === "ready" && (
-              <PublishControl clipId={clip.id} videoTitle={videoTitle} />
+              <PublishControl
+                clipId={clip.id}
+                videoTitle={videoTitle}
+                organizationName={organizationName}
+              />
             )}
           </li>
         ))}

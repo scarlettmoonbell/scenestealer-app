@@ -28,19 +28,22 @@ interface IntegrationSettingsResponse {
 
 function renderTemplate(
   template: string,
-  vars: { video_title: string; date: string },
+  vars: { video_title: string; date: string; organization: string },
 ): string {
   return template
     .replaceAll("{{video_title}}", vars.video_title)
-    .replaceAll("{{date}}", vars.date);
+    .replaceAll("{{date}}", vars.date)
+    .replaceAll("{{organization}}", vars.organization);
 }
 
 export function PublishControl({
   clipId,
   videoTitle,
+  organizationName,
 }: {
   clipId: string;
   videoTitle: string;
+  organizationName: string;
 }) {
   const authedFetch = useAuthedFetch();
   const [open, setOpen] = useState(false);
@@ -115,6 +118,7 @@ export function PublishControl({
         renderTemplate(template.captionTemplate, {
           video_title: videoTitle,
           date: new Date().toLocaleDateString(),
+          organization: organizationName,
         }),
       );
     }
