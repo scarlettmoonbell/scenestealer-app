@@ -38,7 +38,7 @@ app.use(
   cors({
     origin: (_origin, c) => c.env.WEB_ORIGIN,
     allowHeaders: ["Content-Type", "Authorization"],
-    allowMethods: ["GET", "POST", "PATCH"],
+    allowMethods: ["GET", "POST", "PATCH", "DELETE"],
   }),
 );
 

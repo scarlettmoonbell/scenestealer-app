@@ -1,7 +1,7 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { Hono } from "hono";
-import { createDb, sourceVideos } from "@scenestealer/db";
-import { createPresignedGetUrl } from "../r2.js";
+import { clips, createDb, posts, sourceVideos } from "@scenestealer/db";
+import { createPresignedGetUrl, deleteR2Object } from "../r2.js";
 import { requireTenant } from "../auth.js";
 import type { Env } from "../index.js";
 import type { Variables } from "../auth.js";
@@ -78,4 +78,58 @@ videos.post("/:id/analyze", async (c) => {
 
   const body = await workerRes.json();
   return c.json(body, workerRes.status as 200 | 400 | 401 | 500);
+});
+
+// Deletes the video, every clip rendered from it, and the underlying R2
+// objects. Storage first: if an R2 delete fails partway through, the DB
+// rows survive and the request can just be retried, rather than leaving
+// DB rows pointing at nothing. Any posts published from this video/its
+// clips keep their history — clipId/sourceVideoId are nullable on
+// `posts` specifically so a deleted video doesn't have to drag its
+// publish record down with it.
+videos.delete("/:id", async (c) => {
+  const tenantId = c.get("tenantId");
+  const db = createDb(c.env.DATABASE_URL);
+
+  const video = await getOwnedSourceVideo(db, tenantId, c.req.param("id"));
+  if (!video) {
+    return c.json({ error: "Source video not found" }, 404);
+  }
+
+  const r2Config = {
+    accountId: c.env.R2_ACCOUNT_ID,
+    accessKeyId: c.env.R2_ACCESS_KEY_ID,
+    secretAccessKey: c.env.R2_SECRET_ACCESS_KEY,
+    bucket: c.env.R2_BUCKET_NAME,
+  };
+
+  const videoClips = await db
+    .select({ id: clips.id, renderedR2Key: clips.renderedR2Key })
+    .from(clips)
+    .where(eq(clips.sourceVideoId, video.id));
+
+  for (const clip of videoClips) {
+    if (clip.renderedR2Key) {
+      await deleteR2Object(r2Config, clip.renderedR2Key);
+    }
+  }
+  await deleteR2Object(r2Config, video.r2Key);
+
+  await db.transaction(async (tx) => {
+    const clipIds = videoClips.map((clip) => clip.id);
+    if (clipIds.length > 0) {
+      await tx
+        .update(posts)
+        .set({ clipId: null })
+        .where(inArray(posts.clipId, clipIds));
+    }
+    await tx
+      .update(posts)
+      .set({ sourceVideoId: null })
+      .where(eq(posts.sourceVideoId, video.id));
+    await tx.delete(clips).where(eq(clips.sourceVideoId, video.id));
+    await tx.delete(sourceVideos).where(eq(sourceVideos.id, video.id));
+  });
+
+  return c.json({ deleted: true });
 });

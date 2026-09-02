@@ -45,6 +45,32 @@ export async function createPresignedUploadUrl(
 }
 
 /**
+ * Deletes an object directly — unlike the presigned helpers above, this
+ * runs server-side with real R2 credentials, so it just signs and sends
+ * the request itself rather than handing back a URL for someone else to
+ * use.
+ */
+export async function deleteR2Object(
+  config: R2Config,
+  key: string,
+): Promise<void> {
+  const client = new AwsClient({
+    accessKeyId: config.accessKeyId,
+    secretAccessKey: config.secretAccessKey,
+    region: "auto",
+    service: "s3",
+  });
+
+  const url = `https://${config.accountId}.r2.cloudflarestorage.com/${config.bucket}/${key}`;
+  const res = await client.fetch(url, { method: "DELETE" });
+  // R2 returns 204 whether or not the key existed — only a genuine
+  // error (e.g. bad credentials) should surface here.
+  if (!res.ok && res.status !== 404) {
+    throw new Error(`Failed to delete R2 object ${key}: ${res.status}`);
+  }
+}
+
+/**
  * Presigned GET URL for the clip editor's video playback + wavesurfer.js
  * waveform generation — same signing shape as the upload URL above, just
  * GET instead of PUT.
