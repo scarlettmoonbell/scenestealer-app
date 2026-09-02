@@ -487,16 +487,27 @@ unpinning.
     Meta app's Facebook Login product:
     `https://postiz.scenestealer.app/integrations/social/facebook` and
     `https://postiz.scenestealer.app/integrations/social/instagram`.
-    Permissions to eventually request App Review for: `pages_show_list`,
-    `pages_manage_posts`, `pages_manage_engagement`,
-    `pages_read_engagement`, `read_insights`, `instagram_basic`,
-    `instagram_content_publish`, `instagram_manage_comments`,
-    `instagram_manage_insights`, `business_management`. (PLAN.md's
-    infra-choices table names the permission
-    `instagram_business_content_publish` — Meta has renamed Instagram
-    Graph API permissions before; double-check the current exact name
-    in the Meta dashboard at submission time rather than trusting
-    either doc.)
+  - **Ground truth (2026-09-02), read straight off Postiz's live
+    generated OAuth URLs (`GET /social/facebook` and `/social/instagram`
+    against the real deployed instance), not docs**: facebook scope is
+    `pages_show_list,business_management,pages_manage_posts,
+    pages_manage_engagement,pages_read_engagement,read_insights`;
+    instagram scope is `instagram_basic,pages_show_list,
+    pages_read_engagement,business_management,instagram_content_publish,
+    instagram_manage_comments,instagram_manage_insights`. Union is 10
+    unique permissions — **resolves** the naming question below:
+    Postiz actually requests `instagram_content_publish`, not
+    PLAN.md's `instagram_business_content_publish`.
+  - **One Meta Developer App, not two.** Postiz only has one
+    `FACEBOOK_APP_ID`/`FACEBOOK_APP_SECRET` slot — there's no way to
+    wire in a second app even if one existed — and nothing else in this
+    codebase uses Facebook login (Clerk auth here doesn't touch it), so
+    a single app covering both the "Manage everything on your Page" and
+    "Manage messaging & content on Instagram" use cases is correct and
+    sufficient. (Two apps — SceneStealerAuth, SceneStealerContent — got
+    created while exploring the Meta dashboard's setup wizard;
+    SceneStealerContent already has the right use cases and is the one
+    to keep.)
   - **Still open, needs the account holder (not scriptable)**: create/
     confirm a Meta Business Manager account, a Facebook Page for
     SceneStealer, and an Instagram Professional account linked to that
