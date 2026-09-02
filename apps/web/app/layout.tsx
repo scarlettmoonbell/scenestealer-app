@@ -72,6 +72,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             opacity: 0.7,
           }}
         >
+          <Link href="/docs">Documentation</Link>
           <Link href="/about">About</Link>
           <Link href="/contact">Contact</Link>
           <Link href="/privacy">Privacy Policy</Link>
