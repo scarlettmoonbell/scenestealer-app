@@ -537,8 +537,10 @@ unpinning.
     (connect/finalize/list/settings-proxy/disconnect — disconnect also
     revokes on Postiz's side, matching what the Data Deletion
     Instructions page already promises), `routes/templates.ts` (CRUD,
-    `{{video_title}}`/`{{date}}` substitution — the two variables
-    actually backed by existing schema), and `POST /clips/:id/publish`
+    `{{video_title}}`/`{{date}}`/`{{organization}}` substitution — the
+    three variables actually backed by existing data, `organization`
+    read from the active tenant rather than added as new schema), and
+    `POST /clips/:id/publish`
     on `routes/clips.ts` (mints a presigned R2 URL for the rendered
     clip, calls Postiz's create-post endpoint, records a `posts` row
     either way). Frontend: `/connections` and `/templates` pages, and a

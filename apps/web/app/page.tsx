@@ -1,9 +1,9 @@
 import { auth } from "@clerk/nextjs/server";
 import { CreateOrganization, Show } from "@clerk/nextjs";
 import { eq } from "drizzle-orm";
-import Link from "next/link";
 import { createDb, tenants } from "@scenestealer/db";
 import { Brand } from "./brand-name";
+import { DashboardTabs } from "./dashboard-tabs";
 import { LandingTabs } from "./landing-tabs";
 import { ThemedSignIn } from "./themed-sign-in";
 import { UploadPanel } from "./upload-panel";
@@ -152,16 +152,7 @@ export default async function HomePage() {
         <div style={{ maxWidth: 1160, margin: "0 auto", padding: "24px" }}>
           {tenant ? (
             <>
-              <nav
-                style={{
-                  display: "flex",
-                  gap: "1rem",
-                  marginBottom: "1.5rem",
-                }}
-              >
-                <Link href="/connections">Connected accounts</Link>
-                <Link href="/templates">Caption templates</Link>
-              </nav>
+              <DashboardTabs />
               <UploadPanel />
               <VideoList tenantId={tenant.id} />
             </>

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { templates as templatesTable } from "@scenestealer/db";
+import { DashboardTabs } from "../dashboard-tabs";
 import { describeFetchError } from "../fetch-error";
 import { useAuthedFetch } from "../use-authed-fetch";
 
@@ -112,11 +113,13 @@ export default function TemplatesPage() {
   }
 
   return (
-    <main style={{ maxWidth: 720, margin: "0 auto", padding: "2rem 1rem" }}>
+    <main style={{ maxWidth: 1160, margin: "0 auto", padding: "24px" }}>
+      <DashboardTabs />
       <h1>Caption templates</h1>
       <p style={{ marginTop: "1rem", color: "var(--muted)" }}>
-        Reusable captions for publishing. Use <code>{"{{video_title}}"}</code>{" "}
-        and <code>{"{{date}}"}</code> — they get filled in when you publish.
+        Reusable captions for publishing. Use <code>{"{{video_title}}"}</code>,{" "}
+        <code>{"{{date}}"}</code>, and <code>{"{{organization}}"}</code> — they
+        get filled in when you publish.
       </p>
 
       {error && (

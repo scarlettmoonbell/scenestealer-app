@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { socialConnections } from "@scenestealer/db";
+import { DashboardTabs } from "../dashboard-tabs";
 import { describeFetchError } from "../fetch-error";
 import { useAuthedFetch } from "../use-authed-fetch";
 
@@ -116,7 +117,8 @@ export default function ConnectionsPage() {
   }
 
   return (
-    <main style={{ maxWidth: 720, margin: "0 auto", padding: "2rem 1rem" }}>
+    <main style={{ maxWidth: 1160, margin: "0 auto", padding: "24px" }}>
+      <DashboardTabs />
       <h1>Connected accounts</h1>
       <p style={{ marginTop: "1rem", color: "var(--muted)" }}>
         Connect the accounts you want to publish clips to.
