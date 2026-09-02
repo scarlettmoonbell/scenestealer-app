@@ -51,7 +51,11 @@ export default async function VideoPage({
     <main>
       <Link href="/">&larr; Back to recordings</Link>
       <h1>{video.title ?? "Untitled recording"}</h1>
-      <ClipEditor sourceVideoId={video.id} initialClips={videoClips} />
+      <ClipEditor
+        sourceVideoId={video.id}
+        videoTitle={video.title ?? "Untitled recording"}
+        initialClips={videoClips}
+      />
     </main>
   );
 }

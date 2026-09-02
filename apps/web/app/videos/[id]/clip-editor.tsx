@@ -6,6 +6,7 @@ import type { Region } from "wavesurfer.js/dist/plugins/regions.js";
 import type { clips as clipsTable } from "@scenestealer/db";
 import { describeFetchError } from "../../fetch-error";
 import { useAuthedFetch } from "../../use-authed-fetch";
+import { PublishControl } from "./publish-control";
 
 type Clip = typeof clipsTable.$inferSelect;
 
@@ -25,9 +26,11 @@ function formatTime(sec: number): string {
 
 export function ClipEditor({
   sourceVideoId,
+  videoTitle,
   initialClips,
 }: {
   sourceVideoId: string;
+  videoTitle: string;
   initialClips: Clip[];
 }) {
   const [clipList, setClipList] = useState<Clip[]>(initialClips);
@@ -210,71 +213,81 @@ export function ClipEditor({
           <li
             key={clip.id}
             style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "0.75rem",
               padding: "0.5rem 0",
               borderBottom: "1px solid #333",
             }}
           >
-            <span style={{ fontVariantNumeric: "tabular-nums" }}>
-              {formatTime(clip.startSec)} – {formatTime(clip.endSec)}
-            </span>
-            <span style={{ flex: 1, fontSize: "0.9em", opacity: 0.8 }}>
-              {clip.aiReason ?? "Manually adjusted clip"}
-              {clip.aiScore != null && ` (score ${clip.aiScore.toFixed(2)})`}
-            </span>
-            <span style={{ fontSize: "0.85em", opacity: 0.7 }}>
-              {clip.status}
-            </span>
-            {clip.status !== "accepted" &&
-              clip.status !== "ready" &&
-              clip.status !== "rendering" && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.75rem",
+              }}
+            >
+              <span style={{ fontVariantNumeric: "tabular-nums" }}>
+                {formatTime(clip.startSec)} – {formatTime(clip.endSec)}
+              </span>
+              <span style={{ flex: 1, fontSize: "0.9em", opacity: 0.8 }}>
+                {clip.aiReason ?? "Manually adjusted clip"}
+                {clip.aiScore != null && ` (score ${clip.aiScore.toFixed(2)})`}
+              </span>
+              <span style={{ fontSize: "0.85em", opacity: 0.7 }}>
+                {clip.status}
+              </span>
+              {clip.status !== "accepted" &&
+                clip.status !== "ready" &&
+                clip.status !== "rendering" && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void updateClip(clip.id, { status: "accepted" })
+                    }
+                  >
+                    Accept
+                  </button>
+                )}
+              {clip.status !== "rejected" && (
                 <button
                   type="button"
                   onClick={() =>
-                    void updateClip(clip.id, { status: "accepted" })
+                    void updateClip(clip.id, { status: "rejected" })
                   }
                 >
-                  Accept
+                  Reject
                 </button>
               )}
-            {clip.status !== "rejected" && (
-              <button
-                type="button"
-                onClick={() => void updateClip(clip.id, { status: "rejected" })}
-              >
-                Reject
-              </button>
-            )}
-            {clip.status === "accepted" && (
-              <button
-                type="button"
-                disabled={renderingIds.has(clip.id)}
-                onClick={() => void renderClip(clip.id)}
-              >
-                {renderingIds.has(clip.id) ? "Rendering…" : "Render"}
-              </button>
-            )}
-            {clip.status === "rendering" && <span>Rendering…</span>}
-            {clip.status === "ready" &&
-              clip.renderedR2Key &&
-              (renderedUrls[clip.id] ? (
-                <a
-                  href={renderedUrls[clip.id]}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Download
-                </a>
-              ) : (
+              {clip.status === "accepted" && (
                 <button
                   type="button"
-                  onClick={() => void fetchRenderedUrl(clip.id)}
+                  disabled={renderingIds.has(clip.id)}
+                  onClick={() => void renderClip(clip.id)}
                 >
-                  Get rendered clip
+                  {renderingIds.has(clip.id) ? "Rendering…" : "Render"}
                 </button>
-              ))}
+              )}
+              {clip.status === "rendering" && <span>Rendering…</span>}
+              {clip.status === "ready" &&
+                clip.renderedR2Key &&
+                (renderedUrls[clip.id] ? (
+                  <a
+                    href={renderedUrls[clip.id]}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Download
+                  </a>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => void fetchRenderedUrl(clip.id)}
+                  >
+                    Get rendered clip
+                  </button>
+                ))}
+            </div>
+            {clip.status === "ready" && (
+              <PublishControl clipId={clip.id} videoTitle={videoTitle} />
+            )}
           </li>
         ))}
       </ul>
