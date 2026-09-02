@@ -49,7 +49,6 @@ function renderTemplate(
     venue: string;
     city: string;
     recorded_date: string;
-    device: string;
     duration: string;
   },
 ): string {
@@ -60,7 +59,6 @@ function renderTemplate(
     .replaceAll("{{venue}}", vars.venue)
     .replaceAll("{{city}}", vars.city)
     .replaceAll("{{recorded_date}}", vars.recorded_date)
-    .replaceAll("{{device}}", vars.device)
     .replaceAll("{{duration}}", vars.duration);
 }
 
@@ -156,7 +154,6 @@ export function PublishControl({
           recorded_date: videoMetadata.recordedAt
             ? new Date(videoMetadata.recordedAt).toLocaleDateString()
             : "",
-          device: videoMetadata.deviceModel ?? "",
           duration: formatDuration(clipDurationSec),
         }),
       );
