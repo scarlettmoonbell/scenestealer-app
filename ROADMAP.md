@@ -561,12 +561,12 @@ unpinning.
     rather than drags down any `posts` history) — self-serve cleanup
     that didn't exist anywhere before.
 - **Done: richer template variables from video file metadata**
-  (`{{duration}}`, `{{recorded_date}}`, `{{device}}`, `{{venue}}`,
-  `{{city}}`, alongside the existing `{{video_title}}`/`{{date}}`/
-  `{{organization}}`). `apps/worker`'s `analyze` job now runs `ffprobe`
-  against the already-downloaded source video (confirmed for real:
-  ffprobe ships in the same Debian `ffmpeg` apt package already in the
-  worker's Docker image, no Dockerfile change needed) and writes
+  (`{{duration}}`, `{{recorded_date}}`, `{{venue}}`, `{{city}}`,
+  alongside the existing `{{video_title}}`/`{{date}}`/`{{organization}}`).
+  `apps/worker`'s `analyze` job now runs `ffprobe` against the
+  already-downloaded source video (confirmed for real: ffprobe ships in
+  the same Debian `ffmpeg` apt package already in the worker's Docker
+  image, no Dockerfile change needed) and writes
   `sourceVideos.recordedAt`/`deviceModel`/`gpsLat`/`gpsLon` — best-effort,
   never fails the analyze job over a missing tag or a geocoding hiccup.
   GPS (from QuickTime's `location.ISO6709` tag, common on phone-recorded
@@ -584,7 +584,10 @@ unpinning.
   deliberately **not** added — `clips.aiReason` is reviewer shorthand
   (checked the real `ClaudeHighlightScorer` prompt and its own test
   fixture, e.g. `"applause + strong line"`), not written for public
-  copy.
+  copy. `{{device}}` shipped, then was deliberately dropped as a
+  template variable — not useful for promoting the actual content — but
+  `sourceVideos.deviceModel` still gets extracted and stored; only its
+  exposure as a caption variable was removed.
 
 ## 🗓 Phase 7 — Next: Scheduling, billing, polish
 
