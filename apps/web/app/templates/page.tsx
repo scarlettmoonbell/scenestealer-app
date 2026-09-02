@@ -117,9 +117,33 @@ export default function TemplatesPage() {
       <DashboardTabs />
       <h1>Caption templates</h1>
       <p style={{ marginTop: "1rem", color: "var(--muted)" }}>
-        Reusable captions for publishing. Use <code>{"{{video_title}}"}</code>,{" "}
-        <code>{"{{date}}"}</code>, and <code>{"{{organization}}"}</code> — they
-        get filled in when you publish.
+        Reusable captions for publishing. Available variables:{" "}
+        <code>{"{{video_title}}"}</code>, <code>{"{{date}}"}</code>,{" "}
+        <code>{"{{organization}}"}</code>, <code>{"{{duration}}"}</code>,{" "}
+        <code>{"{{recorded_date}}"}</code>, <code>{"{{device}}"}</code>,{" "}
+        <code>{"{{venue}}"}</code>, and <code>{"{{city}}"}</code> — they get
+        filled in when you publish. Not every video has every field (e.g. a
+        screen recording won&rsquo;t have a device or location) — a variable
+        with nothing to fill just gets dropped from the caption.
+      </p>
+      <p
+        style={{
+          marginTop: "0.5rem",
+          color: "var(--muted)",
+          fontSize: "0.85em",
+        }}
+      >
+        <code>{"{{venue}}"}</code>/<code>{"{{city}}"}</code> come from your
+        recording&rsquo;s location data (when the uploaded file has it),
+        reverse-geocoded via{" "}
+        <a
+          href="https://www.openstreetmap.org/copyright"
+          target="_blank"
+          rel="noreferrer"
+        >
+          OpenStreetMap
+        </a>{" "}
+        — © OpenStreetMap contributors.
       </p>
 
       {error && (

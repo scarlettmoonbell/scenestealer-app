@@ -14,7 +14,7 @@ export default function PrivacyPolicyPage() {
     <main style={{ maxWidth: 720, margin: "0 auto", padding: "2rem 1rem" }}>
       <h1>Privacy Policy</h1>
       <p>
-        <em>Last updated: 2026-08-25</em>
+        <em>Last updated: 2026-09-02</em>
       </p>
 
       <p>
@@ -50,6 +50,14 @@ export default function PrivacyPolicyPage() {
           scene-boundary and audio-energy analysis, AI-scored highlight
           suggestions, and the rendered clips produced once you accept a
           suggestion.
+        </li>
+        <li>
+          <strong>File metadata</strong>: when present in an uploaded
+          recording&rsquo;s own file metadata, we read the recording date,
+          device model, and location. Location is never stored or shown as exact
+          coordinates or a street address &mdash; only a city name, and a venue
+          name when the location matches a mapped business. These are offered as
+          optional fields for your own caption templates.
         </li>
         <li>
           <strong>Publishing connections</strong>: if you choose to connect a
@@ -108,6 +116,12 @@ export default function PrivacyPolicyPage() {
         <li>
           <strong>Postiz</strong> (self-hosted by us) &mdash; publishes your
           accepted clips to the platforms you&rsquo;ve connected.
+        </li>
+        <li>
+          <strong>OpenStreetMap</strong> (Nominatim) &mdash; turns a
+          recording&rsquo;s GPS metadata, when present, into a city/venue name
+          for caption templates. Receives only the coordinate, never any content
+          or account information.
         </li>
       </ul>
 

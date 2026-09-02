@@ -6,7 +6,7 @@ import type { Region } from "wavesurfer.js/dist/plugins/regions.js";
 import type { clips as clipsTable } from "@scenestealer/db";
 import { describeFetchError } from "../../fetch-error";
 import { useAuthedFetch } from "../../use-authed-fetch";
-import { PublishControl } from "./publish-control";
+import { PublishControl, type VideoMetadata } from "./publish-control";
 
 type Clip = typeof clipsTable.$inferSelect;
 
@@ -28,11 +28,13 @@ export function ClipEditor({
   sourceVideoId,
   videoTitle,
   organizationName,
+  videoMetadata,
   initialClips,
 }: {
   sourceVideoId: string;
   videoTitle: string;
   organizationName: string;
+  videoMetadata: VideoMetadata;
   initialClips: Clip[];
 }) {
   const [clipList, setClipList] = useState<Clip[]>(initialClips);
@@ -292,6 +294,8 @@ export function ClipEditor({
                 clipId={clip.id}
                 videoTitle={videoTitle}
                 organizationName={organizationName}
+                videoMetadata={videoMetadata}
+                clipDurationSec={clip.endSec - clip.startSec}
               />
             )}
           </li>

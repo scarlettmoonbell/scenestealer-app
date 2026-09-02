@@ -55,6 +55,12 @@ export default async function VideoPage({
         sourceVideoId={video.id}
         videoTitle={video.title ?? "Untitled recording"}
         organizationName={tenant.name}
+        videoMetadata={{
+          recordedAt: video.recordedAt,
+          deviceModel: video.deviceModel,
+          venueName: video.venueName,
+          cityName: video.cityName,
+        }}
         initialClips={videoClips}
       />
     </main>
