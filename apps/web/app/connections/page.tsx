@@ -68,13 +68,10 @@ export default function ConnectionsPage() {
       const deadline = Date.now() + POLL_TIMEOUT_MS;
       while (Date.now() < deadline) {
         await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
-        const finalizeRes = await authedFetch(
-          `/social/${platform}/finalize`,
-          {
-            method: "POST",
-            body: JSON.stringify({ beforeIds }),
-          },
-        );
+        const finalizeRes = await authedFetch(`/social/${platform}/finalize`, {
+          method: "POST",
+          body: JSON.stringify({ beforeIds }),
+        });
         if (!finalizeRes.ok) continue;
         const { connections: newOnes } = (await finalizeRes.json()) as {
           connections: SocialConnection[];
@@ -96,7 +93,11 @@ export default function ConnectionsPage() {
   }
 
   async function handleDisconnect(id: string) {
-    if (!window.confirm("Disconnect this account? This revokes access immediately.")) {
+    if (
+      !window.confirm(
+        "Disconnect this account? This revokes access immediately.",
+      )
+    ) {
       return;
     }
     setError(null);
@@ -131,9 +132,7 @@ export default function ConnectionsPage() {
         <div style={{ marginTop: "2rem" }}>
           <h2>Your connections</h2>
           {connections.length === 0 ? (
-            <p style={{ color: "var(--muted)" }}>
-              No accounts connected yet.
-            </p>
+            <p style={{ color: "var(--muted)" }}>No accounts connected yet.</p>
           ) : (
             <ul style={{ listStyle: "none", padding: 0 }}>
               {connections.map((connection) => (

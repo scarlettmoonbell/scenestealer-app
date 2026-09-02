@@ -43,9 +43,7 @@ export async function getConnectUrl(
 ): Promise<string> {
   const res = await postizFetch(env, `/social/${platform}`);
   if (!res.ok) {
-    throw new Error(
-      `Postiz GET /social/${platform} failed: ${res.status}`,
-    );
+    throw new Error(`Postiz GET /social/${platform} failed: ${res.status}`);
   }
   const body = (await res.json()) as { url: string };
   return body.url;
@@ -89,10 +87,7 @@ export async function getIntegrationSettings(
   env: Env,
   integrationId: string,
 ): Promise<PostizIntegrationSettings> {
-  const res = await postizFetch(
-    env,
-    `/integration-settings/${integrationId}`,
-  );
+  const res = await postizFetch(env, `/integration-settings/${integrationId}`);
   if (!res.ok) {
     throw new Error(
       `Postiz GET /integration-settings/${integrationId} failed: ${res.status}`,
