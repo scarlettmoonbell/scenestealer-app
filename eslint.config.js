@@ -11,6 +11,7 @@ export default tseslint.config(
       "**/.next/**",
       "**/.vercel/**",
       "**/.turbo/**",
+      "**/.wrangler/**",
       "**/node_modules/**",
       // Next.js's own generated file (gitignored, see root .gitignore) --
       // its triple-slash reference trips @typescript-eslint's rule against

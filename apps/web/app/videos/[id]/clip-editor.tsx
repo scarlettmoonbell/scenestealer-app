@@ -1,13 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useAuth } from "@clerk/nextjs";
 import type WaveSurferType from "wavesurfer.js";
 import type { Region } from "wavesurfer.js/dist/plugins/regions.js";
 import type { clips as clipsTable } from "@scenestealer/db";
 import { describeFetchError } from "../../fetch-error";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
+import { useAuthedFetch } from "../../use-authed-fetch";
 
 type Clip = typeof clipsTable.$inferSelect;
 
@@ -32,7 +30,6 @@ export function ClipEditor({
   sourceVideoId: string;
   initialClips: Clip[];
 }) {
-  const { getToken } = useAuth();
   const [clipList, setClipList] = useState<Clip[]>(initialClips);
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -44,20 +41,7 @@ export function ClipEditor({
     import("wavesurfer.js/dist/plugins/regions.js").default | null
   >(null);
 
-  const authedFetch = useCallback(
-    async (path: string, init?: RequestInit) => {
-      const token = await getToken();
-      return fetch(`${API_URL}${path}`, {
-        ...init,
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-          ...init?.headers,
-        },
-      });
-    },
-    [getToken],
-  );
+  const authedFetch = useAuthedFetch();
 
   // Fetch the presigned playback URL — R2 credentials only live in
   // apps/api, so this can't be resolved directly from the Server Component.
