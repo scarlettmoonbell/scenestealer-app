@@ -506,6 +506,29 @@ unpinning.
     OAuth-consent "Testing" status workaround below); record the
     required demo screencast showing the actual accept-clip ->
     render -> publish flow; then submit.
+  - **Confirmed live (2026-09-02)**: clicking "Connect Facebook" in
+    `/connections` now reaches Facebook's real OAuth screen (Postiz
+    secrets were the earlier blocker — see below) but Facebook itself
+    rejects it: `Invalid Scopes: pages_show_list, business_management,
+    pages_manage_posts, pages_manage_engagement, pages_read_engagement,
+    read_insights`. This is exactly the gap named above, now confirmed
+    firsthand rather than assumed — the Meta Developer App either
+    doesn't exist yet or wasn't set up with the **Facebook Login for
+    Business** product (plain Facebook Login doesn't expose these
+    scopes at all, App Review or not). Fixing this needs the
+    account-holder steps above; adding yourself as a Developer/Tester
+    on that Meta app once it exists lets these permissions work
+    immediately in Development mode without waiting on App Review.
+  - **Fixed (2026-09-02): stale `POSTIZ_API_KEY`/`POSTIZ_API_URL`
+    secrets on the production `apps/api` Worker** — every connect
+    attempt (YouTube included) was failing with `Postiz GET
+    /social/{platform} failed: 404`, confirmed via `wrangler tail`
+    against a real click-through, even though the same URL/key worked
+    calling Postiz directly. Re-synced both secrets via `wrangler
+    secret put` to the values already known-good in `apps/api/.dev.vars`;
+    YouTube's connect flow now succeeds end-to-end. Root cause of the
+    drift (a stale value from before some earlier rotation, most
+    likely) wasn't tracked down — worth a second look if it recurs.
 - **Done (2026-09-02): the whole connect → template → publish loop,
   built and shipped as four sequential PRs** (#42–#45). Everything
   below was verified against the real, deployed Postiz instance
@@ -619,6 +642,18 @@ unpinning.
     deferred pending cost analysis, same as tier pricing — don't invent
     numbers when building this, wire the mechanism against another
     placeholder.
+- **Usage tiers (Free / Small / Medium / Large) — requested 2026-09-02,
+  not yet defined.** Tenant wants tiers named/scoped this way,
+  specifically. Note this doesn't match `scenestealer-infra`'s existing
+  placeholder tiers above (Starter/Pro/Studio, $29/$79/$199/mo) —
+  reconcile naming and figure out whether "Free" is a new zero-cost
+  tier or just the trial, as part of the real cost/pricing analysis
+  already called for above, not as a separate rename.
+- **User profile management page — requested 2026-09-02, not yet
+  built.** No page exists today for a tenant to manage their own
+  account. This is where moving between billing tiers (via the Stripe
+  Customer Portal above) is meant to live once both exist. Scope
+  beyond billing (org name/settings, user info, etc.) not yet decided.
 
 ## 📌 Accepted gaps today, named explicitly
 
