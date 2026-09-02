@@ -506,27 +506,58 @@ unpinning.
     OAuth-consent "Testing" status workaround below); record the
     required demo screencast showing the actual accept-clip ->
     render -> publish flow; then submit.
-- Wire IG/FB publish through Postiz once approved.
-  - **Design confirmed (2026-08-31), not yet built**: how a tenant
-    connects their own Facebook/Instagram account without ever
-    touching Postiz's own UI — confirmed directly against Postiz's
-    public API docs. `apps/api` calls Postiz's
-    `GET /social/{integration}` (e.g. `/social/facebook`,
-    `/social/instagram`), gets back `{ url }`, and redirects the
-    tenant's browser straight there; they authenticate with their own
-    account and land back through the callback URIs already
-    registered with Meta. Postiz's own "customers" grouping feature
-    exists but its docs don't confirm it's a real access boundary
-    (reads as calendar/sidebar organization, not enforcement) — real
-    tenant isolation stays where it already lives: the `socialConnections`
-    table (`tenantId` + `postizIntegrationId`) and `apps/api`'s
-    ownership checks, same pattern as every other per-tenant resource
-    in this app. **Still needs investigating before building**: exactly
-    how `apps/api` reliably identifies _which_ new Postiz integration
-    a given tenant's connect flow produced (a `state` param, a
-    pre-known ID, a before/after diff against `GET /integrations`) —
-    not yet verified against Postiz's fuller docs, don't assume a
-    mechanism without checking.
+- **Done (2026-09-02): the whole connect → template → publish loop,
+  built and shipped as four sequential PRs** (#42–#45). Everything
+  below was verified against the real, deployed Postiz instance
+  (`https://postiz.scenestealer.app`), not just its docs — several real
+  facts turned out to differ from what the docs alone said:
+  - **Real API facts confirmed live, not assumed**: the working base
+    URL is `https://postiz.scenestealer.app/api/public/v1` (the bare
+    `/public/v1` path from the docs 307-redirects to Postiz's own
+    frontend login, it isn't the API route); auth is the raw API key in
+    `Authorization`, no `Bearer` prefix; the integration-settings
+    endpoint is `GET /integration-settings/{id}` (not
+    `/integrations/:id/settings` as the docs page implied) and returns
+    a real per-platform `required` fields list — confirmed for the
+    existing YouTube connection: it needs a video `title` (2-100 chars)
+    and a `public`/`private`/`unlisted` `type`, **separate from** the
+    caption, something the create-post docs alone didn't show.
+  - **The open attribution question is resolved**: Postiz's connect
+    endpoint (`GET /social/{integration}` → `{ url }`) accepts no
+    customer/state param and has no callback `apps/api` can intercept —
+    confirmed for real, not assumed. So tenant attribution is a
+    before/after diff against `GET /integrations`, snapshotted when the
+    connect flow starts and diffed once the tenant's done connecting.
+    Real tenant isolation stays where it already lived: the
+    `socialConnections` table (`tenantId` + `postizIntegrationId`) and
+    `apps/api`'s ownership checks, same pattern as every other
+    per-tenant resource in this app — Postiz's own "customers" grouping
+    feature was never relied on for this.
+  - **Built**: `apps/api/src/postiz.ts` (client), `routes/social.ts`
+    (connect/finalize/list/settings-proxy/disconnect — disconnect also
+    revokes on Postiz's side, matching what the Data Deletion
+    Instructions page already promises), `routes/templates.ts` (CRUD,
+    `{{video_title}}`/`{{date}}` substitution — the two variables
+    actually backed by existing schema), and `POST /clips/:id/publish`
+    on `routes/clips.ts` (mints a presigned R2 URL for the rendered
+    clip, calls Postiz's create-post endpoint, records a `posts` row
+    either way). Frontend: `/connections` and `/templates` pages, and a
+    schema-driven Publish control on the clip editor — it reads a
+    connection's real `GET /integration-settings/:id` and renders one
+    input per required field, so it works correctly for whatever
+    Instagram/Facebook turn out to need without new code, the same way
+    it already works for YouTube's real title+type requirement.
+  - **Not yet done**: a real, live test publish. Every piece up through
+    minting the presigned URL and calling Postiz is implemented and
+    typechecked, but an actual `POST /posts` call would really publish
+    to the connected YouTube channel — a real, externally-visible
+    action needing a go-ahead, not something to fire off unprompted
+    while building. This is the next concrete step, and doubles as the
+    real dry run for the Meta App Review demo screencast.
+  - Also shipped alongside this: a delete-video action (`DELETE
+    /videos/:id`, cascades through clips and their R2 objects, nulls
+    rather than drags down any `posts` history) — self-serve cleanup
+    that didn't exist anywhere before.
 
 ## 🗓 Phase 7 — Next: Scheduling, billing, polish
 
