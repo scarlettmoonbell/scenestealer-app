@@ -13,4 +13,4 @@ useDefault = true
 # rather than by commit fingerprint so it stays suppressed across future
 # commits/rebases, not just the one that first hit it.
 [allowlist]
-regexes = ['''renderedR2Key: clips\.renderedR2Key''']
+regexes = ['''clips\.renderedR2Key''']
