@@ -3,10 +3,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+// Connected Accounts last — once a tenant has connected their
+// accounts, that tab needs minimal ongoing attention compared to
+// Media/Templates.
 const TABS = [
   { href: "/", label: "Media" },
-  { href: "/connections", label: "Connected Accounts" },
   { href: "/templates", label: "Caption Templates" },
+  { href: "/connections", label: "Connected Accounts" },
 ] as const;
 
 // Shared across the signed-in dashboard's three pages — a real routed
