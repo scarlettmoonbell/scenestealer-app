@@ -399,42 +399,81 @@ export default function TemplatesPage() {
           {templateList.length === 0 ? (
             <p style={{ color: "var(--muted)" }}>No templates yet.</p>
           ) : (
-            <ul style={{ listStyle: "none", padding: 0 }}>
-              {templateList.map((template) => (
-                <li
-                  key={template.id}
-                  style={{
-                    padding: "0.75rem 0",
-                    borderBottom: "1px solid #333",
-                  }}
-                >
-                  <div
+            <>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.75rem",
+                  padding: "0 0.75rem 0.5rem",
+                  borderBottom: "1px solid var(--border)",
+                  fontSize: "0.85em",
+                  fontWeight: 600,
+                  color: "var(--muted)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.03em",
+                }}
+              >
+                <span style={{ flex: 1 }}>Template name</span>
+                <span style={{ minWidth: 110 }}>Platform</span>
+                <span style={{ minWidth: 130 }}>Manage</span>
+              </div>
+              <ul style={{ listStyle: "none", padding: 0 }}>
+                {templateList.map((template, index) => (
+                  <li
+                    key={template.id}
                     style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "0.75rem",
+                      padding: "0.75rem",
+                      borderBottom: "1px solid #333",
+                      background:
+                        index % 2 === 1 ? "var(--surface-raised)" : "none",
                     }}
                   >
-                    <strong style={{ flex: 1 }}>{template.name}</strong>
-                    <span style={{ fontSize: "0.85em", opacity: 0.7 }}>
-                      {template.platform ?? "Any platform"}
-                    </span>
-                    <button type="button" onClick={() => startEdit(template)}>
-                      Edit
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void handleDelete(template.id)}
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.75rem",
+                      }}
                     >
-                      Delete
-                    </button>
-                  </div>
-                  <p style={{ marginTop: "0.4rem", color: "var(--muted)" }}>
-                    {template.captionTemplate}
-                  </p>
-                </li>
-              ))}
-            </ul>
+                      <strong style={{ flex: 1 }}>{template.name}</strong>
+                      <span
+                        style={{
+                          fontSize: "0.85em",
+                          opacity: 0.7,
+                          minWidth: 110,
+                        }}
+                      >
+                        {template.platform ?? "Any platform"}
+                      </span>
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: "0.5rem",
+                          minWidth: 130,
+                        }}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => startEdit(template)}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleDelete(template.id)}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                    <p style={{ marginTop: "0.4rem", color: "var(--muted)" }}>
+                      {template.captionTemplate}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            </>
           )}
         </div>
       )}
