@@ -5,6 +5,7 @@ import { uploads } from "./routes/uploads.js";
 import { webhooks } from "./routes/webhooks.js";
 import { videos } from "./routes/videos.js";
 import { clipsRoute } from "./routes/clips.js";
+import { social } from "./routes/social.js";
 import type { Variables } from "./auth.js";
 
 export interface Env {
@@ -51,8 +52,9 @@ app.route("/uploads", uploads);
 app.route("/webhooks", webhooks);
 app.route("/videos", videos);
 app.route("/clips", clipsRoute);
+app.route("/social", social);
 
-// Phase 2+: storage/social OAuth callbacks, Stripe webhook receiver.
+// Phase 2+: templates CRUD, publish action, Stripe webhook receiver.
 // See ../../README.md Status section.
 
 export default app;
