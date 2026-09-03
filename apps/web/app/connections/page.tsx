@@ -27,12 +27,30 @@ const POLL_INTERVAL_MS = 3000;
 // 2-minute window would have given up.
 const POLL_TIMEOUT_MS = 5 * 60 * 1000;
 
+interface PendingConnect {
+  platform: string;
+  url: string;
+  beforeIds: string[];
+}
+
 export default function ConnectionsPage() {
   const authedFetch = useAuthedFetch();
   const [connections, setConnections] = useState<SocialConnection[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [connectingPlatform, setConnectingPlatform] = useState<string | null>(
+    null,
+  );
+  // The connect URL is ready but not yet opened — waiting on a second,
+  // genuine click. A window.open()/`.location.href` navigation fired from
+  // inside an async callback (even one opened synchronously beforehand
+  // and pointed at the real URL later) loses the trusted user-gesture
+  // context in Safari specifically — confirmed live: it left the tenant's
+  // main tab hijacked onto Postiz's calendar with a blank orphaned popup,
+  // rather than opening a clean second tab. A real <a target="_blank">,
+  // clicked directly by the user, sidesteps this entirely since it's
+  // native browser navigation, not JS-driven.
+  const [pendingConnect, setPendingConnect] = useState<PendingConnect | null>(
     null,
   );
 
@@ -58,17 +76,9 @@ export default function ConnectionsPage() {
     void loadConnections();
   }, [loadConnections]);
 
-  async function handleConnect(platform: string) {
+  async function startConnect(platform: string) {
     setError(null);
     setConnectingPlatform(platform);
-
-    // Open the popup synchronously, still inside the click handler's call
-    // stack — a window.open() after an `await` loses the user-gesture
-    // context and browsers either block it silently or navigate the
-    // current tab instead of a new one, stranding the user on Postiz's
-    // domain with no way back. Point it at the real URL once we have it.
-    const popup = window.open("", "_blank", "noreferrer,width=600,height=700");
-
     try {
       const res = await authedFetch(`/social/${platform}/connect`, {
         method: "POST",
@@ -76,24 +86,34 @@ export default function ConnectionsPage() {
       if (!res.ok) {
         setError(`Failed to start connecting ${platform}`);
         setConnectingPlatform(null);
-        popup?.close();
         return;
       }
       const { url, beforeIds } = (await res.json()) as {
         url: string;
         beforeIds: string[];
       };
-      if (popup) {
-        popup.location.href = url;
-      } else {
-        // Popup was blocked despite the synchronous open — fall back to a
-        // plain new tab rather than leaving the tenant stuck.
-        window.open(url, "_blank", "noopener,noreferrer");
-      }
+      setPendingConnect({ platform, url, beforeIds });
+    } catch (e) {
+      setError(`Failed to connect ${platform}: ${describeFetchError(e)}`);
+      setConnectingPlatform(null);
+    }
+  }
 
-      const deadline = Date.now() + POLL_TIMEOUT_MS;
-      while (Date.now() < deadline) {
-        await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+  function cancelPendingConnect() {
+    setPendingConnect(null);
+    setConnectingPlatform(null);
+  }
+
+  // Fires from the real <a>'s onClick, alongside its native navigation —
+  // no window handle to track or close, so nothing to strand the tenant
+  // on. They can just switch back to this tab themselves once done; it
+  // updates on its own as soon as polling sees the new connection.
+  async function beginPolling(platform: string, beforeIds: string[]) {
+    setPendingConnect(null);
+    const deadline = Date.now() + POLL_TIMEOUT_MS;
+    while (Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+      try {
         const finalizeRes = await authedFetch(`/social/${platform}/finalize`, {
           method: "POST",
           body: JSON.stringify({ beforeIds }),
@@ -105,24 +125,16 @@ export default function ConnectionsPage() {
         if (newOnes.length > 0) {
           await loadConnections();
           setConnectingPlatform(null);
-          popup?.close();
           return;
         }
+      } catch {
+        // Transient — keep polling until the deadline.
       }
-      // Give up watching, but the connection may still complete on Postiz's
-      // side after we stop polling — a stray popup left open indefinitely
-      // is worse than closing one the tenant might still be using, so this
-      // also nudges them to check back rather than silently vanishing.
-      setError(
-        `Still waiting on ${platform} after five minutes — if you finished connecting, refresh this page to check.`,
-      );
-      setConnectingPlatform(null);
-      popup?.close();
-    } catch (e) {
-      setError(`Failed to connect ${platform}: ${describeFetchError(e)}`);
-      setConnectingPlatform(null);
-      popup?.close();
     }
+    setError(
+      `Still waiting on ${platform} after five minutes — if you finished connecting, refresh this page to check.`,
+    );
+    setConnectingPlatform(null);
   }
 
   async function handleDisconnect(id: string) {
@@ -207,19 +219,61 @@ export default function ConnectionsPage() {
           )}
 
           <h2 style={{ marginTop: "2rem" }}>Connect a new account</h2>
-          <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
-            {PLATFORMS.map((platform) => (
-              <button
-                key={platform.key}
-                type="button"
-                disabled={connectingPlatform !== null}
-                onClick={() => void handleConnect(platform.key)}
-              >
-                {connectingPlatform === platform.key
-                  ? "Waiting for you to finish connecting…"
-                  : `Connect ${platform.label}`}
-              </button>
-            ))}
+          <div
+            style={{
+              display: "flex",
+              gap: "0.75rem",
+              flexWrap: "wrap",
+              alignItems: "center",
+            }}
+          >
+            {PLATFORMS.map((platform) => {
+              if (pendingConnect?.platform === platform.key) {
+                return (
+                  <span
+                    key={platform.key}
+                    style={{ display: "flex", gap: "0.5rem" }}
+                  >
+                    <a
+                      href={pendingConnect.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={() =>
+                        void beginPolling(
+                          pendingConnect.platform,
+                          pendingConnect.beforeIds,
+                        )
+                      }
+                      style={{
+                        display: "inline-block",
+                        padding: "0.4rem 0.75rem",
+                        background: "var(--accent)",
+                        color: "#fff",
+                        borderRadius: 4,
+                        textDecoration: "none",
+                      }}
+                    >
+                      Continue to {platform.label} &rarr;
+                    </a>
+                    <button type="button" onClick={cancelPendingConnect}>
+                      Cancel
+                    </button>
+                  </span>
+                );
+              }
+              return (
+                <button
+                  key={platform.key}
+                  type="button"
+                  disabled={connectingPlatform !== null}
+                  onClick={() => void startConnect(platform.key)}
+                >
+                  {connectingPlatform === platform.key
+                    ? "Waiting for you to finish connecting…"
+                    : `Connect ${platform.label}`}
+                </button>
+              );
+            })}
           </div>
         </div>
       )}
