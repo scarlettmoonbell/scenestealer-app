@@ -7,12 +7,15 @@ compatibility_date = "2025-01-01"
 # friction" entry and the plan this was built from. Postiz's own
 # container is untouched; this sits in front of it at the edge.
 #
-# No routes here yet — staged rollout: deploy unrouted first (own
-# workers.dev subdomain), then a canary custom domain
-# (postiz-proxy-test.scenestealer.app) for full verification, and only
-# then the real postiz.scenestealer.app cutover — which lives in
-# scenestealer-infra's OpenTofu (cloudflare-dns.tf), not here, since
-# that's where the existing DNS record for this hostname is managed.
+# Stage 2: canary custom domain — Cloudflare auto-provisions this DNS
+# record on deploy, isolated from the real postiz.scenestealer.app
+# record (untouched). Full verification battery runs against this
+# before the real cutover, which lives in scenestealer-infra's OpenTofu
+# (cloudflare-dns.tf), not here, since that's where the existing DNS
+# record for postiz.scenestealer.app is managed.
+routes = [
+  { pattern = "postiz-proxy-test.scenestealer.app", custom_domain = true },
+]
 
 [vars]
 # Fly's own per-app hostname — passthrough fetches target this, not
