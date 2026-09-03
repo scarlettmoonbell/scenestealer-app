@@ -53,14 +53,16 @@ export default function DocsPage() {
         </strong>{" "}
         Having a Professional account isn&rsquo;t enough on its own &mdash; it
         has to be linked to the <em>same</em> Facebook Page you connect to{" "}
-        <Brand />. If you see an error like &ldquo;We couldn&rsquo;t find any
-        business connected to the selected pages,&rdquo; that link is missing or
-        points at a different Page. Fix it from Instagram: Settings &rarr;
-        Account Center &rarr; Connected accounts &rarr; connect the Facebook
-        Page you use with <Brand /> (or from that Page&rsquo;s own settings in
-        Meta Business Suite, under Linked Accounts). Once it&rsquo;s linked, try{" "}
-        <strong>Connect Instagram</strong> again &mdash; you may need to remove
-        a failed attempt first if one is still listed as connected.
+        <Brand />, and both need to sit in the same Meta Business Portfolio. If
+        you see an error like &ldquo;We couldn&rsquo;t find any business
+        connected to the selected pages,&rdquo; that link is missing, or the two
+        are in different portfolios. Fix it from the Instagram app: your profile
+        &rarr; Edit profile &rarr; Public business information (Business
+        accounts) or Profile information (Creator accounts) &rarr; Page &rarr;
+        Connect or create, then choose the Facebook Page you use with <Brand />.
+        Once it&rsquo;s linked, try <strong>Connect Instagram</strong> again
+        &mdash; you may need to remove a failed attempt first if one is still
+        listed as connected.
       </p>
       <p style={{ marginTop: "1rem" }}>
         Disconnecting an account (from the same page) revokes <Brand />
