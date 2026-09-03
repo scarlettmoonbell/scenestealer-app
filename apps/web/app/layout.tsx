@@ -8,6 +8,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import "./globals.css";
 import { SiteHeader } from "./site-header";
+import { SocialLinks } from "./social-links";
 
 // Every route in this app is behind Clerk auth and per-tenant, so nothing
 // here should be statically prerendered — also sidesteps `next build`
@@ -65,19 +66,30 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <footer
           style={{
             display: "flex",
+            flexDirection: "column",
             gap: "1rem",
-            justifyContent: "center",
+            alignItems: "center",
             padding: "2rem 1rem",
-            fontSize: "0.85em",
-            opacity: 0.7,
           }}
         >
-          <Link href="/docs">Documentation</Link>
-          <Link href="/about">About</Link>
-          <Link href="/contact">Contact</Link>
-          <Link href="/privacy">Privacy Policy</Link>
-          <Link href="/terms">Terms of Service</Link>
-          <Link href="/data-deletion">Data Deletion</Link>
+          <div
+            style={{
+              display: "flex",
+              gap: "1rem",
+              justifyContent: "center",
+              flexWrap: "wrap",
+              fontSize: "0.85em",
+              opacity: 0.7,
+            }}
+          >
+            <Link href="/docs">Documentation</Link>
+            <Link href="/about">About</Link>
+            <Link href="/contact">Contact</Link>
+            <Link href="/privacy">Privacy Policy</Link>
+            <Link href="/terms">Terms of Service</Link>
+            <Link href="/data-deletion">Data Deletion</Link>
+          </div>
+          <SocialLinks />
         </footer>
       </body>
     </html>

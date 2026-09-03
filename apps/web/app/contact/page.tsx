@@ -1,3 +1,5 @@
+import { SocialLinks } from "../social-links";
+
 export const metadata = {
   title: "Contact — SceneStealer",
 };
@@ -14,6 +16,9 @@ export default function ContactPage() {
         <a href="mailto:support@scenestealer.app">support@scenestealer.app</a>{" "}
         &mdash; we typically respond within a business day or two.
       </p>
+      <div style={{ marginTop: "2rem" }}>
+        <SocialLinks />
+      </div>
     </main>
   );
 }
