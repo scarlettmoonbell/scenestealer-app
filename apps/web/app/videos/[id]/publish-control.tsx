@@ -91,6 +91,8 @@ export function PublishControl({
     {},
   );
   const [publishing, setPublishing] = useState(false);
+  const [scheduleMode, setScheduleMode] = useState<"now" | "later">("now");
+  const [scheduledFor, setScheduledFor] = useState("");
 
   useEffect(() => {
     if (!open || loaded) return;
@@ -162,6 +164,10 @@ export function PublishControl({
 
   async function handlePublish() {
     if (!connectionId) return;
+    if (scheduleMode === "later" && !scheduledFor) {
+      setError("Pick a date and time to schedule for");
+      return;
+    }
     setPublishing(true);
     setError(null);
     setResult(null);
@@ -173,6 +179,10 @@ export function PublishControl({
           caption,
           templateId: templateId || undefined,
           settings: settingsValues,
+          scheduledFor:
+            scheduleMode === "later"
+              ? new Date(scheduledFor).toISOString()
+              : undefined,
         }),
       });
       if (!res.ok) {
@@ -182,7 +192,7 @@ export function PublishControl({
         setError(body?.error ?? "Failed to publish");
         return;
       }
-      setResult("Published!");
+      setResult(scheduleMode === "later" ? "Scheduled!" : "Published!");
     } catch (e) {
       setError(`Failed to publish: ${describeFetchError(e)}`);
     } finally {
@@ -307,13 +317,57 @@ export function PublishControl({
             </label>
           ))}
 
+          <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
+            <label>
+              <input
+                type="radio"
+                name="scheduleMode"
+                checked={scheduleMode === "now"}
+                onChange={() => setScheduleMode("now")}
+              />{" "}
+              Publish now
+            </label>
+            <label>
+              <input
+                type="radio"
+                name="scheduleMode"
+                checked={scheduleMode === "later"}
+                onChange={() => setScheduleMode("later")}
+              />{" "}
+              Schedule for later
+            </label>
+          </div>
+
+          {scheduleMode === "later" && (
+            <label>
+              Date and time
+              <input
+                type="datetime-local"
+                value={scheduledFor}
+                min={new Date(
+                  Date.now() - new Date().getTimezoneOffset() * 60000,
+                )
+                  .toISOString()
+                  .slice(0, 16)}
+                onChange={(e) => setScheduledFor(e.target.value)}
+                style={{ display: "block", width: "100%" }}
+              />
+            </label>
+          )}
+
           <div style={{ display: "flex", gap: "0.5rem" }}>
             <button
               type="button"
               disabled={publishing}
               onClick={() => void handlePublish()}
             >
-              {publishing ? "Publishing…" : "Publish now"}
+              {publishing
+                ? scheduleMode === "later"
+                  ? "Scheduling…"
+                  : "Publishing…"
+                : scheduleMode === "later"
+                  ? "Schedule"
+                  : "Publish now"}
             </button>
             <button type="button" onClick={() => setOpen(false)}>
               Cancel

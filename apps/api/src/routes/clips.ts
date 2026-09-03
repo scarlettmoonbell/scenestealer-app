@@ -134,7 +134,13 @@ clipsRoute.post("/:id/publish", async (c) => {
     caption: string;
     templateId?: string;
     settings?: Record<string, unknown>;
+    // ISO date string, must be in the future. Present -> schedules
+    // instead of publishing immediately.
+    scheduledFor?: string;
   }>();
+  if (body.scheduledFor && new Date(body.scheduledFor) <= new Date()) {
+    return c.json({ error: "scheduledFor must be in the future" }, 400);
+  }
 
   const db = createDb(c.env.DATABASE_URL);
 
@@ -174,6 +180,7 @@ clipsRoute.post("/:id/publish", async (c) => {
       content: body.caption,
       mediaUrl,
       settings: body.settings ?? {},
+      scheduledFor: body.scheduledFor,
     });
     const [post] = await db
       .insert(posts)
@@ -181,8 +188,9 @@ clipsRoute.post("/:id/publish", async (c) => {
         clipId: clip.id,
         socialConnectionId: connection.id,
         templateId: body.templateId ?? null,
-        status: "published",
-        publishedAt: new Date(),
+        status: body.scheduledFor ? "scheduled" : "published",
+        scheduledAt: body.scheduledFor ? new Date(body.scheduledFor) : null,
+        publishedAt: body.scheduledFor ? null : new Date(),
         externalPostId: results[0]?.postId,
       })
       .returning();
