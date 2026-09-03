@@ -51,6 +51,14 @@ export default function ConnectionsPage() {
   async function handleConnect(platform: string) {
     setError(null);
     setConnectingPlatform(platform);
+
+    // Open the popup synchronously, still inside the click handler's call
+    // stack — a window.open() after an `await` loses the user-gesture
+    // context and browsers either block it silently or navigate the
+    // current tab instead of a new one, stranding the user on Postiz's
+    // domain with no way back. Point it at the real URL once we have it.
+    const popup = window.open("", "_blank", "noreferrer,width=600,height=700");
+
     try {
       const res = await authedFetch(`/social/${platform}/connect`, {
         method: "POST",
@@ -58,13 +66,20 @@ export default function ConnectionsPage() {
       if (!res.ok) {
         setError(`Failed to start connecting ${platform}`);
         setConnectingPlatform(null);
+        popup?.close();
         return;
       }
       const { url, beforeIds } = (await res.json()) as {
         url: string;
         beforeIds: string[];
       };
-      window.open(url, "_blank", "noopener,noreferrer");
+      if (popup) {
+        popup.location.href = url;
+      } else {
+        // Popup was blocked despite the synchronous open — fall back to a
+        // plain new tab rather than leaving the tenant stuck.
+        window.open(url, "_blank", "noopener,noreferrer");
+      }
 
       const deadline = Date.now() + POLL_TIMEOUT_MS;
       while (Date.now() < deadline) {
@@ -80,6 +95,7 @@ export default function ConnectionsPage() {
         if (newOnes.length > 0) {
           await loadConnections();
           setConnectingPlatform(null);
+          popup?.close();
           return;
         }
       }
@@ -90,6 +106,7 @@ export default function ConnectionsPage() {
     } catch (e) {
       setError(`Failed to connect ${platform}: ${describeFetchError(e)}`);
       setConnectingPlatform(null);
+      popup?.close();
     }
   }
 
