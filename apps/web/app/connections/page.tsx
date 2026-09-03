@@ -104,11 +104,15 @@ export default function ConnectionsPage() {
     setConnectingPlatform(null);
   }
 
-  // Fires from the real <a>'s onClick, alongside its native navigation —
-  // no window handle to track or close, so nothing to strand the tenant
-  // on. They can just switch back to this tab themselves once done; it
-  // updates on its own as soon as polling sees the new connection.
-  async function beginPolling(platform: string, beforeIds: string[]) {
+  // Fires from the real <a>'s onClick, once the tab it opens (see below)
+  // reaches the new-connection state. Closes that tab once detected — or
+  // on timeout, since a stray tab left open indefinitely is worse than
+  // closing one the tenant might still be using.
+  async function beginPolling(
+    platform: string,
+    beforeIds: string[],
+    opened: Window | null,
+  ) {
     setPendingConnect(null);
     const deadline = Date.now() + POLL_TIMEOUT_MS;
     while (Date.now() < deadline) {
@@ -125,6 +129,7 @@ export default function ConnectionsPage() {
         if (newOnes.length > 0) {
           await loadConnections();
           setConnectingPlatform(null);
+          opened?.close();
           return;
         }
       } catch {
@@ -135,6 +140,7 @@ export default function ConnectionsPage() {
       `Still waiting on ${platform} after five minutes — if you finished connecting, refresh this page to check.`,
     );
     setConnectingPlatform(null);
+    opened?.close();
   }
 
   async function handleDisconnect(id: string) {
@@ -238,12 +244,26 @@ export default function ConnectionsPage() {
                       href={pendingConnect.url}
                       target="_blank"
                       rel="noreferrer"
-                      onClick={() =>
+                      onClick={(e) => {
+                        // Opened here, synchronously, inside the click
+                        // handler — no async gap since the URL was
+                        // already fetched, so this is safe (unlike
+                        // fetching-then-opening) and gives us a handle
+                        // to close once the connection completes. Falls
+                        // through to the <a>'s own native navigation if
+                        // this is blocked for any reason.
+                        const opened = window.open(
+                          pendingConnect.url,
+                          "_blank",
+                          "noreferrer",
+                        );
+                        if (opened) e.preventDefault();
                         void beginPolling(
                           pendingConnect.platform,
                           pendingConnect.beforeIds,
-                        )
-                      }
+                          opened,
+                        );
+                      }}
                       style={{
                         display: "inline-block",
                         padding: "0.4rem 0.75rem",
