@@ -9,7 +9,12 @@ import type {
 import { describeFetchError } from "../../fetch-error";
 import { useAuthedFetch } from "../../use-authed-fetch";
 
-type SocialConnection = typeof socialConnections.$inferSelect;
+// Extends the raw row with the real account/page name, read live from
+// Postiz — a tenant can have more than one connection per platform, so
+// this is what actually distinguishes them in the dropdown below.
+type SocialConnection = typeof socialConnections.$inferSelect & {
+  name: string | null;
+};
 type Template = typeof templatesTable.$inferSelect;
 
 interface SettingsField {
@@ -241,7 +246,9 @@ export function PublishControl({
             >
               {connections.map((connection) => (
                 <option key={connection.id} value={connection.id}>
-                  {connection.platform}
+                  {connection.name
+                    ? `${connection.platform} — ${connection.name}`
+                    : connection.platform}
                 </option>
               ))}
             </select>

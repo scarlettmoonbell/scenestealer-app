@@ -84,16 +84,30 @@ social.post("/:platform/finalize", async (c) => {
   return c.json({ connections: inserted });
 });
 
+// Enriches each row with its real account/page name (and picture) from
+// Postiz, read live rather than stored — a tenant can have more than one
+// connection per platform (e.g. two Facebook Pages), and without this
+// they're indistinguishable in the UI (every row just says "facebook").
 social.get("/connections", async (c) => {
   const tenantId = c.get("tenantId");
   const db = createDb(c.env.DATABASE_URL);
 
-  const connections = await db
-    .select()
-    .from(socialConnections)
-    .where(eq(socialConnections.tenantId, tenantId));
+  const [connections, integrations] = await Promise.all([
+    db
+      .select()
+      .from(socialConnections)
+      .where(eq(socialConnections.tenantId, tenantId)),
+    getIntegrations(c.env).catch(() => []),
+  ]);
+  const byId = new Map(integrations.map((i) => [i.id, i]));
 
-  return c.json({ connections });
+  return c.json({
+    connections: connections.map((connection) => ({
+      ...connection,
+      name: byId.get(connection.postizIntegrationId)?.name ?? null,
+      picture: byId.get(connection.postizIntegrationId)?.picture ?? null,
+    })),
+  });
 });
 
 social.get("/connections/:id/settings", async (c) => {
