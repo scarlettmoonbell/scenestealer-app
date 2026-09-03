@@ -6,7 +6,13 @@ import { DashboardTabs } from "../dashboard-tabs";
 import { describeFetchError } from "../fetch-error";
 import { useAuthedFetch } from "../use-authed-fetch";
 
-type SocialConnection = typeof socialConnections.$inferSelect;
+// Extends the raw row with the real account/page name and picture,
+// read live from Postiz — a tenant can have more than one connection
+// per platform, so these are what actually distinguish them in the UI.
+type SocialConnection = typeof socialConnections.$inferSelect & {
+  name: string | null;
+  picture: string | null;
+};
 
 const PLATFORMS = [
   { key: "youtube", label: "YouTube" },
@@ -165,8 +171,16 @@ export default function ConnectionsPage() {
                     borderBottom: "1px solid #333",
                   }}
                 >
-                  <span style={{ flex: 1, textTransform: "capitalize" }}>
-                    {connection.platform}
+                  <span style={{ flex: 1 }}>
+                    <span style={{ textTransform: "capitalize" }}>
+                      {connection.platform}
+                    </span>
+                    {connection.name && (
+                      <span style={{ color: "var(--muted)" }}>
+                        {" "}
+                        &mdash; {connection.name}
+                      </span>
+                    )}
                   </span>
                   <span style={{ fontSize: "0.85em", opacity: 0.7 }}>
                     Connected{" "}
