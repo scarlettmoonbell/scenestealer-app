@@ -21,7 +21,11 @@ const PLATFORMS = [
 ] as const;
 
 const POLL_INTERVAL_MS = 3000;
-const POLL_TIMEOUT_MS = 2 * 60 * 1000;
+// A multi-step flow (e.g. revoking and re-granting Page access, working
+// through Postiz's own Page-picker) can easily run past two minutes —
+// confirmed live: a real reconnect attempt succeeded well after the old
+// 2-minute window would have given up.
+const POLL_TIMEOUT_MS = 5 * 60 * 1000;
 
 export default function ConnectionsPage() {
   const authedFetch = useAuthedFetch();
@@ -105,10 +109,15 @@ export default function ConnectionsPage() {
           return;
         }
       }
+      // Give up watching, but the connection may still complete on Postiz's
+      // side after we stop polling — a stray popup left open indefinitely
+      // is worse than closing one the tenant might still be using, so this
+      // also nudges them to check back rather than silently vanishing.
       setError(
-        `Didn't see a new ${platform} connection — if you finished connecting, try refreshing.`,
+        `Still waiting on ${platform} after five minutes — if you finished connecting, refresh this page to check.`,
       );
       setConnectingPlatform(null);
+      popup?.close();
     } catch (e) {
       setError(`Failed to connect ${platform}: ${describeFetchError(e)}`);
       setConnectingPlatform(null);
