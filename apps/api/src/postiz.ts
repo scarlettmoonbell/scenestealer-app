@@ -109,13 +109,17 @@ export async function createPost(
     content: string;
     mediaUrl: string;
     settings: Record<string, unknown>;
+    // ISO date string. Present -> Postiz queues it for that time
+    // (`type: "schedule"`); absent -> publishes immediately (`type: "now"`),
+    // the existing behavior.
+    scheduledFor?: string;
   },
 ): Promise<CreatePostResult[]> {
   const res = await postizFetch(env, "/posts", {
     method: "POST",
     body: JSON.stringify({
-      type: "now",
-      date: new Date().toISOString(),
+      type: params.scheduledFor ? "schedule" : "now",
+      date: params.scheduledFor ?? new Date().toISOString(),
       shortLink: false,
       tags: [],
       posts: [
@@ -137,4 +141,13 @@ export async function createPost(
     throw new Error(`Postiz POST /posts failed: ${res.status} ${body}`);
   }
   return res.json();
+}
+
+export async function cancelPost(env: Env, postId: string): Promise<void> {
+  const res = await postizFetch(env, `/posts/${postId}`, {
+    method: "DELETE",
+  });
+  if (!res.ok && res.status !== 404) {
+    throw new Error(`Postiz DELETE /posts/${postId} failed: ${res.status}`);
+  }
 }

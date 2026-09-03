@@ -15,6 +15,13 @@
       "when": 1788373846910,
       "tag": "0001_lowly_rocket_raccoon",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788399568799,
+      "tag": "0002_reflective_annihilus",
+      "breakpoints": true
     }
   ]
 }

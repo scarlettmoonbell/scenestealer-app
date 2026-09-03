@@ -5,6 +5,7 @@ import { uploads } from "./routes/uploads.js";
 import { webhooks } from "./routes/webhooks.js";
 import { videos } from "./routes/videos.js";
 import { clipsRoute } from "./routes/clips.js";
+import { postsRoute } from "./routes/posts.js";
 import { social } from "./routes/social.js";
 import { templatesRoute } from "./routes/templates.js";
 import type { Variables } from "./auth.js";
@@ -55,6 +56,7 @@ app.route("/videos", videos);
 app.route("/clips", clipsRoute);
 app.route("/social", social);
 app.route("/templates", templatesRoute);
+app.route("/posts", postsRoute);
 
 // Phase 2+: publish action, Stripe webhook receiver.
 // See ../../README.md Status section.
