@@ -48,6 +48,21 @@ export default function DocsPage() {
         your Facebook Page when prompted.
       </p>
       <p style={{ marginTop: "1rem" }}>
+        <strong>
+          Already have a Professional account but the connection still fails?
+        </strong>{" "}
+        Having a Professional account isn&rsquo;t enough on its own &mdash; it
+        has to be linked to the <em>same</em> Facebook Page you connect to{" "}
+        <Brand />. If you see an error like &ldquo;We couldn&rsquo;t find any
+        business connected to the selected pages,&rdquo; that link is missing or
+        points at a different Page. Fix it from Instagram: Settings &rarr;
+        Account Center &rarr; Connected accounts &rarr; connect the Facebook
+        Page you use with <Brand /> (or from that Page&rsquo;s own settings in
+        Meta Business Suite, under Linked Accounts). Once it&rsquo;s linked, try{" "}
+        <strong>Connect Instagram</strong> again &mdash; you may need to remove
+        a failed attempt first if one is still listed as connected.
+      </p>
+      <p style={{ marginTop: "1rem" }}>
         Disconnecting an account (from the same page) revokes <Brand />
         &rsquo;s access immediately &mdash; it doesn&rsquo;t just stop us from
         using it, it actually invalidates our access on the platform&rsquo;s
