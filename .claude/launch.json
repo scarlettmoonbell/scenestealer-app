@@ -6,6 +6,25 @@
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--filter", "@scenestealer/web", "dev"],
       "port": 3000
+    },
+    {
+      "name": "api",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@scenestealer/api", "dev"],
+      "port": 8787
+    },
+    {
+      "name": "postiz-proxy",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "--filter",
+        "@scenestealer/postiz-proxy",
+        "dev",
+        "--",
+        "--port",
+        "8788"
+      ],
+      "port": 8788
     }
   ]
 }

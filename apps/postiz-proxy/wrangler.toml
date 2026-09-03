@@ -1,0 +1,26 @@
+name = "scenestealer-postiz-proxy"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+
+# Reverse-proxies postiz.scenestealer.app so we can inject a self-close
+# script into the connect-success page — see ROADMAP.md's "Known
+# friction" entry and the plan this was built from. Postiz's own
+# container is untouched; this sits in front of it at the edge.
+#
+# No routes here yet — staged rollout: deploy unrouted first (own
+# workers.dev subdomain), then a canary custom domain
+# (postiz-proxy-test.scenestealer.app) for full verification, and only
+# then the real postiz.scenestealer.app cutover — which lives in
+# scenestealer-infra's OpenTofu (cloudflare-dns.tf), not here, since
+# that's where the existing DNS record for this hostname is managed.
+
+[vars]
+# Fly's own per-app hostname — passthrough fetches target this, not
+# postiz.scenestealer.app itself, to avoid a proxy loop once that
+# hostname is Cloudflare-proxied through this Worker. Host header is
+# overridden to POSTIZ_PUBLIC_HOST on every proxied request so Postiz's
+# own app-layer logic (FRONTEND_URL-based, not request-derived) still
+# sees the hostname it expects.
+POSTIZ_ORIGIN_URL = "https://scenestealer-postiz.fly.dev"
+POSTIZ_PUBLIC_HOST = "postiz.scenestealer.app"
+WEB_ORIGIN = "https://scenestealer.app"
