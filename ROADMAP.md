@@ -622,6 +622,49 @@ unpinning.
   template variable — not useful for promoting the actual content — but
   `sourceVideos.deviceModel` still gets extracted and stored; only its
   exposure as a caption variable was removed.
+- **Known friction (2026-09-03): Postiz's connect flow is UI-forward,
+  not API-only, and that leaks into SceneStealer's own UX.** After
+  authorizing on Facebook/Instagram/YouTube's own site, Postiz always
+  routes the browser through its own branded UI first (a Page-picker
+  "Configure Your Channel" step, then its `/launches` calendar) before
+  control ever returns to us — there's no pure-API connect completion
+  it can hand back silently. Worked around on our side with a real
+  `<a target="_blank">` link (not JS `window.open()`) plus a
+  synchronous second-click `window.open()` to get a closable window
+  handle — reliable across browsers, but that handle still goes dead
+  once the tenant is deep in Postiz's own calendar UI: `Cross-Origin-
+  Opener-Policy` headers from Facebook/Google's own OAuth pages sever
+  the opener/popup relationship, so `.close()` can silently no-op
+  depending on exactly where in the flow the tenant is. Net effect:
+  tenants can be left looking at Postiz's calendar with no automatic
+  way back, particularly the first time they connect a given platform.
+  Considered and rejected: iframing Postiz's flow (Facebook/Google both
+  send `X-Frame-Options`/CSP headers refusing to be framed — a hard
+  wall, not a timing issue); redirecting Facebook's own OAuth
+  `redirect_uri` to our own domain instead of Postiz's (would mean
+  duplicating `FACEBOOK_APP_SECRET` onto `apps/api`, reimplementing the
+  code exchange ourselves, and Postiz has no documented API for
+  registering an externally-obtained token — real reimplementation risk
+  for what should be a UX fix). **Real fix, not yet built:** a thin
+  Cloudflare Worker reverse-proxying `postiz.scenestealer.app` (it
+  currently points straight at Fly, not through Cloudflare) that uses
+  `HTMLRewriter` to inject an auto-close/redirect script into just the
+  `/launches?added=...` success response — doesn't touch Postiz's own
+  container, so it stays 100% stock and upgradable; we'd maintain one
+  small standalone Worker instead of a Postiz fork.
+  - **Ayrshare flagged as a possible longer-term replacement** if this
+    UI-forward friction keeps recurring beyond just the connect screen.
+    Confirmed (via its own docs, not assumed): explicitly built for
+    embedded multi-tenant SaaS — "no end-user interface... your brand,
+    customer portal, and workflow stay yours entirely" — with per-
+    tenant JWT-based profile isolation on its Business plan. Caveat:
+    account-linking still goes through an Ayrshare-hosted "linking
+    page" (inherent to OAuth, not a Postiz-specific flaw), so it
+    wouldn't eliminate the redirect-out-and-back step entirely, just
+    make the surrounding UI ours instead of the provider's. Not a
+    small swap — would mean re-architecting the connect/publish/
+    schedule work this phase just built around Postiz's specific API
+    shape. Worth a proper eval later, not a snap decision now.
 
 ## 🗓 Phase 7 — Next: Scheduling, billing, polish
 
