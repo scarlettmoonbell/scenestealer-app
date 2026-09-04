@@ -65,6 +65,18 @@ export const socialConnections = pgTable("social_connections", {
 
 // --- Source video & clips --------------------------------------------------
 
+// pending: uploaded, analyze never triggered. analyzing: the (currently
+// synchronous — see routes/videos.ts) worker call is in flight. Tracked
+// in the DB rather than only client-side state so the status survives a
+// page reload/different tab while analysis is still running, and so a
+// failure has somewhere to persist for display.
+export const analysisStatusEnum = pgEnum("analysis_status", [
+  "pending",
+  "analyzing",
+  "analyzed",
+  "failed",
+]);
+
 export const sourceVideos = pgTable("source_videos", {
   id: uuid("id").primaryKey().defaultRandom(),
   tenantId: uuid("tenant_id")
@@ -77,6 +89,8 @@ export const sourceVideos = pgTable("source_videos", {
   r2Key: text("r2_key").notNull(),
   durationSec: real("duration_sec"),
   title: text("title"),
+  status: analysisStatusEnum("status").notNull().default("pending"),
+  analysisError: text("analysis_error"),
   // Below: read from the uploaded file's own metadata (ffprobe) during
   // analyze, when present — most uploads won't have all of these, some
   // will have none. venueName/cityName come from reverse-geocoding
