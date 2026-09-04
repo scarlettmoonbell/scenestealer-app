@@ -57,7 +57,10 @@ videos.get("/:id/playback-url", async (c) => {
 // here: this Worker can't spawn the ffmpeg/scenedetect subprocesses the
 // pipeline functions need. Synchronous for now — no queue, no job
 // status polling — see ROADMAP.md for the deferred Cloudflare Queue /
-// Fly Machines API architecture this stands in for.
+// Fly Machines API architecture this stands in for. `status` is
+// written to the DB before the (potentially long) worker call, not
+// just tracked client-side, so it survives a page reload/different tab
+// while analysis is still running.
 videos.post("/:id/analyze", async (c) => {
   const tenantId = c.get("tenantId");
   const db = createDb(c.env.DATABASE_URL);
@@ -66,18 +69,72 @@ videos.post("/:id/analyze", async (c) => {
   if (!video) {
     return c.json({ error: "Source video not found" }, 404);
   }
+  if (video.status === "analyzing") {
+    return c.json({ error: "Already analyzing" }, 400);
+  }
 
-  const workerRes = await fetch(`${c.env.WORKER_URL}/analyze`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${c.env.WORKER_SHARED_SECRET}`,
-    },
-    body: JSON.stringify({ sourceVideoId: video.id }),
+  await db
+    .update(sourceVideos)
+    .set({ status: "analyzing", analysisError: null })
+    .where(eq(sourceVideos.id, video.id));
+
+  // Wrapped so status always lands on "failed" rather than getting
+  // stuck on "analyzing" forever — the route above refuses a new
+  // attempt while already analyzing, so an unhandled throw here (a
+  // network-level fetch failure, a non-JSON response) would otherwise
+  // leave the tenant with no way to retry at all.
+  try {
+    const workerRes = await fetch(`${c.env.WORKER_URL}/analyze`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${c.env.WORKER_SHARED_SECRET}`,
+      },
+      body: JSON.stringify({ sourceVideoId: video.id }),
+    });
+
+    const body = (await workerRes.json()) as { error?: string };
+
+    await db
+      .update(sourceVideos)
+      .set(
+        workerRes.ok
+          ? { status: "analyzed" }
+          : {
+              status: "failed",
+              analysisError: body.error ?? "Analysis failed",
+            },
+      )
+      .where(eq(sourceVideos.id, video.id));
+
+    return c.json(body, workerRes.status as 200 | 400 | 401 | 500);
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Analysis failed";
+    await db
+      .update(sourceVideos)
+      .set({ status: "failed", analysisError: message })
+      .where(eq(sourceVideos.id, video.id));
+    return c.json({ error: message }, 500);
+  }
+});
+
+// Lightweight status check for the frontend to poll when a tenant
+// returns to a video whose analysis is already in flight (e.g. reload,
+// different tab) — avoids re-fetching the full video + clips payload
+// just to check whether it's still running.
+videos.get("/:id/status", async (c) => {
+  const tenantId = c.get("tenantId");
+  const db = createDb(c.env.DATABASE_URL);
+
+  const video = await getOwnedSourceVideo(db, tenantId, c.req.param("id"));
+  if (!video) {
+    return c.json({ error: "Source video not found" }, 404);
+  }
+
+  return c.json({
+    status: video.status,
+    analysisError: video.analysisError,
   });
-
-  const body = await workerRes.json();
-  return c.json(body, workerRes.status as 200 | 400 | 401 | 500);
 });
 
 // Deletes the video, every clip rendered from it, and the underlying R2

@@ -3,6 +3,7 @@ import { eq, and } from "drizzle-orm";
 import { createDb, tenants, sourceVideos, clips } from "@scenestealer/db";
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { AnalyzeControl } from "./analyze-control";
 import { ClipEditor } from "./clip-editor";
 
 // Reads straight from the DB via @scenestealer/db (DATABASE_URL is
@@ -51,6 +52,11 @@ export default async function VideoPage({
     <main>
       <Link href="/">&larr; Back to recordings</Link>
       <h1>{video.title ?? "Untitled recording"}</h1>
+      <AnalyzeControl
+        sourceVideoId={video.id}
+        initialStatus={video.status}
+        initialError={video.analysisError}
+      />
       <ClipEditor
         sourceVideoId={video.id}
         videoTitle={video.title ?? "Untitled recording"}

@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
+import { useRouter } from "next/navigation";
 import { describeFetchError } from "./fetch-error";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
@@ -19,6 +20,7 @@ async function readError(res: Response, fallback: string): Promise<string> {
 
 export function UploadPanel() {
   const { getToken } = useAuth();
+  const router = useRouter();
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string | null>(null);
   const [uploadedTitle, setUploadedTitle] = useState<string | null>(null);
@@ -98,8 +100,12 @@ export function UploadPanel() {
 
       setUploadedTitle(file.name);
       setStatus("done");
+      // VideoList is a Server Component reading the DB directly at
+      // render time — this client-side upload has no other way to
+      // make it show the new video without a full page reload.
+      router.refresh();
     },
-    [getToken],
+    [getToken, router],
   );
 
   const onDrop = useCallback(
