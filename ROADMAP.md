@@ -705,8 +705,76 @@ unpinning.
   then cut over for real in `scenestealer-infra`'s OpenTofu
   (`cloudflare-dns.tf`): destroyed the old DNS-only `postiz_a`/
   `postiz_aaaa` records, created a `cloudflare_workers_custom_domain`
-  binding `postiz.scenestealer.app` to the Worker. Canary route kept
-  live as a known-good comparison target.
+  binding `postiz.scenestealer.app` to the Worker. The canary route was
+  later removed entirely (see below) rather than kept as a permanent
+  comparison target.
+
+  **Post-cutover fixes (2026-09-05), found via real live connect
+  attempts — the above verification, done before cutover, wasn't
+  sufficient on its own:**
+  - **Canary route removed.** Every `wrangler deploy` was re-syncing it
+    against Cloudflare's Workers Routes API, which the
+    `CLOUDFLARE_API_TOKEN` GitHub secret (rotated via
+    `scenestealer-infra`'s OpenTofu) doesn't have permission for — a
+    real CI failure, unrelated to the Worker's own code, which deployed
+    fine regardless. The canary already did its job (self-close/
+    redirect verified against it); the real binding lives entirely in
+    Tofu now (`cloudflare_workers_custom_domain`), the same pattern
+    `apps/api` already uses.
+  - **The client-side-navigation gap — the actual reason real connects
+    still left tenants on Postiz's calendar.** A real connect success
+    never reloads the page: Postiz's OAuth callback page
+    (`/integrations/social/[provider]`, confirmed against Postiz's own
+    source — `ContinueIntegration`'s `navigateOrShow`,
+    `apps/frontend/src/components/launches/continue.integration.tsx`)
+    transitions to `/launches?added=...` via Next.js's `router.push` —
+    client-side History API navigation, no new HTTP request. This
+    Worker's `HTMLRewriter` only sees real responses, so it never had a
+    chance to inject anything for that transition; the self-close
+    script only ever fired for a *directly-loaded* `/launches?added=...`
+    URL (this Worker's own manual pre-cutover verification), never the
+    real flow. Fixed by widening the rewrite target to
+    `/integrations/social/*` alongside `/launches`, and having the
+    injected script patch `history.pushState`/`replaceState` so it
+    catches the transition wherever it actually happens.
+  - **The real root cause of the visible symptom that followed (two
+    Facebook tabs, one left defunct).** Not primarily a double-click
+    race, though one existed and was fixed too (a synchronous `useRef`
+    guard — a fast double-click on the two-click UI's lingering link
+    could fire `window.open()` twice with the identical URL before
+    React re-rendered the link away). The actual culprit, found after
+    that fix alone didn't resolve it: `apps/web/app/connections/
+    page.tsx`'s `window.open()` calls passed `"noreferrer"` as a
+    window-features argument. Per MDN, that forces `noopener`
+    semantics too, and `noopener` makes `window.open()` return `null`
+    **unconditionally, in every modern browser** — not a Safari-specific
+    quirk, not COOP, not a probabilistic popup-blocker thing. Verified
+    directly with a real physical click (a script-dispatched click
+    isn't a trusted gesture and would give a false read):
+    `window.open(url, "_blank", "noreferrer")` → `null`; the identical
+    call without `"noreferrer"` → a real, controllable `Window`. This
+    means the original "COOP breaks opener-side `.close()`" diagnosis
+    that kicked off this whole project was only ever partially right —
+    this specific handle was broken by `"noreferrer"` unconditionally,
+    before COOP ever entered into it. The self-close proxy fix is still
+    correct and necessary for popups that navigate through Facebook/
+    Google's own pages (third-party origins this app doesn't control),
+    just not sufficient by itself.
+  - **Connect flow redesigned to a single click**, chasing the above:
+    replaced the two-click UI (a button, then a second click on a real
+    link — which existed only to keep `window.open()` inside a genuine
+    synchronous click, working around the same Safari trusted-gesture
+    issue) with opening a blank popup synchronously on the first click
+    and redirecting it to the real URL once the connect-URL fetch
+    resolves. Same gesture-trust guarantee, no second click, and no
+    lingering clickable link for a double-click to land in. The
+    two-click UI still exists as a fallback for the rare case the blank
+    popup itself gets blocked.
+  - **Confirmed live end-to-end, 2026-09-05**: a real Facebook connect
+    completes in a single click and lands the tenant back on the
+    Connected Accounts view automatically — the actual bug this project
+    set out to fix, now genuinely resolved rather than just verified in
+    isolation.
   - **Ayrshare flagged as a possible longer-term replacement** if this
     UI-forward friction keeps recurring beyond just the connect screen.
     Confirmed (via its own docs, not assumed): explicitly built for
