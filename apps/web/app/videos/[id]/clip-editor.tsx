@@ -28,9 +28,7 @@ function formatTime(sec: number): string {
 // the waveform regions' own drag/resize lock so the boundary inputs
 // and the waveform never disagree about whether a clip is editable.
 function isLocked(status: Clip["status"]): boolean {
-  return (
-    status === "rejected" || status === "ready" || status === "rendering"
-  );
+  return status === "rejected" || status === "ready" || status === "rendering";
 }
 
 export function ClipEditor({
