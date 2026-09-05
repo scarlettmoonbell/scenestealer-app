@@ -5,6 +5,7 @@ import type { templates as templatesTable } from "@scenestealer/db";
 import { DashboardTabs } from "../dashboard-tabs";
 import { describeFetchError } from "../fetch-error";
 import { useAuthedFetch } from "../use-authed-fetch";
+import { TABLE_HEADER_STYLE } from "../table-header-style";
 
 type Template = typeof templatesTable.$inferSelect;
 type Platform = Template["platform"];
@@ -259,10 +260,10 @@ export default function TemplatesPage() {
                     <th
                       scope="col"
                       style={{
+                        ...TABLE_HEADER_STYLE,
                         textAlign: "left",
                         padding: "0.5rem 0.75rem 0.5rem 0",
                         borderBottom: "1px solid var(--border)",
-                        color: "var(--heading)",
                       }}
                     >
                       Variable
@@ -270,10 +271,10 @@ export default function TemplatesPage() {
                     <th
                       scope="col"
                       style={{
+                        ...TABLE_HEADER_STYLE,
                         textAlign: "left",
                         padding: "0.5rem 0.75rem",
                         borderBottom: "1px solid var(--border)",
-                        color: "var(--heading)",
                       }}
                     >
                       Example
@@ -281,10 +282,10 @@ export default function TemplatesPage() {
                     <th
                       scope="col"
                       style={{
+                        ...TABLE_HEADER_STYLE,
                         textAlign: "left",
                         padding: "0.5rem 0 0.5rem 0.75rem",
                         borderBottom: "1px solid var(--border)",
-                        color: "var(--heading)",
                       }}
                     >
                       Where it comes from
@@ -402,16 +403,12 @@ export default function TemplatesPage() {
             <>
               <div
                 style={{
+                  ...TABLE_HEADER_STYLE,
                   display: "flex",
                   alignItems: "center",
                   gap: "0.75rem",
                   padding: "0 0.75rem 0.5rem",
                   borderBottom: "1px solid var(--border)",
-                  fontSize: "0.85em",
-                  fontWeight: 600,
-                  color: "var(--muted)",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.03em",
                 }}
               >
                 <span style={{ flex: 1 }}>Template name</span>

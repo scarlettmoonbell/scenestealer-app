@@ -14,6 +14,7 @@ import type { clips as clipsTable } from "@scenestealer/db";
 import { describeFetchError } from "../../fetch-error";
 import { useAuthedFetch } from "../../use-authed-fetch";
 import { PublishControl, type VideoMetadata } from "./publish-control";
+import { TABLE_HEADER_STYLE } from "../../table-header-style";
 
 type Clip = typeof clipsTable.$inferSelect;
 
@@ -29,6 +30,11 @@ const CELL_STYLE: CSSProperties = {
   padding: "0.5rem 0.75rem",
   textAlign: "left",
   verticalAlign: "middle",
+};
+
+const HEADER_CELL_STYLE: CSSProperties = {
+  ...CELL_STYLE,
+  ...TABLE_HEADER_STYLE,
 };
 
 function formatTime(sec: number): string {
@@ -281,11 +287,11 @@ export function ClipEditor({
       <table style={{ width: "100%", borderCollapse: "collapse" }}>
         <thead>
           <tr style={{ borderBottom: "2px solid #333" }}>
-            <th style={CELL_STYLE}>Play</th>
-            <th style={CELL_STYLE}>Adjust</th>
-            <th style={CELL_STYLE}>Reasoning</th>
-            <th style={CELL_STYLE}>Status</th>
-            <th style={CELL_STYLE}>Manage</th>
+            <th style={HEADER_CELL_STYLE}>Play</th>
+            <th style={HEADER_CELL_STYLE}>Adjust</th>
+            <th style={HEADER_CELL_STYLE}>Reasoning</th>
+            <th style={HEADER_CELL_STYLE}>Status</th>
+            <th style={HEADER_CELL_STYLE}>Manage</th>
           </tr>
         </thead>
         <tbody>
