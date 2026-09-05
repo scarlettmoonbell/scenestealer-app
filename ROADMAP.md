@@ -622,36 +622,91 @@ unpinning.
   template variable — not useful for promoting the actual content — but
   `sourceVideos.deviceModel` still gets extracted and stored; only its
   exposure as a caption variable was removed.
-- **Known friction (2026-09-03): Postiz's connect flow is UI-forward,
-  not API-only, and that leaks into SceneStealer's own UX.** After
-  authorizing on Facebook/Instagram/YouTube's own site, Postiz always
-  routes the browser through its own branded UI first (a Page-picker
-  "Configure Your Channel" step, then its `/launches` calendar) before
-  control ever returns to us — there's no pure-API connect completion
-  it can hand back silently. Worked around on our side with a real
-  `<a target="_blank">` link (not JS `window.open()`) plus a
-  synchronous second-click `window.open()` to get a closable window
-  handle — reliable across browsers, but that handle still goes dead
-  once the tenant is deep in Postiz's own calendar UI: `Cross-Origin-
-  Opener-Policy` headers from Facebook/Google's own OAuth pages sever
-  the opener/popup relationship, so `.close()` can silently no-op
-  depending on exactly where in the flow the tenant is. Net effect:
-  tenants can be left looking at Postiz's calendar with no automatic
-  way back, particularly the first time they connect a given platform.
-  Considered and rejected: iframing Postiz's flow (Facebook/Google both
-  send `X-Frame-Options`/CSP headers refusing to be framed — a hard
-  wall, not a timing issue); redirecting Facebook's own OAuth
-  `redirect_uri` to our own domain instead of Postiz's (would mean
-  duplicating `FACEBOOK_APP_SECRET` onto `apps/api`, reimplementing the
-  code exchange ourselves, and Postiz has no documented API for
-  registering an externally-obtained token — real reimplementation risk
-  for what should be a UX fix). **Real fix, not yet built:** a thin
-  Cloudflare Worker reverse-proxying `postiz.scenestealer.app` (it
-  currently points straight at Fly, not through Cloudflare) that uses
-  `HTMLRewriter` to inject an auto-close/redirect script into just the
-  `/launches?added=...` success response — doesn't touch Postiz's own
-  container, so it stays 100% stock and upgradable; we'd maintain one
-  small standalone Worker instead of a Postiz fork.
+- **Done (2026-09-04): Postiz connect-flow auto-close, fixed via a
+  Cloudflare Worker reverse-proxy.** Postiz's connect flow is
+  UI-forward, not API-only — after authorizing on
+  Facebook/Instagram/YouTube's own site, Postiz always routes the
+  browser through its own branded UI first (a Page-picker "Configure
+  Your Channel" step, then its `/launches` calendar) before control
+  ever returns to us. The existing `<a target="_blank">` +
+  synchronous second-click `window.open()` workaround's window handle
+  still went dead once the tenant was deep in Postiz's own calendar
+  UI: `Cross-Origin-Opener-Policy` headers from Facebook/Google's own
+  OAuth pages sever the opener/popup relationship, so opener-side
+  `.close()` could silently no-op, leaving tenants stuck looking at
+  Postiz's calendar with no automatic way back. Considered and
+  rejected (unchanged from the original investigation): iframing
+  (Facebook/Google both send `X-Frame-Options`/CSP headers refusing to
+  be framed — a hard wall, not a timing issue); redirecting Facebook's
+  OAuth `redirect_uri` to our own domain instead of Postiz's (would
+  mean duplicating `FACEBOOK_APP_SECRET` onto `apps/api` and
+  reimplementing the code exchange ourselves, with no documented
+  Postiz API for registering an externally-obtained token).
+
+  **Fix**: `apps/postiz-proxy`, a thin Cloudflare Worker
+  reverse-proxying `postiz.scenestealer.app` (previously DNS-only
+  straight to Fly) that injects a **self-closing** script — not
+  reliant on opener-side `.close()` — into the `/launches` response
+  via `HTMLRewriter`. Self-close uses a different browser permission
+  model than the one that was failing: COOP restricts cross-window
+  reference/communication, not a document's own ability to close
+  itself, and eligibility tracks "was this window opened via script,"
+  which the existing `window.open()` flow already satisfies. Falls
+  back to redirecting to `https://scenestealer.app/connections` after
+  ~500ms if self-close is refused (e.g. a tenant bookmarked/typed the
+  Postiz URL directly). Postiz's own container is completely
+  untouched — no fork, fully upgradable.
+
+  **Confirmed empirically, not assumed:**
+  - The `added=`/`msg=` connect-success query params never reach
+    Postiz's server — `/launches` behaves identically with or without
+    them (direct passthrough-parity `curl` checks), confirming it's a
+    client-side-routed SPA view. The injected script reads
+    `location.search` at execution time rather than gating
+    server-side, which this confirms was the right call.
+  - Self-close and the fallback redirect both work correctly against a
+    real, authenticated session in **Chrome and Safari** (Firefox not
+    tested). Safari specifically showed no close-confirmation dialog
+    or gesture-timing issue.
+  - Postiz's own session cookie (`auth`) is scoped to the
+    `.scenestealer.app` apex (its `tldts`-based cookie-domain logic),
+    not the exact host — useful for testing (a canary hostname under
+    the same apex shares the session automatically), and a reminder
+    this is the same class of cookie-domain behavior that already bit
+    this hostname once (see `scenestealer-infra`'s `cloudflare-dns.tf`
+    incident).
+  - **Canary-hostname limitation, not a proxy defect**: a canary
+    hostname (`postiz-proxy-test.scenestealer.app`, used for
+    pre-cutover verification) can never fully render Postiz's own UI —
+    Postiz's frontend bundle calls its API via a hardcoded absolute URL
+    (`NEXT_PUBLIC_BACKEND_URL`/`FRONTEND_URL`, fixed to
+    `postiz.scenestealer.app` at build time, not derived per-request),
+    so any other hostname makes those calls cross-origin and Postiz's
+    CORS allow-list rejects them (confirmed via `fetch()`: a
+    credentialed request throws `TypeError: Failed to fetch`, while a
+    `no-cors` fetch to the same URL completes fine — proving it's a
+    CORS rejection, not a real backend/connectivity failure). Inherent
+    to self-hosting stock Postiz, not something this Worker introduced.
+  - **WebSocket passthrough**: the `/launches` calendar view itself
+    does not open a WebSocket connection on load (confirmed by scanning
+    every loaded JS chunk for actual `new WebSocket(...)` calls, not
+    just the Performance API, which can't see WebSockets at all). One
+    genuine on-demand WebSocket code path exists elsewhere in the
+    bundle, gated behind a feature not exercised during this
+    verification — not yet live-tested, but Cloudflare Workers proxy
+    WebSocket upgrades automatically through a plain `fetch()`
+    passthrough (exactly what this Worker does for anything outside
+    the `/launches` rewrite), so there's no code reason to expect it
+    wouldn't work.
+
+  **Rollout**: canary custom domain
+  (`postiz-proxy-test.scenestealer.app`, provisioned via
+  `apps/postiz-proxy/wrangler.toml`'s own `routes`) verified first,
+  then cut over for real in `scenestealer-infra`'s OpenTofu
+  (`cloudflare-dns.tf`): destroyed the old DNS-only `postiz_a`/
+  `postiz_aaaa` records, created a `cloudflare_workers_custom_domain`
+  binding `postiz.scenestealer.app` to the Worker. Canary route kept
+  live as a known-good comparison target.
   - **Ayrshare flagged as a possible longer-term replacement** if this
     UI-forward friction keeps recurring beyond just the connect screen.
     Confirmed (via its own docs, not assumed): explicitly built for
