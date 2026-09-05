@@ -731,7 +731,7 @@ unpinning.
     client-side History API navigation, no new HTTP request. This
     Worker's `HTMLRewriter` only sees real responses, so it never had a
     chance to inject anything for that transition; the self-close
-    script only ever fired for a *directly-loaded* `/launches?added=...`
+    script only ever fired for a _directly-loaded_ `/launches?added=...`
     URL (this Worker's own manual pre-cutover verification), never the
     real flow. Fixed by widening the rewrite target to
     `/integrations/social/*` alongside `/launches`, and having the
