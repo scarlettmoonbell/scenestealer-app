@@ -52,6 +52,43 @@ videos.get("/:id/playback-url", async (c) => {
   return c.json({ playbackUrl });
 });
 
+// Manually-defined clip — the clip editor's drag-selection scrubber on
+// the waveform lands here, alongside the AI-suggested ones from
+// runAnalyze. Starts "suggested" like those do, so it goes through the
+// exact same accept/reject/render flow rather than needing a separate
+// status branch anywhere downstream.
+videos.post("/:id/clips", async (c) => {
+  const tenantId = c.get("tenantId");
+  const db = createDb(c.env.DATABASE_URL);
+
+  const video = await getOwnedSourceVideo(db, tenantId, c.req.param("id"));
+  if (!video) {
+    return c.json({ error: "Source video not found" }, 404);
+  }
+
+  const body = await c.req.json<{ startSec?: number; endSec?: number }>();
+  if (
+    typeof body.startSec !== "number" ||
+    typeof body.endSec !== "number" ||
+    body.startSec < 0 ||
+    body.startSec >= body.endSec
+  ) {
+    return c.json({ error: "Invalid clip bounds" }, 400);
+  }
+
+  const [clip] = await db
+    .insert(clips)
+    .values({
+      sourceVideoId: video.id,
+      startSec: body.startSec,
+      endSec: body.endSec,
+      status: "suggested",
+    })
+    .returning();
+
+  return c.json({ clip });
+});
+
 // Proxies to apps/worker's own /analyze route (a small always-on Fly
 // app — see apps/worker/fly.toml) rather than running the pipeline
 // here: this Worker can't spawn the ffmpeg/scenedetect subprocesses the
