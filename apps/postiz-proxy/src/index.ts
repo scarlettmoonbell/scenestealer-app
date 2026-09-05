@@ -6,21 +6,51 @@ export interface Env {
 
 // Builds the injected script inline rather than as a separate asset —
 // this Worker has no static-asset pipeline, and the script is tiny.
-// Deliberately does NOT gate on query params here in the Worker's own
-// routing (see wrangler.toml's comment / ROADMAP.md): Postiz's
-// /launches is a client-side-routed SPA view, so the connect-success
-// `added=`/`msg=` params may only ever exist in the browser's address
-// bar, never on a real server request. Reading `location.search` at
-// script-execution time is correct either way.
+//
+// Confirmed against Postiz's real source (ContinueIntegration's
+// navigateOrShow, apps/frontend/src/components/launches/continue.
+// integration.tsx): a real connect success never reloads the page.
+// The OAuth provider's redirect_uri lands the popup on
+// /integrations/social/[provider] (a genuine HTTP response this
+// Worker does see), and that page's own async logic then calls
+// Next.js's router.push("/launches?added=<provider>&msg=...") —
+// client-side History API navigation, no new request. The original
+// version of this script only checked location.search on load, which
+// only ever fires when something loads /launches?added=... directly
+// (e.g. a bookmark, or this Worker's own pre-cutover verification) —
+// never during the actual live flow, confirmed live 2026-09-05 when a
+// real connect still left the tenant on Postiz's calendar. Patching
+// pushState/replaceState catches the transition at the moment it
+// actually happens, regardless of which page it started from.
 function buildInjectedScript(webOrigin: string): string {
   return `<script>(function(){
 try {
-  var params = new URLSearchParams(window.location.search);
-  if (!params.has("added")) return;
-  try { window.close(); } catch (e) {}
-  setTimeout(function () {
-    window.location.href = ${JSON.stringify(`${webOrigin}/connections`)};
-  }, 500);
+  function maybeCloseFor(urlStr) {
+    var target;
+    try {
+      target = new URL(urlStr, window.location.href);
+    } catch (e) {
+      return;
+    }
+    if (!target.searchParams.has("added")) return;
+    try { window.close(); } catch (e) {}
+    setTimeout(function () {
+      window.location.href = ${JSON.stringify(`${webOrigin}/connections`)};
+    }, 500);
+  }
+
+  // Covers a direct load of a URL that already carries the param.
+  maybeCloseFor(window.location.href);
+
+  // Covers the real flow's client-side router.push transition.
+  ["pushState", "replaceState"].forEach(function (method) {
+    var original = history[method];
+    history[method] = function (state, title, url) {
+      var result = original.apply(this, arguments);
+      if (url) maybeCloseFor(url);
+      return result;
+    };
+  });
 } catch (e) {}
 })();</script>`;
 }
@@ -51,9 +81,21 @@ export default {
 
     const originResponse = await fetch(originRequest);
 
+    // /launches: covers a direct load of the success URL (this Worker's
+    // own pre-cutover verification loaded it this way). /integrations/
+    // social/: the actual OAuth redirect_uri destination for every
+    // provider (confirmed against Postiz's source and ROADMAP.md's own
+    // notes on the configured Facebook/Instagram/YouTube redirect
+    // URIs) — the page the injected script's pushState/replaceState
+    // patch above needs to be running on *before* the real flow's
+    // client-side router.push away from it happens.
+    const isRewriteTarget =
+      url.pathname === "/launches" ||
+      url.pathname.startsWith("/integrations/social/");
+
     const isCandidate =
       request.method === "GET" &&
-      url.pathname === "/launches" &&
+      isRewriteTarget &&
       originResponse.status >= 200 &&
       originResponse.status < 300 &&
       (originResponse.headers.get("content-type") ?? "").startsWith(
