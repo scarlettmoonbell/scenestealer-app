@@ -24,6 +24,13 @@ function formatTime(sec: number): string {
   return `${m}:${s.padStart(4, "0")}`;
 }
 
+// Rendered/rendering/rejected clips are done being edited — matches
+// the waveform regions' own drag/resize lock so the boundary inputs
+// and the waveform never disagree about whether a clip is editable.
+function isLocked(status: Clip["status"]): boolean {
+  return status === "rejected" || status === "ready" || status === "rendering";
+}
+
 export function ClipEditor({
   sourceVideoId,
   videoTitle,
@@ -63,6 +70,40 @@ export function ClipEditor({
       })
       .catch((e) => setError(`Failed to load video: ${describeFetchError(e)}`));
   }, [authedFetch, sourceVideoId]);
+
+  // Tracks the timeupdate listener for whichever clip is currently
+  // playing, so starting a new clip's playback cleans up the old
+  // listener rather than leaving it watching a stale endSec (which
+  // could pause the video early once currentTime crosses that old
+  // boundary during the new clip's playback).
+  const activePlaybackCleanupRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    return () => activePlaybackCleanupRef.current?.();
+  }, []);
+
+  const playClip = useCallback((clip: Clip) => {
+    const videoEl = videoRef.current;
+    if (!videoEl) return;
+
+    activePlaybackCleanupRef.current?.();
+
+    videoEl.currentTime = clip.startSec;
+    void videoEl.play();
+
+    const onTimeUpdate = () => {
+      if (videoEl.currentTime >= clip.endSec) {
+        videoEl.pause();
+        cleanup();
+      }
+    };
+    const cleanup = () => {
+      videoEl.removeEventListener("timeupdate", onTimeUpdate);
+      activePlaybackCleanupRef.current = null;
+    };
+    videoEl.addEventListener("timeupdate", onTimeUpdate);
+    activePlaybackCleanupRef.current = cleanup;
+  }, []);
 
   const [renderedUrls, setRenderedUrls] = useState<Record<string, string>>({});
   const [renderingIds, setRenderingIds] = useState<Set<string>>(new Set());
@@ -128,6 +169,21 @@ export function ClipEditor({
         }
         const { clip } = (await res.json()) as { clip: Clip };
         setClipList((prev) => prev.map((c) => (c.id === clip.id ? clip : c)));
+
+        // Keep the waveform region in sync when the edit came from the
+        // boundary inputs below rather than a drag on the region itself
+        // — dragging already updates the region directly (that's what
+        // triggers this function in the first place, via
+        // region-updated), so re-setting it there would just echo back
+        // the same values. Look the region up by id rather than closing
+        // over one, since the region this function was called for isn't
+        // always the one the caller has a reference to.
+        if (patch.startSec != null || patch.endSec != null) {
+          const region = regionsPluginRef.current
+            ?.getRegions()
+            .find((r) => r.id === clip.id);
+          region?.setOptions({ start: clip.startSec, end: clip.endSec });
+        }
       } catch (e) {
         setError(`Failed to save clip change: ${describeFetchError(e)}`);
       }
@@ -162,10 +218,7 @@ export function ClipEditor({
       regionsPluginRef.current = regions;
 
       for (const clip of clipList) {
-        const locked =
-          clip.status === "rejected" ||
-          clip.status === "ready" ||
-          clip.status === "rendering";
+        const locked = isLocked(clip.status);
         regions.addRegion({
           id: clip.id,
           start: clip.startSec,
@@ -228,9 +281,77 @@ export function ClipEditor({
                 gap: "0.75rem",
               }}
             >
-              <span style={{ fontVariantNumeric: "tabular-nums" }}>
-                {formatTime(clip.startSec)} – {formatTime(clip.endSec)}
-              </span>
+              <button
+                type="button"
+                onClick={() => playClip(clip)}
+                disabled={!playbackUrl}
+                title="Play this clip"
+                aria-label={`Play clip from ${formatTime(clip.startSec)} to ${formatTime(clip.endSec)}`}
+                style={{ lineHeight: 1 }}
+              >
+                &#9654;
+              </button>
+              {isLocked(clip.status) ? (
+                <span style={{ fontVariantNumeric: "tabular-nums" }}>
+                  {formatTime(clip.startSec)} – {formatTime(clip.endSec)}
+                </span>
+              ) : (
+                <span
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.25rem",
+                    fontVariantNumeric: "tabular-nums",
+                  }}
+                >
+                  <input
+                    key={`start-${clip.id}-${clip.startSec}`}
+                    type="number"
+                    step={0.1}
+                    min={0}
+                    defaultValue={clip.startSec.toFixed(1)}
+                    onBlur={(e) => {
+                      const value = parseFloat(e.target.value);
+                      if (
+                        !Number.isFinite(value) ||
+                        value < 0 ||
+                        value >= clip.endSec
+                      ) {
+                        e.target.value = clip.startSec.toFixed(1);
+                        return;
+                      }
+                      void updateClip(clip.id, { startSec: value });
+                    }}
+                    style={{ width: "4.5em" }}
+                    aria-label="Clip start time in seconds"
+                  />
+                  <span>–</span>
+                  <input
+                    key={`end-${clip.id}-${clip.endSec}`}
+                    type="number"
+                    step={0.1}
+                    min={0}
+                    max={videoRef.current?.duration}
+                    defaultValue={clip.endSec.toFixed(1)}
+                    onBlur={(e) => {
+                      const value = parseFloat(e.target.value);
+                      const duration = videoRef.current?.duration;
+                      if (
+                        !Number.isFinite(value) ||
+                        value <= clip.startSec ||
+                        (duration != null && value > duration)
+                      ) {
+                        e.target.value = clip.endSec.toFixed(1);
+                        return;
+                      }
+                      void updateClip(clip.id, { endSec: value });
+                    }}
+                    style={{ width: "4.5em" }}
+                    aria-label="Clip end time in seconds"
+                  />
+                  <span>sec</span>
+                </span>
+              )}
               <span style={{ flex: 1, fontSize: "0.9em", opacity: 0.8 }}>
                 {clip.aiReason ?? "Manually adjusted clip"}
                 {clip.aiScore != null && ` (score ${clip.aiScore.toFixed(2)})`}
