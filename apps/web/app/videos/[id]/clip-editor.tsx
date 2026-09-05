@@ -79,6 +79,25 @@ export function ClipEditor({
   >(null);
   const disableDragSelectionRef = useRef<(() => void) | null>(null);
 
+  // Re-arms drag-selection after a pending clip is resolved (created
+  // or canceled) — also used for the initial setup in the wavesurfer
+  // effect below. Only one pending selection is allowed at a time:
+  // disabled the moment region-created fires, not re-enabled until
+  // Create succeeds or Cancel is clicked, otherwise a second drag
+  // while one was already pending would orphan the first region on
+  // the waveform with no way to reach it again (confirmed live
+  // 2026-09-05 — only the most recently drawn one was ever
+  // create-able or cancelable).
+  const enablePendingDragSelection = useCallback(() => {
+    const regions = regionsPluginRef.current;
+    if (!regions) return;
+    disableDragSelectionRef.current = regions.enableDragSelection({
+      color: REGION_COLOR_PENDING,
+      drag: false,
+      resize: false,
+    });
+  }, []);
+
   const authedFetch = useAuthedFetch();
 
   // Fetch the presigned playback URL — R2 credentials only live in
@@ -244,13 +263,16 @@ export function ClipEditor({
           resize: true,
         });
         setPendingNewClip(null);
+        // Frees up the "one pending selection at a time" slot — see
+        // enablePendingDragSelection's own comment.
+        enablePendingDragSelection();
       } catch (e) {
         setError(`Failed to create clip: ${describeFetchError(e)}`);
       } finally {
         setCreatingClip(false);
       }
     },
-    [authedFetch, sourceVideoId],
+    [authedFetch, sourceVideoId, enablePendingDragSelection],
   );
 
   // wavesurfer.js lifecycle — bound to the <video> element so playback and
@@ -312,13 +334,12 @@ export function ClipEditor({
       // this doesn't affect) — the pending region has no real clip id
       // yet, so the region-updated handler below can't safely PATCH it
       // if the user tried to nudge its handles before confirming.
-      disableDragSelectionRef.current = regions.enableDragSelection({
-        color: REGION_COLOR_PENDING,
-        drag: false,
-        resize: false,
-      });
+      enablePendingDragSelection();
       regions.on("region-created", (region: Region) => {
         setPendingNewClip(region);
+        // Only one pending selection at a time — see
+        // enablePendingDragSelection's own comment for why.
+        disableDragSelectionRef.current?.();
       });
     })();
 
@@ -333,7 +354,7 @@ export function ClipEditor({
     // clipList is only used for the initial region seed — subsequent edits
     // flow through the region objects themselves, not React re-renders, so
     // it's deliberately excluded from the dependency list.
-  }, [playbackUrl, updateClip]);
+  }, [playbackUrl, updateClip, enablePendingDragSelection]);
 
   return (
     <div>
@@ -393,6 +414,7 @@ export function ClipEditor({
             onClick={() => {
               pendingNewClip.remove();
               setPendingNewClip(null);
+              enablePendingDragSelection();
             }}
           >
             Cancel
