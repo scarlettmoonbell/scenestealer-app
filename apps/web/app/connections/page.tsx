@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { socialConnections } from "@scenestealer/db";
 import { DashboardTabs } from "../dashboard-tabs";
 import { describeFetchError } from "../fetch-error";
@@ -53,6 +53,17 @@ export default function ConnectionsPage() {
   const [pendingConnect, setPendingConnect] = useState<PendingConnect | null>(
     null,
   );
+  // Guards against a double-click opening two OAuth tabs with the same
+  // URL — confirmed live 2026-09-05: the tenant only ever interacts
+  // with whichever tab their second click landed on, leaving the first
+  // stuck on Facebook's own initial dialog forever, since only the
+  // *opener*-side .close() (already known-unreliable — see
+  // beginPolling) ever targets it. A ref, not state: it must be
+  // checked synchronously inside the same click handler that opens the
+  // tab, before React has a chance to re-render and remove the link
+  // (which is what beginPolling's setPendingConnect(null) eventually
+  // does, but not within the same event-handler invocation).
+  const openedRef = useRef(false);
 
   const loadConnections = useCallback(async () => {
     try {
@@ -92,6 +103,7 @@ export default function ConnectionsPage() {
         url: string;
         beforeIds: string[];
       };
+      openedRef.current = false;
       setPendingConnect({ platform, url, beforeIds });
     } catch (e) {
       setError(`Failed to connect ${platform}: ${describeFetchError(e)}`);
@@ -284,6 +296,17 @@ export default function ConnectionsPage() {
                       target="_blank"
                       rel="noreferrer"
                       onClick={(e) => {
+                        // A double-click (or two fast, separate clicks
+                        // before the re-render below removes this link)
+                        // must not open a second tab with the same URL
+                        // — see openedRef's own comment for why that's
+                        // worse here than the usual case.
+                        if (openedRef.current) {
+                          e.preventDefault();
+                          return;
+                        }
+                        openedRef.current = true;
+
                         // Opened here, synchronously, inside the click
                         // handler — no async gap since the URL was
                         // already fetched, so this is safe (unlike
