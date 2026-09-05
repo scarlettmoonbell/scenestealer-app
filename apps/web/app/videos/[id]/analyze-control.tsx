@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { sourceVideos } from "@scenestealer/db";
 import { describeFetchError } from "../../fetch-error";
@@ -24,14 +24,16 @@ export function AnalyzeControl({
   const [status, setStatus] = useState(initialStatus);
   const [error, setError] = useState(initialError);
   const [busy, setBusy] = useState(false);
-  // Tracks whether this mount already owns the in-flight POST /analyze
-  // call — the polling effect below only needs to run when analysis is
-  // "analyzing" from a page load/reload, not while this same click is
-  // already awaiting its own response.
-  const owningRequest = useRef(false);
+  // Whether this mount owns an in-flight POST /analyze call — state,
+  // not a ref: POST /analyze now only enqueues the job (see
+  // apps/api's routes/videos.ts) and returns almost immediately, so
+  // this flips back to false while status is still "analyzing", and
+  // the effect below needs to actually re-run at that point to start
+  // polling — a ref changing wouldn't do that on its own.
+  const [owningRequest, setOwningRequest] = useState(false);
 
   useEffect(() => {
-    if (status !== "analyzing" || owningRequest.current) return;
+    if (status !== "analyzing" || owningRequest) return;
     let cancelled = false;
     const interval = setInterval(() => {
       void authedFetch(`/videos/${sourceVideoId}/status`)
@@ -52,32 +54,34 @@ export function AnalyzeControl({
       cancelled = true;
       clearInterval(interval);
     };
-  }, [status, sourceVideoId, authedFetch, router]);
+  }, [status, owningRequest, sourceVideoId, authedFetch, router]);
 
   async function handleAnalyze() {
     setBusy(true);
     setError(null);
     setStatus("analyzing");
-    owningRequest.current = true;
+    setOwningRequest(true);
     try {
       const res = await authedFetch(`/videos/${sourceVideoId}/analyze`, {
         method: "POST",
       });
-      const body = (await res.json().catch(() => null)) as {
-        error?: string;
-      } | null;
       if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as {
+          error?: string;
+        } | null;
         setStatus("failed");
-        setError(body?.error ?? "Analysis failed");
+        setError(body?.error ?? "Failed to start analysis");
         return;
       }
-      setStatus("analyzed");
-      router.refresh();
+      // Enqueued, not finished — analysis itself now runs out-of-band
+      // (see apps/api's routes/videos.ts), so the polling effect above
+      // (re-armed once owningRequest flips back to false below) is
+      // what picks up the real outcome.
     } catch (e) {
       setStatus("failed");
-      setError(`Analysis failed: ${describeFetchError(e)}`);
+      setError(`Failed to start analysis: ${describeFetchError(e)}`);
     } finally {
-      owningRequest.current = false;
+      setOwningRequest(false);
       setBusy(false);
     }
   }
