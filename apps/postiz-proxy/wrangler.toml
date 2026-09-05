@@ -3,19 +3,23 @@ main = "src/index.ts"
 compatibility_date = "2025-01-01"
 
 # Reverse-proxies postiz.scenestealer.app so we can inject a self-close
-# script into the connect-success page — see ROADMAP.md's "Known
-# friction" entry and the plan this was built from. Postiz's own
+# script into the connect-success page — see ROADMAP.md's "Done
+# (2026-09-04)" entry and the plan this was built from. Postiz's own
 # container is untouched; this sits in front of it at the edge.
 #
-# Stage 2: canary custom domain — Cloudflare auto-provisions this DNS
-# record on deploy, isolated from the real postiz.scenestealer.app
-# record (untouched). Full verification battery runs against this
-# before the real cutover, which lives in scenestealer-infra's OpenTofu
-# (cloudflare-dns.tf), not here, since that's where the existing DNS
-# record for postiz.scenestealer.app is managed.
-routes = [
-  { pattern = "postiz-proxy-test.scenestealer.app", custom_domain = true },
-]
+# The Stage 2/3 canary custom domain (postiz-proxy-test.scenestealer.app)
+# that lived here as a `routes` entry is gone — verification against it
+# passed (self-close + fallback redirect confirmed in Chrome and Safari)
+# and the real cutover happened in scenestealer-infra's OpenTofu
+# (cloudflare-dns.tf), which is where postiz.scenestealer.app's own
+# binding lives now (cloudflare_workers_custom_domain, not a wrangler.toml
+# route). Keeping the canary route here meant every deploy re-synced it
+# against Cloudflare's Workers Routes API, which the CLOUDFLARE_API_TOKEN
+# GitHub secret doesn't have permission for — real failure hit
+# 2026-09-05, unrelated to the Worker's own code (that half of the
+# deploy always succeeded). apps/api's wrangler.toml has no routes/
+# custom_domain key either, for the same reason: that binding is Tofu's
+# job, not wrangler's.
 
 [vars]
 # Fly's own per-app hostname — passthrough fetches target this, not
