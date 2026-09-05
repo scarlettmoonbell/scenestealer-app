@@ -25,6 +25,10 @@ const REGION_COLOR: Record<Clip["status"], string> = {
   ready: "rgba(60, 200, 120, 0.35)",
 };
 
+// A drag-selected region the user hasn't confirmed as a real clip yet
+// — distinct amber so it doesn't read as any existing clip status.
+const REGION_COLOR_PENDING = "rgba(245, 179, 66, 0.35)";
+
 const CELL_STYLE: CSSProperties = {
   padding: "0.5rem 0.75rem",
   textAlign: "left",
@@ -59,6 +63,13 @@ export function ClipEditor({
   const [clipList, setClipList] = useState<Clip[]>(initialClips);
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // A region the user drag-selected on the waveform but hasn't
+  // confirmed as a real clip yet — holds the live wavesurfer Region
+  // object itself (not just its start/end) so accepting it can
+  // retarget the same visual region to the new clip's real id/color
+  // instead of destroying and recreating it.
+  const [pendingNewClip, setPendingNewClip] = useState<Region | null>(null);
+  const [creatingClip, setCreatingClip] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const waveformRef = useRef<HTMLDivElement>(null);
@@ -66,6 +77,7 @@ export function ClipEditor({
   const regionsPluginRef = useRef<
     import("wavesurfer.js/dist/plugins/regions.js").default | null
   >(null);
+  const disableDragSelectionRef = useRef<(() => void) | null>(null);
 
   const authedFetch = useAuthedFetch();
 
@@ -203,6 +215,44 @@ export function ClipEditor({
     [authedFetch],
   );
 
+  const createClip = useCallback(
+    async (start: number, end: number, region: Region) => {
+      setCreatingClip(true);
+      setError(null);
+      try {
+        const res = await authedFetch(`/videos/${sourceVideoId}/clips`, {
+          method: "POST",
+          body: JSON.stringify({ startSec: start, endSec: end }),
+        });
+        if (!res.ok) {
+          setError("Failed to create clip");
+          return;
+        }
+        const { clip } = (await res.json()) as { clip: Clip };
+        setClipList((prev) => [...prev, clip]);
+        // Retarget the same drag-selected region to the real clip
+        // instead of destroying and recreating it — keeps it visually
+        // in place through the transition from "pending" to
+        // "suggested". drag/resize re-enabled here since the pending
+        // region is created with both off (see enableDragSelection's
+        // own comment for why) — a "suggested" clip should be exactly
+        // as draggable as any other.
+        region.setOptions({
+          id: clip.id,
+          color: REGION_COLOR.suggested,
+          drag: true,
+          resize: true,
+        });
+        setPendingNewClip(null);
+      } catch (e) {
+        setError(`Failed to create clip: ${describeFetchError(e)}`);
+      } finally {
+        setCreatingClip(false);
+      }
+    },
+    [authedFetch, sourceVideoId],
+  );
+
   // wavesurfer.js lifecycle — bound to the <video> element so playback and
   // the waveform stay in sync off a single media source (no second fetch
   // of the video just to decode audio for the waveform).
@@ -251,10 +301,31 @@ export function ClipEditor({
         e.stopPropagation();
         region.play();
       });
+
+      // Drag across empty waveform to define a new clip's bounds — the
+      // regions plugin's own built-in creation mechanism, registered
+      // only after the seed loop above so its region-created events
+      // (identical event, fired for every region including the
+      // pre-seeded ones) only reach this listener for genuinely new,
+      // user-drawn regions. drag/resize off here (the initial
+      // click-and-drag creation gesture itself is a separate mechanism
+      // this doesn't affect) — the pending region has no real clip id
+      // yet, so the region-updated handler below can't safely PATCH it
+      // if the user tried to nudge its handles before confirming.
+      disableDragSelectionRef.current = regions.enableDragSelection({
+        color: REGION_COLOR_PENDING,
+        drag: false,
+        resize: false,
+      });
+      regions.on("region-created", (region: Region) => {
+        setPendingNewClip(region);
+      });
     })();
 
     return () => {
       cancelled = true;
+      disableDragSelectionRef.current?.();
+      disableDragSelectionRef.current = null;
       waveSurferRef.current?.destroy();
       waveSurferRef.current = null;
       regionsPluginRef.current = null;
@@ -272,10 +343,64 @@ export function ClipEditor({
         ref={videoRef}
         src={playbackUrl ?? undefined}
         controls
-        style={{ width: "100%", maxWidth: 720 }}
+        style={{
+          display: "block",
+          width: "100%",
+          maxWidth: 720,
+          margin: "0 auto",
+        }}
       />
 
       <div ref={waveformRef} style={{ margin: "1rem 0" }} />
+
+      <p style={{ color: "var(--muted)", fontSize: "0.9em" }}>
+        Drag across an empty part of the waveform above to define a new clip.
+      </p>
+
+      {pendingNewClip && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "0.75rem",
+            padding: "0.5rem 0.75rem",
+            margin: "0.5rem 0",
+            border: "1px solid var(--border)",
+            borderRadius: 8,
+            background: "var(--surface-raised)",
+          }}
+        >
+          <span style={{ flex: 1, fontVariantNumeric: "tabular-nums" }}>
+            New clip: {formatTime(pendingNewClip.start)} –{" "}
+            {formatTime(pendingNewClip.end)}
+          </span>
+          <button
+            type="button"
+            disabled={creatingClip}
+            onClick={() =>
+              void createClip(
+                pendingNewClip.start,
+                pendingNewClip.end,
+                pendingNewClip,
+              )
+            }
+          >
+            {creatingClip ? "Creating…" : "Create clip"}
+          </button>
+          <button
+            type="button"
+            disabled={creatingClip}
+            onClick={() => {
+              pendingNewClip.remove();
+              setPendingNewClip(null);
+            }}
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+
+      <h2>Clips</h2>
 
       <table style={{ width: "100%", borderCollapse: "collapse" }}>
         <thead>
