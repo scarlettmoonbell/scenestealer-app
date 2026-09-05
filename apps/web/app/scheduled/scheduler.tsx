@@ -6,8 +6,8 @@ import type {
   socialConnections,
   templates as templatesTable,
 } from "@scenestealer/db";
-import { describeFetchError } from "../../fetch-error";
-import { useAuthedFetch } from "../../use-authed-fetch";
+import { describeFetchError } from "../fetch-error";
+import { useAuthedFetch } from "../use-authed-fetch";
 
 // Extends the raw row with the real account/page name, read live from
 // Postiz — a tenant can have more than one connection per platform, so
@@ -67,7 +67,15 @@ function renderTemplate(
     .replaceAll("{{duration}}", vars.duration);
 }
 
-export function PublishControl({
+// Publish/schedule form for one already-rendered clip — always
+// rendered once a clip is selected on the Scheduling page, unlike its
+// predecessor (apps/web/app/videos/[id]/publish-control.tsx, now
+// deleted) which stayed collapsed behind its own "Publish" button
+// inside each video's clip table. That inline placement is what made
+// scheduling feel scattered across every video's own page instead of
+// living in one place — this component's logic is otherwise unchanged
+// from that original.
+export function Scheduler({
   clipId,
   videoTitle,
   organizationName,
@@ -81,7 +89,6 @@ export function PublishControl({
   clipDurationSec: number;
 }) {
   const authedFetch = useAuthedFetch();
-  const [open, setOpen] = useState(false);
   const [connections, setConnections] = useState<SocialConnection[]>([]);
   const [templateList, setTemplateList] = useState<Template[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -100,7 +107,7 @@ export function PublishControl({
   const [scheduledFor, setScheduledFor] = useState("");
 
   useEffect(() => {
-    if (!open || loaded) return;
+    if (loaded) return;
     Promise.all([
       authedFetch("/social/connections").then((res) => res.json()) as Promise<{
         connections: SocialConnection[];
@@ -120,7 +127,7 @@ export function PublishControl({
       .catch((e) =>
         setError(`Failed to load publish options: ${describeFetchError(e)}`),
       );
-  }, [open, loaded, authedFetch]);
+  }, [loaded, authedFetch]);
 
   useEffect(() => {
     if (!connectionId) {
@@ -205,20 +212,12 @@ export function PublishControl({
     }
   }
 
-  if (!open) {
-    return (
-      <button type="button" onClick={() => setOpen(true)}>
-        Publish
-      </button>
-    );
-  }
-
   return (
     <div
       style={{
         border: "1px solid #333",
-        padding: "0.75rem",
-        marginTop: "0.5rem",
+        borderRadius: 8,
+        padding: "1rem",
         display: "flex",
         flexDirection: "column",
         gap: "0.5rem",
@@ -362,24 +361,19 @@ export function PublishControl({
             </label>
           )}
 
-          <div style={{ display: "flex", gap: "0.5rem" }}>
-            <button
-              type="button"
-              disabled={publishing}
-              onClick={() => void handlePublish()}
-            >
-              {publishing
-                ? scheduleMode === "later"
-                  ? "Scheduling…"
-                  : "Publishing…"
-                : scheduleMode === "later"
-                  ? "Schedule"
-                  : "Publish now"}
-            </button>
-            <button type="button" onClick={() => setOpen(false)}>
-              Cancel
-            </button>
-          </div>
+          <button
+            type="button"
+            disabled={publishing}
+            onClick={() => void handlePublish()}
+          >
+            {publishing
+              ? scheduleMode === "later"
+                ? "Scheduling…"
+                : "Publishing…"
+              : scheduleMode === "later"
+                ? "Schedule"
+                : "Publish now"}
+          </button>
         </>
       )}
     </div>

@@ -1,6 +1,13 @@
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { Hono } from "hono";
-import { clips, createDb, posts, socialConnections } from "@scenestealer/db";
+import {
+  clips,
+  createDb,
+  posts,
+  socialConnections,
+  sourceVideos,
+  tenants,
+} from "@scenestealer/db";
 import { createPresignedGetUrl } from "../r2.js";
 import { requireTenant } from "../auth.js";
 import { createPost } from "../postiz.js";
@@ -33,6 +40,49 @@ async function getOwnedClip(
   if (!owningVideo) return undefined;
   return clip;
 }
+
+// Lists every "ready" clip across the tenant's videos — the picker
+// list for the dedicated Scheduling page, which needs to see clips
+// from any video in one place rather than digging through each
+// video's own clip table. organizationName is returned once, not
+// per-clip, since it's the same for every row here.
+clipsRoute.get("/", async (c) => {
+  const tenantId = c.get("tenantId");
+  const db = createDb(c.env.DATABASE_URL);
+
+  const [tenant] = await db
+    .select({ name: tenants.name })
+    .from(tenants)
+    .where(eq(tenants.id, tenantId))
+    .limit(1);
+
+  const rows = await db
+    .select({
+      id: clips.id,
+      sourceVideoId: clips.sourceVideoId,
+      startSec: clips.startSec,
+      endSec: clips.endSec,
+      aiReason: clips.aiReason,
+      renderedR2Key: clips.renderedR2Key,
+      videoTitle: sourceVideos.title,
+      recordedAt: sourceVideos.recordedAt,
+      deviceModel: sourceVideos.deviceModel,
+      venueName: sourceVideos.venueName,
+      cityName: sourceVideos.cityName,
+    })
+    .from(clips)
+    .innerJoin(sourceVideos, eq(clips.sourceVideoId, sourceVideos.id))
+    .where(and(eq(sourceVideos.tenantId, tenantId), eq(clips.status, "ready")))
+    .orderBy(desc(clips.createdAt));
+
+  return c.json({
+    organizationName: tenant?.name ?? "",
+    clips: rows.map((row) => ({
+      ...row,
+      clipDurationSec: row.endSec - row.startSec,
+    })),
+  });
+});
 
 clipsRoute.patch("/:id", async (c) => {
   const tenantId = c.get("tenantId");
