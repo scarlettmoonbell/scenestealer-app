@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  Fragment,
   useCallback,
   useEffect,
   useRef,
@@ -11,9 +10,9 @@ import {
 import type WaveSurferType from "wavesurfer.js";
 import type { Region } from "wavesurfer.js/dist/plugins/regions.js";
 import type { clips as clipsTable } from "@scenestealer/db";
+import Link from "next/link";
 import { describeFetchError } from "../../fetch-error";
 import { useAuthedFetch } from "../../use-authed-fetch";
-import { PublishControl, type VideoMetadata } from "./publish-control";
 import { TABLE_HEADER_STYLE } from "../../table-header-style";
 
 type Clip = typeof clipsTable.$inferSelect;
@@ -52,15 +51,9 @@ function isLocked(status: Clip["status"]): boolean {
 
 export function ClipEditor({
   sourceVideoId,
-  videoTitle,
-  organizationName,
-  videoMetadata,
   initialClips,
 }: {
   sourceVideoId: string;
-  videoTitle: string;
-  organizationName: string;
-  videoMetadata: VideoMetadata;
   initialClips: Clip[];
 }) {
   const [clipList, setClipList] = useState<Clip[]>(initialClips);
@@ -299,180 +292,160 @@ export function ClipEditor({
             const rowBackground =
               index % 2 === 1 ? "var(--surface-raised)" : "none";
             return (
-              <Fragment key={clip.id}>
-                <tr
-                  style={{
-                    background: rowBackground,
-                    borderBottom: "1px solid #333",
-                  }}
-                >
-                  <td style={CELL_STYLE}>
-                    <button
-                      type="button"
-                      onClick={() => playClip(clip)}
-                      disabled={!playbackUrl}
-                      title="Play this clip"
-                      aria-label={`Play clip from ${formatTime(clip.startSec)} to ${formatTime(clip.endSec)}`}
-                      style={{ lineHeight: 1 }}
-                    >
-                      &#9654;
-                    </button>
-                  </td>
-                  <td style={CELL_STYLE}>
-                    {isLocked(clip.status) ? (
-                      <span style={{ fontVariantNumeric: "tabular-nums" }}>
-                        {formatTime(clip.startSec)} – {formatTime(clip.endSec)}
-                      </span>
-                    ) : (
-                      <span
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "0.25rem",
-                          fontVariantNumeric: "tabular-nums",
-                        }}
-                      >
-                        <input
-                          key={`start-${clip.id}-${clip.startSec}`}
-                          type="number"
-                          step={0.1}
-                          min={0}
-                          defaultValue={clip.startSec.toFixed(1)}
-                          onBlur={(e) => {
-                            const value = parseFloat(e.target.value);
-                            if (
-                              !Number.isFinite(value) ||
-                              value < 0 ||
-                              value >= clip.endSec
-                            ) {
-                              e.target.value = clip.startSec.toFixed(1);
-                              return;
-                            }
-                            void updateClip(clip.id, { startSec: value });
-                          }}
-                          style={{ width: "4.5em" }}
-                          aria-label="Clip start time in seconds"
-                        />
-                        <span>–</span>
-                        <input
-                          key={`end-${clip.id}-${clip.endSec}`}
-                          type="number"
-                          step={0.1}
-                          min={0}
-                          max={videoRef.current?.duration}
-                          defaultValue={clip.endSec.toFixed(1)}
-                          onBlur={(e) => {
-                            const value = parseFloat(e.target.value);
-                            const duration = videoRef.current?.duration;
-                            if (
-                              !Number.isFinite(value) ||
-                              value <= clip.startSec ||
-                              (duration != null && value > duration)
-                            ) {
-                              e.target.value = clip.endSec.toFixed(1);
-                              return;
-                            }
-                            void updateClip(clip.id, { endSec: value });
-                          }}
-                          style={{ width: "4.5em" }}
-                          aria-label="Clip end time in seconds"
-                        />
-                        <span>sec</span>
-                      </span>
-                    )}
-                  </td>
-                  <td
-                    style={{ ...CELL_STYLE, fontSize: "0.9em", opacity: 0.8 }}
+              <tr
+                key={clip.id}
+                style={{
+                  background: rowBackground,
+                  borderBottom: "1px solid #333",
+                }}
+              >
+                <td style={CELL_STYLE}>
+                  <button
+                    type="button"
+                    onClick={() => playClip(clip)}
+                    disabled={!playbackUrl}
+                    title="Play this clip"
+                    aria-label={`Play clip from ${formatTime(clip.startSec)} to ${formatTime(clip.endSec)}`}
+                    style={{ lineHeight: 1 }}
                   >
-                    {clip.aiReason ?? "Manually adjusted clip"}
-                    {clip.aiScore != null &&
-                      ` (score ${clip.aiScore.toFixed(2)})`}
-                  </td>
-                  <td
-                    style={{ ...CELL_STYLE, fontSize: "0.85em", opacity: 0.7 }}
-                  >
-                    {clip.status}
-                  </td>
-                  <td style={CELL_STYLE}>
-                    <div
+                    &#9654;
+                  </button>
+                </td>
+                <td style={CELL_STYLE}>
+                  {isLocked(clip.status) ? (
+                    <span style={{ fontVariantNumeric: "tabular-nums" }}>
+                      {formatTime(clip.startSec)} – {formatTime(clip.endSec)}
+                    </span>
+                  ) : (
+                    <span
                       style={{
                         display: "flex",
                         alignItems: "center",
-                        gap: "0.5rem",
+                        gap: "0.25rem",
+                        fontVariantNumeric: "tabular-nums",
                       }}
                     >
-                      {clip.status !== "accepted" &&
-                        clip.status !== "ready" &&
-                        clip.status !== "rendering" && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              void updateClip(clip.id, { status: "accepted" })
-                            }
-                          >
-                            Accept
-                          </button>
-                        )}
-                      {clip.status !== "rejected" && (
+                      <input
+                        key={`start-${clip.id}-${clip.startSec}`}
+                        type="number"
+                        step={0.1}
+                        min={0}
+                        defaultValue={clip.startSec.toFixed(1)}
+                        onBlur={(e) => {
+                          const value = parseFloat(e.target.value);
+                          if (
+                            !Number.isFinite(value) ||
+                            value < 0 ||
+                            value >= clip.endSec
+                          ) {
+                            e.target.value = clip.startSec.toFixed(1);
+                            return;
+                          }
+                          void updateClip(clip.id, { startSec: value });
+                        }}
+                        style={{ width: "4.5em" }}
+                        aria-label="Clip start time in seconds"
+                      />
+                      <span>–</span>
+                      <input
+                        key={`end-${clip.id}-${clip.endSec}`}
+                        type="number"
+                        step={0.1}
+                        min={0}
+                        max={videoRef.current?.duration}
+                        defaultValue={clip.endSec.toFixed(1)}
+                        onBlur={(e) => {
+                          const value = parseFloat(e.target.value);
+                          const duration = videoRef.current?.duration;
+                          if (
+                            !Number.isFinite(value) ||
+                            value <= clip.startSec ||
+                            (duration != null && value > duration)
+                          ) {
+                            e.target.value = clip.endSec.toFixed(1);
+                            return;
+                          }
+                          void updateClip(clip.id, { endSec: value });
+                        }}
+                        style={{ width: "4.5em" }}
+                        aria-label="Clip end time in seconds"
+                      />
+                      <span>sec</span>
+                    </span>
+                  )}
+                </td>
+                <td style={{ ...CELL_STYLE, fontSize: "0.9em", opacity: 0.8 }}>
+                  {clip.aiReason ?? "Manually adjusted clip"}
+                  {clip.aiScore != null &&
+                    ` (score ${clip.aiScore.toFixed(2)})`}
+                </td>
+                <td style={{ ...CELL_STYLE, fontSize: "0.85em", opacity: 0.7 }}>
+                  {clip.status}
+                </td>
+                <td style={CELL_STYLE}>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                    }}
+                  >
+                    {clip.status !== "accepted" &&
+                      clip.status !== "ready" &&
+                      clip.status !== "rendering" && (
                         <button
                           type="button"
                           onClick={() =>
-                            void updateClip(clip.id, { status: "rejected" })
+                            void updateClip(clip.id, { status: "accepted" })
                           }
                         >
-                          Reject
+                          Accept
                         </button>
                       )}
-                      {clip.status === "accepted" && (
+                    {clip.status !== "rejected" && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void updateClip(clip.id, { status: "rejected" })
+                        }
+                      >
+                        Reject
+                      </button>
+                    )}
+                    {clip.status === "accepted" && (
+                      <button
+                        type="button"
+                        disabled={renderingIds.has(clip.id)}
+                        onClick={() => void renderClip(clip.id)}
+                      >
+                        {renderingIds.has(clip.id) ? "Rendering…" : "Render"}
+                      </button>
+                    )}
+                    {clip.status === "rendering" && <span>Rendering…</span>}
+                    {clip.status === "ready" &&
+                      clip.renderedR2Key &&
+                      (renderedUrls[clip.id] ? (
+                        <a
+                          href={renderedUrls[clip.id]}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Download
+                        </a>
+                      ) : (
                         <button
                           type="button"
-                          disabled={renderingIds.has(clip.id)}
-                          onClick={() => void renderClip(clip.id)}
+                          onClick={() => void fetchRenderedUrl(clip.id)}
                         >
-                          {renderingIds.has(clip.id) ? "Rendering…" : "Render"}
+                          Get rendered clip
                         </button>
-                      )}
-                      {clip.status === "rendering" && <span>Rendering…</span>}
-                      {clip.status === "ready" &&
-                        clip.renderedR2Key &&
-                        (renderedUrls[clip.id] ? (
-                          <a
-                            href={renderedUrls[clip.id]}
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            Download
-                          </a>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => void fetchRenderedUrl(clip.id)}
-                          >
-                            Get rendered clip
-                          </button>
-                        ))}
-                    </div>
-                  </td>
-                </tr>
-                {clip.status === "ready" && (
-                  <tr
-                    style={{
-                      background: rowBackground,
-                      borderBottom: "1px solid #333",
-                    }}
-                  >
-                    <td style={CELL_STYLE} colSpan={5}>
-                      <PublishControl
-                        clipId={clip.id}
-                        videoTitle={videoTitle}
-                        organizationName={organizationName}
-                        videoMetadata={videoMetadata}
-                        clipDurationSec={clip.endSec - clip.startSec}
-                      />
-                    </td>
-                  </tr>
-                )}
-              </Fragment>
+                      ))}
+                    {clip.status === "ready" && (
+                      <Link href={`/scheduled?clip=${clip.id}`}>Schedule</Link>
+                    )}
+                  </div>
+                </td>
+              </tr>
             );
           })}
         </tbody>

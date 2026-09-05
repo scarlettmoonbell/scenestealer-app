@@ -25,7 +25,7 @@ export default async function VideoPage({
   const db = createDb(process.env.DATABASE_URL!);
 
   const [tenant] = await db
-    .select({ id: tenants.id, name: tenants.name })
+    .select({ id: tenants.id })
     .from(tenants)
     .where(eq(tenants.clerkOrgId, orgId))
     .limit(1);
@@ -57,18 +57,7 @@ export default async function VideoPage({
         initialStatus={video.status}
         initialError={video.analysisError}
       />
-      <ClipEditor
-        sourceVideoId={video.id}
-        videoTitle={video.title ?? "Untitled recording"}
-        organizationName={tenant.name}
-        videoMetadata={{
-          recordedAt: video.recordedAt,
-          deviceModel: video.deviceModel,
-          venueName: video.venueName,
-          cityName: video.cityName,
-        }}
-        initialClips={videoClips}
-      />
+      <ClipEditor sourceVideoId={video.id} initialClips={videoClips} />
     </main>
   );
 }
