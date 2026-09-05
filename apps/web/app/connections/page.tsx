@@ -106,7 +106,12 @@ export default function ConnectionsPage() {
     // also removes the window a double-click could land in — confirmed
     // live 2026-09-05, two tabs opened with the identical OAuth URL
     // because the old link stayed clickable a moment too long.
-    const popup = window.open("about:blank", "_blank", "noreferrer");
+    // No "noreferrer" here — per spec, that feature forces noopener
+    // semantics too, which makes window.open() return null
+    // unconditionally. Confirmed live 2026-09-05: every popup came back
+    // null because of this, not because of a real popup blocker, which
+    // is why it was never redirected or closed and just sat blank.
+    const popup = window.open("about:blank", "_blank");
 
     try {
       const res = await authedFetch(`/social/${platform}/connect`, {
@@ -352,11 +357,15 @@ export default function ConnectionsPage() {
                         // fetching-then-opening) and gives us a handle
                         // to close once the connection completes. Falls
                         // through to the <a>'s own native navigation if
-                        // this is blocked for any reason.
+                        // this is blocked for any reason. No
+                        // "noreferrer" feature here — see startConnect's
+                        // matching comment; the <a>'s own
+                        // rel="noreferrer" attribute already covers
+                        // referrer stripping for that native-navigation
+                        // fallback without breaking this handle.
                         const opened = window.open(
                           pendingConnect.url,
                           "_blank",
-                          "noreferrer",
                         );
                         if (opened) e.preventDefault();
                         void beginPolling(
