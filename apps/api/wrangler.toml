@@ -4,9 +4,24 @@ compatibility_date = "2025-01-01"
 compatibility_flags = ["nodejs_compat"]
 
 # Provisioned by scenestealer-infra — see that repo's opentofu/README.md.
-# [[queues.producers]]
-# queue = "scenestealer-jobs"
-# binding = "JOBS_QUEUE"
+# Consumer runs analyze jobs outside this Worker's own HTTP request/
+# response cycle — POST /videos/:id/analyze just enqueues and returns.
+# Needed because apps/api sits behind a Cloudflare Custom Domain, whose
+# edge proxy times out an HTTP response at ~100s regardless of the
+# Workers runtime's own much more generous execution limits; a large
+# video's analysis routinely takes longer than that. A Queue consumer
+# invocation isn't behind that same edge-proxy path at all, and gets a
+# 15-minute wall-time ceiling instead — real error hit in production
+# 2026-09-05 (a 1.24GB upload), not a hypothetical. max_batch_size = 1
+# keeps that 15-minute budget scoped to one job, not shared across a
+# batch.
+[[queues.producers]]
+queue = "scenestealer-jobs"
+binding = "JOBS_QUEUE"
+
+[[queues.consumers]]
+queue = "scenestealer-jobs"
+max_batch_size = 1
 
 [vars]
 # Non-secret config only. Secrets (DATABASE_URL, CLERK_SECRET_KEY,

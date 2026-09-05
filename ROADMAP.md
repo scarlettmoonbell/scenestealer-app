@@ -890,10 +890,47 @@ unpinning.
   resolvable by plain `npm install`); see that commit for the full
   writeup. Deployed as a small always-on-when-warm Fly app
   (`scenestealer-worker.fly.dev`, scaled to zero via auto-stop/start)
-  exposing one HTTP route (`/analyze`) that `apps/api` proxies to —
-  still the smaller first cut described in Phase 4's writeup below,
-  not PLAN.md's eventual Cloudflare Queue -> Fly Machines API
-  architecture.
+  exposing one HTTP route (`/analyze`) that `apps/api` dispatches to
+  via a queue (see below) — still the smaller first cut described in
+  Phase 4's writeup below, not PLAN.md's eventual dynamic-per-job Fly
+  Machines API architecture (a fresh Machine spawned per job, rather
+  than this one shared always-on-when-warm app).
+- **Fixed (2026-09-05): large uploads' analysis hit a Cloudflare edge
+  524, unrelated to file size validation.** A 1.24GB file's real
+  transcription + AI scoring took longer than apps/api's Custom
+  Domain's edge-proxy timeout (~100s, confirmed against Cloudflare's
+  own docs — a fixed limit on the browser-facing hop, independent of
+  the Workers runtime's own much more generous execution model) to
+  respond, since `POST /videos/:id/analyze` awaited the entire Fly job
+  synchronously before ever replying. Two "obvious" fixes were checked
+  and ruled out as actively unsafe rather than assumed to work:
+  `ctx.waitUntil()` has a hard 30-second cap after the response is
+  sent (confirmed against Cloudflare's docs) — nowhere near enough for
+  a multi-minute job, the promise would just get silently canceled;
+  having `apps/worker` respond immediately and keep working in the
+  background was ruled out too, since Fly's own docs confirm its
+  auto-stop-when-idle is based purely on active connection/traffic
+  count with no other signal — the machine could be suspended mid-job
+  with no open connection to notice, a silent failure worse than the
+  loud one this was fixing.
+  **Real fix**: finally wired up the `scenestealer-jobs` Cloudflare
+  Queue that `cloudflare-dns.tf` (`scenestealer-infra`) had already
+  provisioned back on 2026-07-19 but nothing ever consumed — `POST
+  /videos/:id/analyze` now just enqueues a message and returns
+  immediately; a queue consumer (same Worker, `apps/api/src/index.ts`)
+  runs the actual Fly call and DB status update. A queue consumer
+  invocation isn't behind the Custom Domain's edge-proxy path at all,
+  and gets a 15-minute wall-time ceiling instead of ~100s — and since
+  it does the exact same long synchronous `fetch` to Fly the old
+  synchronous code did, the connection to Fly stays open for the whole
+  job just like before, so the Fly-autostop risk above never actually
+  applies here. `apps/web`'s already-existing status-polling UI
+  (`analyze-control.tsx`) needed one real fix alongside this: the
+  guard tracking "is this mount's own initiating request still in
+  flight" was a ref, not state, so flipping it back to false once the
+  fast enqueue call resolved would never actually re-trigger the
+  polling effect (refs aren't reactive) — converted to state so
+  polling correctly arms itself once the initiating call returns.
 - **Live external accounts**: Clerk, Neon, Cloudflare, Fly.io, Groq,
   and Anthropic are all live and in real use as of Phase 4. Stripe is
   configured (test-mode placeholder tiers, see Phase 7) but no billing

@@ -89,15 +89,66 @@ videos.post("/:id/clips", async (c) => {
   return c.json({ clip });
 });
 
-// Proxies to apps/worker's own /analyze route (a small always-on Fly
-// app — see apps/worker/fly.toml) rather than running the pipeline
-// here: this Worker can't spawn the ffmpeg/scenedetect subprocesses the
-// pipeline functions need. Synchronous for now — no queue, no job
-// status polling — see ROADMAP.md for the deferred Cloudflare Queue /
-// Fly Machines API architecture this stands in for. `status` is
-// written to the DB before the (potentially long) worker call, not
-// just tracked client-side, so it survives a page reload/different tab
-// while analysis is still running.
+// The actual Fly call + resulting status update, run from the queue
+// consumer (index.ts) rather than inside POST /:id/analyze's own
+// request/response cycle — that HTTP route only enqueues and returns,
+// since apps/api sits behind a Cloudflare Custom Domain whose edge
+// proxy times out a response at ~100s regardless of the Workers
+// runtime's own execution limits, and this can run for several
+// minutes on a large upload (confirmed for real 2026-09-05, a 1.24GB
+// file). A Queue consumer invocation isn't behind that same edge-proxy
+// path and gets a 15-minute wall-time ceiling instead. Proxies to
+// apps/worker's own /analyze route (a small always-on Fly app — see
+// apps/worker/fly.toml) rather than running the pipeline here: this
+// Worker can't spawn the ffmpeg/scenedetect subprocesses the pipeline
+// functions need.
+//
+// Always resolves (never throws) — every failure path writes "failed"
+// to sourceVideos rather than propagating, since the caller (the queue
+// consumer) has no HTTP response to report a failure through; the
+// tenant finds out via the same status column /:id/status already
+// polls.
+export async function runAnalyzeJob(
+  env: Env,
+  sourceVideoId: string,
+): Promise<void> {
+  const db = createDb(env.DATABASE_URL);
+  try {
+    const workerRes = await fetch(`${env.WORKER_URL}/analyze`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${env.WORKER_SHARED_SECRET}`,
+      },
+      body: JSON.stringify({ sourceVideoId }),
+    });
+
+    const body = (await workerRes.json()) as { error?: string };
+
+    await db
+      .update(sourceVideos)
+      .set(
+        workerRes.ok
+          ? { status: "analyzed" }
+          : {
+              status: "failed",
+              analysisError: body.error ?? "Analysis failed",
+            },
+      )
+      .where(eq(sourceVideos.id, sourceVideoId));
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Analysis failed";
+    await db
+      .update(sourceVideos)
+      .set({ status: "failed", analysisError: message })
+      .where(eq(sourceVideos.id, sourceVideoId));
+  }
+}
+
+// `status` is written to the DB before enqueueing, not just tracked
+// client-side, so it survives a page reload/different tab while
+// analysis is still running — /:id/status below is what the frontend
+// polls to find out when runAnalyzeJob (above) finishes.
 videos.post("/:id/analyze", async (c) => {
   const tenantId = c.get("tenantId");
   const db = createDb(c.env.DATABASE_URL);
@@ -115,44 +166,9 @@ videos.post("/:id/analyze", async (c) => {
     .set({ status: "analyzing", analysisError: null })
     .where(eq(sourceVideos.id, video.id));
 
-  // Wrapped so status always lands on "failed" rather than getting
-  // stuck on "analyzing" forever — the route above refuses a new
-  // attempt while already analyzing, so an unhandled throw here (a
-  // network-level fetch failure, a non-JSON response) would otherwise
-  // leave the tenant with no way to retry at all.
-  try {
-    const workerRes = await fetch(`${c.env.WORKER_URL}/analyze`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${c.env.WORKER_SHARED_SECRET}`,
-      },
-      body: JSON.stringify({ sourceVideoId: video.id }),
-    });
+  await c.env.JOBS_QUEUE.send({ type: "analyze", sourceVideoId: video.id });
 
-    const body = (await workerRes.json()) as { error?: string };
-
-    await db
-      .update(sourceVideos)
-      .set(
-        workerRes.ok
-          ? { status: "analyzed" }
-          : {
-              status: "failed",
-              analysisError: body.error ?? "Analysis failed",
-            },
-      )
-      .where(eq(sourceVideos.id, video.id));
-
-    return c.json(body, workerRes.status as 200 | 400 | 401 | 500);
-  } catch (e) {
-    const message = e instanceof Error ? e.message : "Analysis failed";
-    await db
-      .update(sourceVideos)
-      .set({ status: "failed", analysisError: message })
-      .where(eq(sourceVideos.id, video.id));
-    return c.json({ error: message }, 500);
-  }
+  return c.json({ status: "analyzing" });
 });
 
 // Lightweight status check for the frontend to poll when a tenant
