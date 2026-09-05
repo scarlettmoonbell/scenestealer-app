@@ -41,15 +41,11 @@ export default function ConnectionsPage() {
   const [connectingPlatform, setConnectingPlatform] = useState<string | null>(
     null,
   );
-  // The connect URL is ready but not yet opened — waiting on a second,
-  // genuine click. A window.open()/`.location.href` navigation fired from
-  // inside an async callback (even one opened synchronously beforehand
-  // and pointed at the real URL later) loses the trusted user-gesture
-  // context in Safari specifically — confirmed live: it left the tenant's
-  // main tab hijacked onto Postiz's calendar with a blank orphaned popup,
-  // rather than opening a clean second tab. A real <a target="_blank">,
-  // clicked directly by the user, sidesteps this entirely since it's
-  // native browser navigation, not JS-driven.
+  // Fallback only, for the rare case the synchronous blank-popup open
+  // in startConnect gets blocked anyway: the connect URL is ready but
+  // not yet opened, waiting on a real click on a real <a
+  // target="_blank">, which is native browser navigation rather than
+  // JS-driven and so isn't subject to popup blocking the same way.
   const [pendingConnect, setPendingConnect] = useState<PendingConnect | null>(
     null,
   );
@@ -58,11 +54,14 @@ export default function ConnectionsPage() {
   // with whichever tab their second click landed on, leaving the first
   // stuck on Facebook's own initial dialog forever, since only the
   // *opener*-side .close() (already known-unreliable — see
-  // beginPolling) ever targets it. A ref, not state: it must be
-  // checked synchronously inside the same click handler that opens the
-  // tab, before React has a chance to re-render and remove the link
-  // (which is what beginPolling's setPendingConnect(null) eventually
-  // does, but not within the same event-handler invocation).
+  // beginPolling) ever targets it. Refs, not state: they must be
+  // checked synchronously inside the same click handler that opens a
+  // tab, before React has a chance to re-render and remove/disable the
+  // element that was clicked — a state update can't guarantee that.
+  // startingRef covers the "Connect X" button (startConnect's own
+  // synchronous window.open("about:blank")); openedRef covers the
+  // fallback <a> above, for when that popup gets blocked anyway.
+  const startingRef = useRef(false);
   const openedRef = useRef(false);
 
   const loadConnections = useCallback(async () => {
@@ -88,8 +87,27 @@ export default function ConnectionsPage() {
   }, [loadConnections]);
 
   async function startConnect(platform: string) {
+    // A fast second click on this button, before the disabled attribute
+    // below has actually re-rendered, would otherwise open a second
+    // blank popup — same class of race openedRef guards against below,
+    // just one step earlier in the flow.
+    if (startingRef.current) return;
+    startingRef.current = true;
     setError(null);
     setConnectingPlatform(platform);
+
+    // Opened here, synchronously, in the same tick as the click — this
+    // is what keeps Safari treating it as a trusted user gesture.
+    // Redirected to the real URL below once we have one, rather than
+    // the previous two-click dance (show a link, wait for a second
+    // real click) that existed for the exact same Safari reason:
+    // calling window.open() only after awaiting the connect-URL fetch
+    // loses that trust there specifically. Removing the extra click
+    // also removes the window a double-click could land in — confirmed
+    // live 2026-09-05, two tabs opened with the identical OAuth URL
+    // because the old link stayed clickable a moment too long.
+    const popup = window.open("about:blank", "_blank", "noreferrer");
+
     try {
       const res = await authedFetch(`/social/${platform}/connect`, {
         method: "POST",
@@ -97,23 +115,39 @@ export default function ConnectionsPage() {
       if (!res.ok) {
         setError(`Failed to start connecting ${platform}`);
         setConnectingPlatform(null);
+        startingRef.current = false;
+        popup?.close();
         return;
       }
       const { url, beforeIds } = (await res.json()) as {
         url: string;
         beforeIds: string[];
       };
+
+      if (popup) {
+        popup.location.href = url;
+        void beginPolling(platform, beforeIds, popup);
+        return;
+      }
+
+      // Popup blocked anyway (rare, but real depending on browser
+      // settings) — fall back to a real link the tenant clicks
+      // themselves.
       openedRef.current = false;
+      startingRef.current = false;
       setPendingConnect({ platform, url, beforeIds });
     } catch (e) {
       setError(`Failed to connect ${platform}: ${describeFetchError(e)}`);
       setConnectingPlatform(null);
+      startingRef.current = false;
+      popup?.close();
     }
   }
 
   function cancelPendingConnect() {
     setPendingConnect(null);
     setConnectingPlatform(null);
+    startingRef.current = false;
   }
 
   // Fires from the real <a>'s onClick, once the tab it opens (see below)
@@ -126,6 +160,11 @@ export default function ConnectionsPage() {
     opened: Window | null,
   ) {
     setPendingConnect(null);
+    // By now connectingPlatform has (or will imminently) render the
+    // button disabled, which is what actually prevents a fresh click
+    // from here on — startingRef's only job was bridging the pre-render
+    // gap right after the original click.
+    startingRef.current = false;
     const deadline = Date.now() + POLL_TIMEOUT_MS;
     while (Date.now() < deadline) {
       await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
