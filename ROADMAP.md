@@ -911,6 +911,31 @@ unpinning.
   still developing against short test clips. Free tier is fine for
   now. _Revisit_: before onboarding a real tenant with real
   show-length recordings, or sooner if a 413 shows up again.
+- **No dev/staging site exists — every `apps/web` change this phase
+  ships straight to production against live data, verified (if at
+  all) after the fact.** Surfaced repeatedly on 2026-09-05: several
+  UI changes (the clip table redesign, table-header styling, the
+  centralized Scheduling page) had to ship without ever being seen
+  running, because this session's local preview sandbox hit a
+  persistent `shell-init: error retrieving current directory: getcwd:
+  cannot access parent directories: Operation not permitted` that
+  blocked `next dev` outright — typecheck/lint/prettier passing was
+  the only signal before merge, and the tenant confirmed the actual
+  behavior live afterward each time (real bugs were caught this way
+  more than once, e.g. the connect-flow `window.open()` "noreferrer"
+  regression). That gap exists independent of any one session's local
+  environment being broken, though: there is still no staging
+  deployment at all — `deploy.yml` only triggers `on: push: branches:
+  [main]`, straight to the real `scenestealer.app`/`scenestealer-api`/
+  `scenestealer-worker` targets, with no intermediate environment a
+  change could be checked against first. **Not yet built:** a second
+  Cloudflare Pages project/Worker environment (or Pages' own preview-
+  deployment feature, worth checking whether it covers this without
+  new infra) wired to a non-`main` branch, pointed at a separate Neon
+  branch/database rather than production data, so alpha-phase changes
+  can be verified for real before going live. _Revisit_: before
+  onboarding a real tenant, given every change until now has been
+  effectively tested in production.
 
 ## How to use this document
 
