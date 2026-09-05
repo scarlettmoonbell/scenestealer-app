@@ -29,9 +29,41 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     unzip \
     git \
+    ca-certificates \
     && pip3 install --no-cache-dir --break-system-packages scenedetect[opencv] \
     && curl https://rclone.org/install.sh | bash \
     && rm -rf /var/lib/apt/lists/*
+
+# npm resolves @scenestealer/connectors' and @scenestealer/pipeline's
+# github:owner/repo#ref specifiers to a full ssh://git@github.com/...
+# URL here, and this image has no SSH key (or ssh binary at all) to
+# authenticate with — confirmed the hard way, `npm install` failing
+# with "ssh: not found" in Fly's remote builder. Both repos are public,
+# so rewriting to anonymous HTTPS is enough; no credentials needed.
+# Two rules, not one: git's url.insteadOf matches on exact string
+# prefix, and this ssh:// form is a different string from the
+# git@github.com: SCP-like form the CI workflow's own equivalent
+# rewrite (.github/workflows/deploy.yml) already handles for the
+# separate, unrelated `pnpm install` step that runs on the Actions
+# runner itself, outside this Docker build entirely. ca-certificates
+# is explicit (not just pulled in transitively via curl) since git's
+# own HTTPS backend fails closed with "server certificate verification
+# failed. CAfile: none" without it — confirmed the hard way in an
+# isolated repro that installed only git.
+#
+# scenestealer-connectors also carries its own git submodule (the
+# shared .conventions repo, same pattern as scenestealer-infra), on a
+# bare SSH URL that this same insteadOf rewrite does NOT reach — git
+# doesn't apply url.insteadOf to .gitmodules-sourced submodule URLs the
+# way it does for a plain clone/fetch target, confirmed by watching the
+# rewrite work for the top-level clone but not the nested submodule
+# fetch. That submodule is AI-agent conventions docs, irrelevant to the
+# actual runtime package code, so telling git to activate no
+# submodules at all sidesteps the problem entirely rather than fighting
+# the rewrite further.
+RUN git config --global url."https://github.com/".insteadOf "git@github.com:" \
+    && git config --global url."https://github.com/".insteadOf "ssh://git@github.com/" \
+    && git config --global submodule.active ":(exclude)*"
 
 WORKDIR /app
 
