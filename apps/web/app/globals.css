@@ -88,6 +88,56 @@ a:hover {
   color: var(--accent-hover);
 }
 
+/* Plain <button type="button">s across the app (Accept/Reject/Render,
+   Schedule, Cancel, and so on) had no shared styling at all, so a
+   disabled one fell back to the browser's own default gray-on-gray —
+   confirmed live 2026-09-05 as genuinely unreadable against this
+   theme. A type selector, not a class, so it applies everywhere
+   without touching every call site — .btn-primary below still wins
+   for buttons using that class, since a class selector always beats a
+   type selector regardless of source order, and any button that
+   already sets its own background/border/color inline (e.g. the
+   circular icon buttons in apps/web/app/connections/page.tsx) keeps
+   that appearance too, since inline styles win over any stylesheet
+   rule for the specific properties they set. */
+button {
+  background: transparent;
+  border: 1.5px solid var(--accent-text);
+  border-radius: 6px;
+  padding: 0.4rem 0.9rem;
+  color: var(--accent-text);
+  font-family: "Work Sans", system-ui, sans-serif;
+  font-size: 0.9em;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+/* :hover alone, not :hover:not(:disabled) — adding :not() here would
+   give this more specificity than .btn-primary:hover below (a type
+   selector plus two pseudo-classes beats one class plus one
+   pseudo-class), incorrectly overriding that button's own intended
+   hover color. button:disabled two rules down instead relies on
+   coming later in source order at equal specificity to correctly win
+   for a disabled button that's also being hovered. */
+button:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  /* Same fixed dark navy .btn-primary uses against this exact
+     background below — var(--accent) is identical in both themes, so
+     one color clears WCAG AA contrast either way, same reasoning as
+     that rule's own comment. */
+  color: #0a1628;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  border-color: var(--muted);
+  color: var(--muted);
+}
+
 .btn-primary {
   display: inline-flex;
   align-items: center;
