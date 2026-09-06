@@ -136,7 +136,18 @@ clipsRoute.patch("/:id", async (c) => {
 });
 
 // Proxies to apps/worker's /render route — same shape as
-// videos.ts's POST /:id/analyze. Synchronous for now, matching analyze.
+// videos.ts's POST /:id/analyze, except still fully synchronous
+// within this HTTP request (not queue-dispatched — clips are
+// typically much shorter than a full source video, so this hasn't
+// hit apps/api's Custom Domain edge-proxy timeout in practice the way
+// analyze did, but it's the same class of risk for a slow render and
+// not yet fixed the same way; see ROADMAP.md).
+//
+// apps/worker's /render always responds 200 now, once it commits to
+// streaming a keepalive-padded body to survive Fly's own 60s
+// idle-connection proxy timeout (see apps/worker/src/server.ts) — a
+// real failure only shows up as the body's own `error` field, not the
+// HTTP status, so that has to be checked regardless of workerRes.ok.
 clipsRoute.post("/:id/render", async (c) => {
   const tenantId = c.get("tenantId");
   const clipId = c.req.param("id");
@@ -156,9 +167,23 @@ clipsRoute.post("/:id/render", async (c) => {
     body: JSON.stringify({ clipId: clip.id }),
   });
 
-  if (!workerRes.ok) {
-    const body = await workerRes.json();
-    return c.json(body, workerRes.status as 400 | 401 | 500);
+  const rawBody = await workerRes.text();
+  let body: { error?: string } = {};
+  try {
+    body = JSON.parse(rawBody) as { error?: string };
+  } catch {
+    // Non-JSON body — an infra-level failure before the app ever
+    // wrote anything (e.g. Fly's own proxy on a dead machine).
+  }
+
+  if (!workerRes.ok || body.error != null) {
+    return c.json(
+      {
+        error:
+          body.error ?? `Render failed (worker status ${workerRes.status})`,
+      },
+      workerRes.ok ? 500 : (workerRes.status as 400 | 401 | 500),
+    );
   }
 
   // The worker returns { renderedR2Key }, not the full row — re-read it

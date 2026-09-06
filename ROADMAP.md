@@ -931,6 +931,27 @@ unpinning.
   fast enqueue call resolved would never actually re-trigger the
   polling effect (refs aren't reactive) — converted to state so
   polling correctly arms itself once the initiating call returns.
+- **Fixed (2026-09-06): the same 1.24GB upload that hit the edge-524
+  above surfaced two more real failures once the queue fix let it run
+  long enough to reach them.** First, `apps/worker` OOM-killed itself
+  twice more after the queue fix shipped — `fly logs` showed anon-rss
+  reaching ~1.87GB and ~1.9GB against a 2GB ceiling (bumped up from an
+  original 1GB, which wasn't the fix either). Bumped `apps/worker/
+  fly.toml`'s `[[vm]]` to `memory = "4gb"` for real headroom above what
+  was actually observed — not a scale-to-zero cost concern, only affects
+  the size of the machine while a job is actually running. Second, once
+  memory was no longer the bottleneck, Fly's own proxy started closing
+  the connection after 60s with no data sent either way (confirmed
+  against Fly's community docs) — analyze/render both regularly run
+  past that on a large file. `apps/worker/src/server.ts` now commits to
+  a 200 status immediately and streams a bare newline every 20s while
+  the real work runs (`runWithKeepAlive`); a JSON value tolerates
+  arbitrary leading whitespace per spec, so the real payload at the end
+  still parses correctly. Because the status is committed before work
+  even starts, a real failure now has to be reported via the body's own
+  `error` field — both `apps/api/src/routes/videos.ts`'s `runAnalyzeJob`
+  and `routes/clips.ts`'s `/:id/render` check that field regardless of
+  `workerRes.ok` now, not just the HTTP status.
 - **Live external accounts**: Clerk, Neon, Cloudflare, Fly.io, Groq,
   and Anthropic are all live and in real use as of Phase 4. Stripe is
   configured (test-mode placeholder tiers, see Phase 7) but no billing

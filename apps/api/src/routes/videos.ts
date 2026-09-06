@@ -112,6 +112,16 @@ export async function runAnalyzeJob(
   env: Env,
   sourceVideoId: string,
 ): Promise<void> {
+  // Logging kept deliberately (not a temporary debug leftover): this
+  // is genuinely the only visibility into what apps/worker actually
+  // returned and whether the DB write landed — wrangler tail's own
+  // "Queue ... - Ok" for a successful consumer invocation says nothing
+  // about either, which was the whole reason a real, live discrepancy
+  // (client showing a Cloudflare-flavored failure, every server-side
+  // log for the same request window showing a clean success) took
+  // this many rounds to actually pin down on 2026-09-05/06 — see
+  // ROADMAP.md for the full writeup.
+  console.log(`[runAnalyzeJob] starting for sourceVideoId=${sourceVideoId}`);
   const db = createDb(env.DATABASE_URL);
   try {
     const workerRes = await fetch(`${env.WORKER_URL}/analyze`, {
@@ -123,25 +133,59 @@ export async function runAnalyzeJob(
       body: JSON.stringify({ sourceVideoId }),
     });
 
-    const body = (await workerRes.json()) as { error?: string };
+    const rawBody = await workerRes.text();
+    console.log(
+      `[runAnalyzeJob] worker responded status=${workerRes.status} ok=${workerRes.ok} body=${rawBody.slice(0, 500)}`,
+    );
 
-    await db
+    let body: { error?: string } = {};
+    try {
+      body = JSON.parse(rawBody) as { error?: string };
+    } catch (parseErr) {
+      console.log(
+        `[runAnalyzeJob] worker response body was not valid JSON: ${String(parseErr)}`,
+      );
+    }
+
+    // apps/worker's /analyze now always responds 200 once it commits
+    // to streaming a keepalive-padded body (see server.ts) — a real
+    // failure only shows up as this `error` field, not the HTTP
+    // status, so that has to be checked regardless of workerRes.ok. A
+    // non-JSON body (an infra-level failure before the app ever wrote
+    // anything, e.g. Fly's own proxy 524ing a dead machine) still
+    // falls through to the generic worker-status message below.
+    const failed = !workerRes.ok || body.error != null;
+
+    const [updated] = await db
       .update(sourceVideos)
       .set(
-        workerRes.ok
-          ? { status: "analyzed" }
-          : {
+        failed
+          ? {
               status: "failed",
-              analysisError: body.error ?? "Analysis failed",
-            },
+              analysisError:
+                body.error ??
+                `Analysis failed (worker status ${workerRes.status})`,
+            }
+          : { status: "analyzed" },
       )
-      .where(eq(sourceVideos.id, sourceVideoId));
+      .where(eq(sourceVideos.id, sourceVideoId))
+      .returning({ status: sourceVideos.status });
+    console.log(
+      `[runAnalyzeJob] DB updated for sourceVideoId=${sourceVideoId}, new status=${updated?.status}`,
+    );
   } catch (e) {
     const message = e instanceof Error ? e.message : "Analysis failed";
-    await db
+    console.log(
+      `[runAnalyzeJob] caught exception for sourceVideoId=${sourceVideoId}: ${message}`,
+    );
+    const [updated] = await db
       .update(sourceVideos)
       .set({ status: "failed", analysisError: message })
-      .where(eq(sourceVideos.id, sourceVideoId));
+      .where(eq(sourceVideos.id, sourceVideoId))
+      .returning({ status: sourceVideos.status });
+    console.log(
+      `[runAnalyzeJob] DB updated (catch path) for sourceVideoId=${sourceVideoId}, new status=${updated?.status}`,
+    );
   }
 }
 

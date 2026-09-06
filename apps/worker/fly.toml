@@ -36,12 +36,16 @@ primary_region = "iad"
 
 [[vm]]
   size = "shared-cpu-2x"
-  # Bumped from 1gb (2026-09-05): a real OOM kill confirmed via `fly
-  # logs` on a 1.24GB upload — anon-rss reached ~870MB before the
-  # kernel killed the node process ("Out of memory: Killed process...
-  # total-vm:12643668kB, anon-rss:869540kB"), with ffmpeg,
-  # scenedetect, and node all running concurrently against the source
-  # file. 1gb had no real headroom for this; not a scale-to-zero cost
-  # concern since this only affects the size of the machine while it's
-  # actually running a job, not whether it runs continuously.
-  memory = "2gb"
+  # 1gb -> 2gb (2026-09-05) wasn't enough either: `fly logs` confirmed
+  # two MORE OOM kills afterward on the same 1.24GB upload, anon-rss
+  # reaching ~1.87GB and ~1.9GB before each kill — right up against
+  # the 2048MB ceiling, not comfortably under it. Fly's own proxy
+  # reports "connection closed before message completed" when the
+  # machine dies mid-request, which apps/api's fetch sees as a plain-
+  # text "error code: 502" response — the real source of what looked
+  # like a live Cloudflare timeout in the UI (see ROADMAP.md). Bumped
+  # to 4gb for real headroom above the ~1.9GB actually observed. Not a
+  # scale-to-zero cost concern — only affects the size of the machine
+  # while it's actually running a job, not whether it runs
+  # continuously.
+  memory = "4gb"
