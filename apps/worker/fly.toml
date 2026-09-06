@@ -1,9 +1,12 @@
 # Deploy config for apps/worker's always-on HTTP mode (src/server.ts) —
 # a deliberately smaller first cut than PLAN.md's eventual architecture
 # (Cloudflare Queue -> consumer Worker -> Fly Machines API -> a fresh
-# Machine spawned per job). None of that queue/Machines-API wiring
-# exists yet; apps/api's POST /videos/:id/analyze instead proxies
-# directly to this one small Fly app's /analyze route. See ROADMAP.md.
+# Machine spawned per job). apps/api's POST /videos/:id/analyze now
+# dispatches via the scenestealer-jobs Cloudflare Queue (2026-09-05,
+# fixing a real edge-proxy timeout — see ROADMAP.md), but that queue's
+# consumer still calls this one always-on-when-warm Fly app's /analyze
+# route rather than spawning a fresh Machine per job via the Machines
+# API — that half of PLAN.md's eventual architecture isn't built yet.
 #
 # Lives here (not scenestealer-infra), matching postiz/fly.toml and
 # temporal/fly.toml's convention — Fly.io apps deploy via `flyctl` from
@@ -33,4 +36,12 @@ primary_region = "iad"
 
 [[vm]]
   size = "shared-cpu-2x"
-  memory = "1gb"
+  # Bumped from 1gb (2026-09-05): a real OOM kill confirmed via `fly
+  # logs` on a 1.24GB upload — anon-rss reached ~870MB before the
+  # kernel killed the node process ("Out of memory: Killed process...
+  # total-vm:12643668kB, anon-rss:869540kB"), with ffmpeg,
+  # scenedetect, and node all running concurrently against the source
+  # file. 1gb had no real headroom for this; not a scale-to-zero cost
+  # concern since this only affects the size of the machine while it's
+  # actually running a job, not whether it runs continuously.
+  memory = "2gb"
