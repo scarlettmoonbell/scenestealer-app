@@ -52,6 +52,39 @@ videos.get("/:id/playback-url", async (c) => {
   return c.json({ playbackUrl });
 });
 
+// Presigned GET for the small precomputed waveform-peaks JSON analyze
+// writes to R2 (see apps/worker/src/analyze.ts's extractWaveformPeaks) —
+// separate from playback-url above because the clip editor needs to know
+// whether one exists at all: `waveformUrl: null` means either this video
+// predates waveform support or extraction failed, and the clip editor
+// must not fall back to decoding the raw video itself for a waveform
+// (that's the client-side crash this column exists to avoid — see
+// schema.ts's comment on sourceVideos.waveformR2Key).
+videos.get("/:id/waveform-url", async (c) => {
+  const tenantId = c.get("tenantId");
+  const db = createDb(c.env.DATABASE_URL);
+
+  const video = await getOwnedSourceVideo(db, tenantId, c.req.param("id"));
+  if (!video) {
+    return c.json({ error: "Source video not found" }, 404);
+  }
+  if (!video.waveformR2Key) {
+    return c.json({ waveformUrl: null });
+  }
+
+  const waveformUrl = await createPresignedGetUrl(
+    {
+      accountId: c.env.R2_ACCOUNT_ID,
+      accessKeyId: c.env.R2_ACCESS_KEY_ID,
+      secretAccessKey: c.env.R2_SECRET_ACCESS_KEY,
+      bucket: c.env.R2_BUCKET_NAME,
+    },
+    video.waveformR2Key,
+  );
+
+  return c.json({ waveformUrl });
+});
+
 // Manually-defined clip — the clip editor's drag-selection scrubber on
 // the waveform lands here, alongside the AI-suggested ones from
 // runAnalyze. Starts "suggested" like those do, so it goes through the

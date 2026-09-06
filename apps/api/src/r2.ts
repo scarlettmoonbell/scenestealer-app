@@ -71,9 +71,12 @@ export async function deleteR2Object(
 }
 
 /**
- * Presigned GET URL for the clip editor's video playback + wavesurfer.js
- * waveform generation — same signing shape as the upload URL above, just
- * GET instead of PUT.
+ * Presigned GET URL — same signing shape as the upload URL above, just
+ * GET instead of PUT. Used for the clip editor's <video> playback (and,
+ * separately, its own precomputed waveform-peaks JSON — see routes/
+ * videos.ts's GET /:id/waveform-url); wavesurfer.js itself no longer
+ * fetches or decodes the raw video for waveform generation, since doing
+ * that client-side is what used to crash iOS Safari on a large upload.
  */
 export async function createPresignedGetUrl(
   config: R2Config,

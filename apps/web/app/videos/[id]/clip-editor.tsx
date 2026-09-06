@@ -62,6 +62,20 @@ export function ClipEditor({
 }) {
   const [clipList, setClipList] = useState<Clip[]>(initialClips);
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
+  // Precomputed peaks (from apps/worker's analyze step) that wavesurfer.js
+  // renders directly, instead of fetching + decodeAudioData-ing the raw
+  // video itself — the latter is what used to crash iOS Safari
+  // repeatedly on a large upload (see the wavesurfer effect below).
+  // waveformUnavailable (no peaks exist — analyzed before this shipped,
+  // or extraction failed) is a distinct state from "still loading":
+  // it's the only case the waveform is deliberately skipped rather than
+  // rendered, since falling back to raw-video decoding would reintroduce
+  // the crash.
+  const [waveformPeaks, setWaveformPeaks] = useState<{
+    peaks: number[];
+    duration: number;
+  } | null>(null);
+  const [waveformUnavailable, setWaveformUnavailable] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // A region the user drag-selected on the waveform but hasn't
   // confirmed as a real clip yet — holds the live wavesurfer Region
@@ -112,6 +126,35 @@ export function ClipEditor({
         setPlaybackUrl(url);
       })
       .catch((e) => setError(`Failed to load video: ${describeFetchError(e)}`));
+  }, [authedFetch, sourceVideoId]);
+
+  // Fetches the precomputed waveform peaks, separately from the video
+  // itself — a missing/failed waveform (waveformUrl: null) is a
+  // degraded-but-fine state, not a page-level error, so it's tracked via
+  // waveformUnavailable rather than setError.
+  useEffect(() => {
+    authedFetch(`/videos/${sourceVideoId}/waveform-url`)
+      .then(async (res) => {
+        if (!res.ok) throw new Error("Failed to load waveform URL");
+        const { waveformUrl } = (await res.json()) as {
+          waveformUrl: string | null;
+        };
+        if (!waveformUrl) {
+          setWaveformUnavailable(true);
+          return;
+        }
+        // Direct presigned R2 fetch, not through authedFetch — same as
+        // <video src={playbackUrl}> below, this URL is already
+        // pre-authorized and doesn't go through apps/api again.
+        const peaksRes = await fetch(waveformUrl);
+        if (!peaksRes.ok) throw new Error("Failed to load waveform data");
+        const data = (await peaksRes.json()) as {
+          peaks: number[];
+          duration: number;
+        };
+        setWaveformPeaks(data);
+      })
+      .catch(() => setWaveformUnavailable(true));
   }, [authedFetch, sourceVideoId]);
 
   // Tracks the timeupdate listener for whichever clip is currently
@@ -275,11 +318,24 @@ export function ClipEditor({
     [authedFetch, sourceVideoId, enablePendingDragSelection],
   );
 
-  // wavesurfer.js lifecycle — bound to the <video> element so playback and
-  // the waveform stay in sync off a single media source (no second fetch
-  // of the video just to decode audio for the waveform).
+  // wavesurfer.js lifecycle — bound to the <video> element so playback
+  // stays in sync off a single media source, but rendered from
+  // precomputed peaks (waveformPeaks) rather than letting wavesurfer
+  // fetch + decodeAudioData the raw video itself to compute them: for a
+  // large upload that download-and-decode repeatedly crashed iOS
+  // Safari's content process (confirmed for real, 2026-09-06, a 1.24GB
+  // file — see ROADMAP.md). Gated on waveformPeaks being non-null, not
+  // just playbackUrl, so there's no path left that decodes raw media
+  // client-side — a video with no peaks (waveformUnavailable) simply
+  // shows no waveform rather than falling back to that.
   useEffect(() => {
-    if (!playbackUrl || !videoRef.current || !waveformRef.current) return;
+    if (
+      !playbackUrl ||
+      !waveformPeaks ||
+      !videoRef.current ||
+      !waveformRef.current
+    )
+      return;
 
     let cancelled = false;
     (async () => {
@@ -293,6 +349,8 @@ export function ClipEditor({
       const ws = WaveSurfer.create({
         container: waveformRef.current!,
         media: videoRef.current!,
+        peaks: [Float32Array.from(waveformPeaks.peaks)],
+        duration: waveformPeaks.duration,
         waveColor: "#8888aa",
         progressColor: "#5a5aff",
         height: 96,
@@ -354,7 +412,7 @@ export function ClipEditor({
     // clipList is only used for the initial region seed — subsequent edits
     // flow through the region objects themselves, not React re-renders, so
     // it's deliberately excluded from the dependency list.
-  }, [playbackUrl, updateClip, enablePendingDragSelection]);
+  }, [playbackUrl, waveformPeaks, updateClip, enablePendingDragSelection]);
 
   return (
     <div>
@@ -374,9 +432,19 @@ export function ClipEditor({
 
       <div ref={waveformRef} style={{ margin: "1rem 0" }} />
 
-      <p style={{ color: "var(--muted)", fontSize: "0.9em" }}>
-        Drag across an empty part of the waveform above to define a new clip.
-      </p>
+      {waveformPeaks ? (
+        <p style={{ color: "var(--muted)", fontSize: "0.9em" }}>
+          Drag across an empty part of the waveform above to define a new
+          clip.
+        </p>
+      ) : (
+        waveformUnavailable && (
+          <p style={{ color: "var(--muted)", fontSize: "0.9em" }}>
+            Waveform unavailable for this video — new clips can still be
+            drawn once it&apos;s re-analyzed, or adjusted below by time.
+          </p>
+        )
+      )}
 
       {pendingNewClip && (
         <div

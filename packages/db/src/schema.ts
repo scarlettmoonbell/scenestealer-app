@@ -87,6 +87,15 @@ export const sourceVideos = pgTable("source_videos", {
     () => storageConnections.id,
   ),
   r2Key: text("r2_key").notNull(),
+  // Precomputed wavesurfer.js peaks (JSON: { peaks: number[]; duration:
+  // number }), set by analyze alongside the other derived R2 assets.
+  // Null for videos analyzed before this existed, or if extraction
+  // failed (best-effort, non-fatal — see apps/worker/src/analyze.ts) —
+  // either way the clip editor must not fall back to letting
+  // wavesurfer.js decode the raw video itself: that's what crashed iOS
+  // Safari's content process repeatedly on a 1.24GB upload (see
+  // ROADMAP.md, 2026-09-06).
+  waveformR2Key: text("waveform_r2_key"),
   durationSec: real("duration_sec"),
   title: text("title"),
   status: analysisStatusEnum("status").notNull().default("pending"),

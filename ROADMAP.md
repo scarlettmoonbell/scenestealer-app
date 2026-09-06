@@ -952,6 +952,40 @@ unpinning.
   `error` field — both `apps/api/src/routes/videos.ts`'s `runAnalyzeJob`
   and `routes/clips.ts`'s `/:id/render` check that field regardless of
   `workerRes.ok` now, not just the HTTP status.
+- **Fixed (2026-09-06): the clip editor's waveform repeatedly crashed
+  iOS Safari's content process ("A problem repeatedly occurred") on the
+  same 1.24GB video, independent of whether analysis itself succeeded.**
+  `clip-editor.tsx` handed wavesurfer.js the raw `<video>` element via
+  its `media` option with no `peaks`, so — confirmed against wavesurfer
+  7.12.11's own source (`Decoder.createBuffer`) — it did its own full
+  fetch of the entire file plus a `decodeAudioData` pass to compute the
+  waveform, entirely separate from the `<video>` tag's own streaming
+  playback. Holding both the raw bytes and the fully decoded PCM in one
+  tab is nowhere near iOS Safari's per-tab memory ceiling, and every
+  reload re-triggered the same decode. **Real fix**: `apps/worker/src/
+  analyze.ts` now runs one extra ffmpeg pass over the small mono audio
+  file it already extracts for transcription (`extractWaveformPeaks`) —
+  raw 8kHz PCM, downsampled in one linear scan to 4000 max-amplitude
+  points — and uploads the resulting few-KB JSON to R2
+  (`uploadToR2`, already existed for rendered clips) at
+  `<tenantId>/waveforms/<sourceVideoId>.json`, recording the key on a
+  new nullable `sourceVideos.waveformR2Key` column. Best-effort, same as
+  the metadata block above it — a failed extraction leaves the column
+  null rather than failing analysis. `apps/api` serves it via a new
+  presigned `GET /videos/:id/waveform-url` (`waveformUrl: null` when no
+  key exists), and `clip-editor.tsx` now gates wavesurfer.js's creation
+  on having fetched real peaks — passing `peaks`/`duration` directly
+  instead of relying on `media` alone — rather than ever falling back to
+  the raw-decode path that caused this. A video analyzed before this
+  shipped (or where extraction failed) shows no waveform at all instead
+  of a drag-to-clip surface, which also means no way to draw a new
+  clip by hand on it until it's re-analyzed; adjusting existing clips'
+  start/end by the numeric fields still works regardless. If this
+  ffmpeg-plus-manual-downsample approach ever becomes a bottleneck on a
+  much longer recording, `extractWaveformPeaks`'s own comment documents
+  the fallback: the dedicated `audiowaveform` CLI
+  (github.com/bbc/audiowaveform), which streams the input once and
+  writes peaks JSON directly — not needed yet.
 - **Live external accounts**: Clerk, Neon, Cloudflare, Fly.io, Groq,
   and Anthropic are all live and in real use as of Phase 4. Stripe is
   configured (test-mode placeholder tiers, see Phase 7) but no billing

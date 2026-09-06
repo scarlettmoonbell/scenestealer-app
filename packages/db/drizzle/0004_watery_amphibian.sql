@@ -1,0 +1,1 @@
+ALTER TABLE "source_videos" ADD COLUMN "waveform_r2_key" text;
