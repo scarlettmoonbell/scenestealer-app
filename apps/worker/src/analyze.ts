@@ -114,6 +114,28 @@ async function extractWaveformPeaks(
 }
 
 /**
+ * Logs elapsed time and current RSS at each pipeline checkpoint below —
+ * added after a real OOM (2026-09-06, a high-res .MOV) killed the
+ * process mid-job with no way to tell which step was responsible:
+ * runAnalyze had almost no logging of its own (unlike routes/videos.ts's
+ * runAnalyzeJob, which already logs for the same reason — see that
+ * file's comment). An OOM SIGKILLs the process instantly, so nothing
+ * after the fact can log the failure itself; the last checkpoint logged
+ * before a run's log output stops *is* the answer. Useful for
+ * observability generally, not just crash forensics — e.g. spotting
+ * that a step is slow well before it's large enough to OOM.
+ */
+function logStep(sourceVideoId: string, startedAt: number, step: string) {
+  const mem = process.memoryUsage();
+  const elapsedSec = ((Date.now() - startedAt) / 1000).toFixed(1);
+  console.log(
+    `[runAnalyze] sourceVideoId=${sourceVideoId} step=${step} ` +
+      `elapsedSec=${elapsedSec} rssMB=${(mem.rss / 1024 / 1024).toFixed(0)} ` +
+      `heapUsedMB=${(mem.heapUsed / 1024 / 1024).toFixed(0)}`,
+  );
+}
+
+/**
  * Ingest -> transcribe -> detect scenes -> detect audio energy -> score
  * highlights -> write suggested Clip rows — the Phase 4 pipeline
  * functions wired together for the first time, against a real video
@@ -144,9 +166,13 @@ export async function runAnalyze(
     bucket: process.env.R2_BUCKET!,
   };
 
+  const startedAt = Date.now();
+  logStep(sourceVideoId, startedAt, "start");
+
   try {
     const bytes = await downloadFromR2(r2Config, video.r2Key);
     await writeFile(videoPath, Buffer.from(bytes));
+    logStep(sourceVideoId, startedAt, "video-downloaded");
 
     // Best-effort — a video with no useful tags, or a transient
     // ffprobe/geocoding hiccup, shouldn't fail the actual analysis
@@ -171,9 +197,11 @@ export async function runAnalyze(
     } catch (e) {
       console.error("Video metadata extraction failed (non-fatal):", e);
     }
+    logStep(sourceVideoId, startedAt, "metadata-extracted");
 
     const audioPath = join(tmpDir, "audio.mp3");
     await extractAudio(videoPath, audioPath);
+    logStep(sourceVideoId, startedAt, "audio-extracted");
 
     // Best-effort, same rationale as the metadata block above — a
     // waveform extraction failure shouldn't fail the analysis this job
@@ -200,15 +228,30 @@ export async function runAnalyze(
     } catch (e) {
       console.error("Waveform peak extraction failed (non-fatal):", e);
     }
+    logStep(sourceVideoId, startedAt, "waveform-peaks-done");
 
     const sceneDetector = new PySceneDetectDetector();
     const transcriber = new GroqTranscriber(process.env.GROQ_API_KEY!);
     const scorer = new ClaudeHighlightScorer(process.env.ANTHROPIC_API_KEY!);
 
+    // Logged individually, not just once after Promise.all — these three
+    // run concurrently, so their peak memory usage adds up rather than
+    // one replacing another; knowing which one is still in flight when a
+    // crash happens (or which finishes last) matters as much as knowing
+    // it happened somewhere in this block.
     const [scenes, transcript, audioEvents] = await Promise.all([
-      sceneDetector.detectScenes(videoPath),
-      transcriber.transcribe(audioPath),
-      detectAudioEnergyEvents(videoPath),
+      sceneDetector.detectScenes(videoPath).then((result) => {
+        logStep(sourceVideoId, startedAt, "scenes-detected");
+        return result;
+      }),
+      transcriber.transcribe(audioPath).then((result) => {
+        logStep(sourceVideoId, startedAt, "transcribed");
+        return result;
+      }),
+      detectAudioEnergyEvents(videoPath).then((result) => {
+        logStep(sourceVideoId, startedAt, "audio-energy-detected");
+        return result;
+      }),
     ]);
 
     const highlights = await scorer.scoreHighlights(
@@ -216,6 +259,7 @@ export async function runAnalyze(
       audioEvents,
       scenes,
     );
+    logStep(sourceVideoId, startedAt, "highlights-scored");
 
     // Re-running analysis on the same video (retry after a failure, or
     // just triggered twice) shouldn't pile up duplicate suggestions —
@@ -232,7 +276,10 @@ export async function runAnalyze(
         ),
       );
 
-    if (highlights.length === 0) return { clipsCreated: 0 };
+    if (highlights.length === 0) {
+      logStep(sourceVideoId, startedAt, "done-no-highlights");
+      return { clipsCreated: 0 };
+    }
 
     const rows = highlights.map((h) => {
       const snapped = sceneDetector.snapToScenes(
@@ -248,6 +295,7 @@ export async function runAnalyze(
       };
     });
     await db.insert(clips).values(rows);
+    logStep(sourceVideoId, startedAt, `done-clips-created=${rows.length}`);
 
     return { clipsCreated: rows.length };
   } finally {
