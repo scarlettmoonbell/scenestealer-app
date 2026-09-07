@@ -1489,6 +1489,62 @@ unpinning.
      by keying `<ClipEditor>` on `video.status` in `page.tsx`, forcing
      React to remount it (and re-run its effects against current data)
      exactly when status transitions, e.g. `analyzing` -> `analyzed`.
+- **Done (2026-09-07): a second real upload surfaced two more bugs in
+  the multipart path, plus a real data-hygiene gap — all fixed.**
+  1. **Concurrent double-upload**: the progress bar (100MiB parts at
+     the time) went long stretches with no visible movement on a
+     slower connection, and nothing stopped a second drag-and-drop of
+     the same file while the first was still uploading — the file
+     `<input>` is `disabled` mid-upload, but that doesn't cover
+     drag-and-drop, whose `onDrop` had no status guard. Confirmed via
+     apps/api's logs: two separate `/multipart/create` calls ~33s
+     apart for the same file, splitting real upload bandwidth between
+     them. Fixed both causes: `onDrop`/`onFileInput` now bail out
+     while `status === "uploading"`, and `PART_SIZE_BYTES` dropped
+     100MiB -> 32MiB with the part PUT switched from `fetch` (no
+     upload-progress event at all) to `XMLHttpRequest`
+     (`putPartWithXhrProgress`), so the bar now moves continuously as
+     bytes actually go out instead of only ticking once per part.
+  2. **Orphaned R2 storage**: chasing a report that a completed upload
+     "wasn't showing in the list" (which, per below, turned out to
+     already be showing) surfaced the real, separate problem the user
+     was actually worried about — unrepresented media. A direct R2
+     `ListMultipartUploads` call found **3 incomplete multipart
+     uploads with no matching `sourceVideos` row**: two orphaned by
+     the earlier auth-token-refresh bug (before that fix shipped) and
+     one the abandoned twin of the double-upload above (only one of
+     the two concurrent attempts ever finished). All three aborted
+     directly against R2; bucket confirmed clean via a second
+     `ListMultipartUploads` call. Added `GET /uploads/check-duplicate`
+     (apps/api) + a confirm-before-upload prompt in `upload-panel.tsx`
+     so a same-filename re-upload warns instead of silently creating
+     an unrelated-looking second entry — the user's own ask, and a
+     second line of defense beyond fixing the concurrency bug itself.
+     _Revisit_: nothing yet automatically cleans up a multipart upload
+     abandoned by a genuine crash/network-loss (where no client-side
+     `abort` call ever fires) — today's fix only covers the two known
+     causes. A scheduled sweep (list uploads older than N hours with
+     no matching DB row, abort them) would close that gap generally;
+     not built, since no such case has actually been observed yet.
+  3. **Investigating "not showing" also surfaced a real config drift,
+     independent of the actual cause**: `apps/web`'s Cloudflare Pages
+     `DATABASE_URL` secret was a separate, out-of-band value from
+     `apps/api`'s Worker secret (no shared config between a Pages
+     project and a Workers script) — re-synced it to the known-good
+     value and redeployed. This did *not* turn out to be why the video
+     wasn't showing (a straightforward reload turned out to already
+     have it — see the item below), but there was never a legitimate
+     reason for the two to differ given this app has a single
+     production database, so the fix stands as a real correction to a
+     stale value from initial setup, not a no-op.
+  4. Rebuilt the recordings list (`video-list.tsx`/`video-list-item.tsx`)
+     as an actual `<table>` with "Filename"/"Manage" column headers
+     and zebra-striped rows, matching the header styling already
+     established elsewhere (`TABLE_HEADER_STYLE`, `var(--border)` row
+     dividers) — was a bare `<ul>` with no labels. Not visually
+     verified locally (this environment's `next dev` hits the
+     pre-existing `getcwd` sandbox error noted in "No dev/staging site
+     exists" below); typecheck/lint clean, worth a live look.
 - **Live external accounts**: Clerk, Neon, Cloudflare, Fly.io, Groq,
   and Anthropic are all live and in real use as of Phase 4. Stripe is
   configured (test-mode placeholder tiers, see Phase 7) but no billing
