@@ -1575,6 +1575,47 @@ unpinning.
      apps/api's); `render.ts` now signs a URL and hands it straight to
      `FfmpegRenderer` instead of downloading to a local file first —
      the pipeline package itself needed zero changes.
+- **Done (2026-09-07): review-flow simplification + Instagram's 90s
+  posting limit moved off the render step + rendered clips decoupled
+  from their source video on deletion.**
+  1. Accept now dispatches the render directly instead of a separate
+     Accept-then-Render two-click flow — the button shows
+     "Rendering…" through the whole process. Confirmed for real that
+     the old flow's separate render-time duration gate
+     (`instagram-reels requires a 5-90s clip`) blocked a legitimate
+     332s highlight from being rendered at all — moved that check to
+     `POST /clips/:id/publish` in apps/api (right before a clip is
+     actually posted to a platform that has the constraint;
+     `scenestealer-pipeline` bumped to drop the render-time gate,
+     `FfmpegRenderer.render()` now always produces the platform's
+     *format* regardless of duration). A clip can now be rendered and
+     downloaded at any length; only posting to Instagram specifically
+     still enforces the real 5-90s ceiling.
+  2. Download no longer needs a "Get rendered clip" click first — the
+     presigned URL fetches automatically the moment a clip's status
+     flips to "ready". Download/Schedule are now real buttons
+     (`a.btn-link` in globals.css), not plain text links.
+  3. **Rendered clips can now outlive their source video.** Deleting a
+     source video used to delete every clip rendered from it too —
+     users asked to free up a large source's storage cost without
+     losing promo clips they'd already picked. `clips.sourceVideoId`
+     is now nullable (a rendered clip is detached, not deleted, when
+     its source is removed; an unrendered clip still goes with it,
+     nothing worth keeping there). Added `clips.tenantId` as a direct
+     column — ownership used to be derived entirely through
+     `sourceVideoId`'s own join to `sourceVideos.tenantId`, which
+     stopped being reliable the moment that could be null. Two-step
+     migration against real production data (0007 adds both columns
+     nullable, a one-off backfill query, 0008 sets `tenant_id NOT
+     NULL`) — backfill confirmed zero nulls remaining across the 32
+     existing clips before 0008 ran. `GET /clips` (the Scheduling
+     page's clip list — already existed, already showed "Video / Clip
+     / Reasoning / Manage" in one place, exactly what was asked for)
+     and `GET /posts/scheduled` switched from inner to left joins on
+     `sourceVideos` so a decoupled clip shows up instead of silently
+     vanishing from both lists. The delete-video confirm dialog no
+     longer claims rendered clips get deleted — it says where to find
+     them instead.
 - **Live external accounts**: Clerk, Neon, Cloudflare, Fly.io, Groq,
   and Anthropic are all live and in real use as of Phase 4. Stripe is
   configured (test-mode placeholder tiers, see Phase 7) but no billing
