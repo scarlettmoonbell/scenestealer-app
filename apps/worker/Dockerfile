@@ -74,6 +74,25 @@ WORKDIR /app
 # (@scenestealer/connectors, @scenestealer/pipeline) resolve fine via
 # plain npm — a real `github:owner/repo#ref` git dependency, unlike the
 # workspace protocol.
+#
+# Both are pinned to an exact commit SHA in apps/worker/package.json,
+# not `#main` — confirmed the hard way (2026-09-07): a mutable `#main`
+# ref means this RUN layer's cache key (COPY apps/worker/package.json's
+# content) never changes just because the upstream branch moved, so
+# Fly's remote-builder layer cache kept serving a `npm install` from a
+# much earlier build indefinitely, silently shipping stale
+# @scenestealer/pipeline code on every deploy regardless of what `main`
+# actually pointed to by then — a real fix to a zero-length-clip bug
+# sat un-deployed through several "successful" deploys as a result.
+# SHA-pinning here does double duty: it's this account's own established
+# supply-chain convention (see claude-docs-conventions' DEVOPS.md), and
+# it makes the cache key change exactly when the dependency's actual
+# content changes, matching pnpm-lock.yaml's own resolution instead of
+# silently drifting from it. Bumping either pin after a real upstream
+# change is a manual step for now (update the SHA here, run `pnpm
+# install` at the repo root to keep pnpm-lock.yaml in sync) — no
+# automated bot watches these the way Dependabot does the `.conventions`
+# submodule; worth automating if this becomes a recurring papercut.
 COPY apps/worker/package.json ./
 RUN npm pkg delete dependencies.@scenestealer/db && npm install --omit=dev
 COPY packages/db/package.json packages/db/dist ./node_modules/@scenestealer/db/
