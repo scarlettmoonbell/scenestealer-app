@@ -48,6 +48,28 @@ function formatTime(sec: number): string {
   return `${m}:${s.padStart(4, "0")}`;
 }
 
+// Inverse of formatTime — "M:SS" or "M:SS.S" (whole minutes, seconds
+// 0-59.9) back to a plain seconds float. Confirmed for real
+// (2026-09-07): the Adjust column's boundary inputs used to show raw
+// seconds ("1836.8"), which a tenant read as frame numbers — nothing
+// else in this editor (the Play column, the waveform, native <video>
+// controls) shows time that way, so it couldn't be compared against
+// anything. Also accepts a bare number as a lenient fallback (typing
+// or pasting a raw seconds value still works), but the field always
+// *displays* timecode via formatTime, matching the rest of the UI.
+function parseTimecode(text: string): number | null {
+  const trimmed = text.trim();
+  const match = /^(\d+):(\d{1,2}(?:\.\d+)?)$/.exec(trimmed);
+  if (match) {
+    const minutes = Number(match[1]);
+    const seconds = Number(match[2]);
+    if (seconds >= 60) return null;
+    return minutes * 60 + seconds;
+  }
+  const plain = Number(trimmed);
+  return Number.isFinite(plain) ? plain : null;
+}
+
 // Rendered/rendering/rejected clips are done being edited — matches
 // the waveform regions' own drag/resize lock so the boundary inputs
 // and the waveform never disagree about whether a clip is editable.
@@ -603,50 +625,48 @@ export function ClipEditor({
                     >
                       <input
                         key={`start-${clip.id}-${clip.startSec}`}
-                        type="number"
-                        step={0.1}
-                        min={0}
-                        defaultValue={clip.startSec.toFixed(1)}
+                        type="text"
+                        inputMode="numeric"
+                        defaultValue={formatTime(clip.startSec)}
                         onBlur={(e) => {
-                          const value = parseFloat(e.target.value);
+                          const value = parseTimecode(e.target.value);
                           if (
+                            value == null ||
                             !Number.isFinite(value) ||
                             value < 0 ||
                             value >= clip.endSec
                           ) {
-                            e.target.value = clip.startSec.toFixed(1);
+                            e.target.value = formatTime(clip.startSec);
                             return;
                           }
                           void updateClip(clip.id, { startSec: value });
                         }}
-                        style={{ width: "4.5em" }}
-                        aria-label="Clip start time in seconds"
+                        style={{ width: "5.5em" }}
+                        aria-label="Clip start time (minutes:seconds)"
                       />
                       <span>–</span>
                       <input
                         key={`end-${clip.id}-${clip.endSec}`}
-                        type="number"
-                        step={0.1}
-                        min={0}
-                        max={videoRef.current?.duration}
-                        defaultValue={clip.endSec.toFixed(1)}
+                        type="text"
+                        inputMode="numeric"
+                        defaultValue={formatTime(clip.endSec)}
                         onBlur={(e) => {
-                          const value = parseFloat(e.target.value);
+                          const value = parseTimecode(e.target.value);
                           const duration = videoRef.current?.duration;
                           if (
+                            value == null ||
                             !Number.isFinite(value) ||
                             value <= clip.startSec ||
                             (duration != null && value > duration)
                           ) {
-                            e.target.value = clip.endSec.toFixed(1);
+                            e.target.value = formatTime(clip.endSec);
                             return;
                           }
                           void updateClip(clip.id, { endSec: value });
                         }}
-                        style={{ width: "4.5em" }}
-                        aria-label="Clip end time in seconds"
+                        style={{ width: "5.5em" }}
+                        aria-label="Clip end time (minutes:seconds)"
                       />
-                      <span>sec</span>
                     </span>
                   )}
                 </td>
