@@ -1303,6 +1303,37 @@ unpinning.
   manually stopped (`flyctl machine stop`). Added `[[restart]] policy =
   "never"` to `fly.toml` — the stub still starts once per deploy and
   exits right away (harmless, cheap), it just stops rebooting forever.
+
+  **Also caught on the first real end-to-end test, once `FLY_API_TOKEN`
+  was provisioned**: confirmed the whole point of this fix worked —
+  `/proc/<pid>/stat` on the spawned `performance-2x` machine showed
+  ~108% utilization of a core during the proxy transcode (both cores
+  genuinely in use via `libx264`'s threaded encode), against ~24% on
+  the old `shared-cpu-2x` always-on machine, and the transcode itself
+  finished in 6.3 minutes for the full 17-minute video (vs. 30+ minutes
+  and still incomplete before). But `createVideoProxy` (previous
+  commit) had two real bugs, both surfaced by this same run: it built
+  the proxy with `-an` (no audio track) on the assumption both
+  `detectScenes` and `detectAudioEnergyEvents` would share it, which
+  made the latter fail outright — "Output file #0 does not contain any
+  stream" — the instant it tried to extract audio from a video-only
+  file; and it never forced `-pix_fmt yuv420p`, so `libx264` silently
+  inherited the *source's* 10-bit depth, producing a still-10-bit H.264
+  proxy that undermined much of the point (the local sanity test that
+  validated the original command used an 8-bit synthetic source and
+  never exercised this path). Confirmed the whole reliability chain
+  worked correctly regardless: the failure landed as a real `"failed"`
+  status with a specific, actionable error message and no stuck state
+  — exactly what the earlier completion-reliability work was for.
+
+  **Fix**: `detectAudioEnergyEvents` never actually needed the proxy in
+  the first place — it only demuxes the separate audio elementary
+  stream, which never touches the expensive video codec regardless of
+  what the video track is, so it was reverted to the original
+  `videoPath`; only `detectScenes` (the step doing genuinely expensive
+  per-frame video decode) uses the proxy. Added `-pix_fmt yuv420p` to
+  `createVideoProxy` to force real 8-bit output, confirmed against a
+  synthetic 10-bit source locally before redeploying.
 - **Live external accounts**: Clerk, Neon, Cloudflare, Fly.io, Groq,
   and Anthropic are all live and in real use as of Phase 4. Stripe is
   configured (test-mode placeholder tiers, see Phase 7) but no billing

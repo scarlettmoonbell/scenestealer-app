@@ -21,10 +21,11 @@ const execFileAsync = promisify(execFile);
  * large (confirmed for real: a 413 "Request Entity Too Large" against a
  * short phone-recorded test clip) — video containers are dominated by
  * the video track, which transcription never needs. Extracts a small,
- * compressed, mono audio-only file instead. detectAudioEnergyEvents and
- * PySceneDetectDetector both still take the original video path — no
- * size constraint there, it's all local subprocess work, not an
- * uploaded API request.
+ * compressed, mono audio-only file instead. detectAudioEnergyEvents
+ * still takes the original video path — no size constraint there, it's
+ * local subprocess work, not an uploaded API request (PySceneDetect
+ * used to as well; as of 2026-09-07 it runs against a cheap proxy
+ * instead — see createVideoProxy's own comment).
  *
  * 64kbps mono is more than sufficient for speech and keeps file size
  * trivial for anything up to a full show-length recording; not chunked
@@ -47,30 +48,43 @@ async function extractAudio(videoPath: string, audioPath: string) {
 
 /**
  * A lightweight 8-bit H.264 proxy of the source video, used only for
- * scene detection and audio-energy detection — neither needs full
- * quality/resolution, but both currently pay the full decode cost of
- * the ORIGINAL video's codec every time they run, since they take
- * `videoPath` directly. Confirmed for real (2026-09-07, see
- * ROADMAP.md): a real upload came back as 10-bit HEVC with Dolby Vision
- * (not unusual for a modern iPhone recording), which is extremely
- * expensive to software-decode with no hardware acceleration — Fly
- * Machines have none, and PySceneDetect's own CLI only exposes a plain
- * `opencv` backend (confirmed via `scenedetect --help`), so there's no
- * hardware-decode flag to flip on either. Scene detection alone ran for
- * over an hour on a 17-minute recording before this existed.
+ * `PySceneDetectDetector.detectScenes` — the one step that actually
+ * pays the original video's full frame-by-frame decode cost every time
+ * it runs, since it takes `videoPath` directly. Confirmed for real
+ * (2026-09-07, see ROADMAP.md): a real upload came back as 10-bit HEVC
+ * with Dolby Vision (not unusual for a modern iPhone recording), which
+ * is extremely expensive to software-decode with no hardware
+ * acceleration — Fly Machines have none, and PySceneDetect's own CLI
+ * only exposes a plain `opencv` backend (confirmed via `scenedetect
+ * --help`), so there's no hardware-decode flag to flip on either. Scene
+ * detection alone ran for over an hour on a 17-minute recording before
+ * this existed.
  *
- * Transcoding once to a cheap, easy-to-decode proxy and pointing both
- * of those tools at it instead cuts their *combined* decode cost far
- * more than tuning either tool's own options would, since it fixes the
- * actual bottleneck (decode) once rather than working around it twice.
+ * Deliberately NOT used for `detectAudioEnergyEvents` (confirmed for
+ * real, 2026-09-07 — see ROADMAP.md for the incident): that function
+ * only demuxes+decodes the separate audio elementary stream, which
+ * never touches the expensive video codec in the first place, so it
+ * gets no benefit from this proxy — worse, the first version of this
+ * function built the proxy with `-an` (no audio track) on the
+ * assumption both callers would share it, which made
+ * `detectAudioEnergyEvents` fail outright with "does not contain any
+ * stream" the moment it tried to extract audio from a video-only file.
+ * `detectAudioEnergyEvents` takes the original `videoPath` instead (see
+ * the Promise.all below) — cheap either way, so there's nothing to gain
+ * by including audio here just to share the file.
+ *
+ * `-pix_fmt yuv420p` explicitly forces real 8-bit output — without it,
+ * `libx264` silently inherits the source's own pixel format (confirmed
+ * for real: the first version omitted this and produced a *10-bit*
+ * H.264 proxy from a 10-bit HEVC source, undermining much of the point;
+ * the local sanity test that validated this function's ffmpeg command
+ * used a plain 8-bit synthetic source and never exercised this path).
  * `-c:v libx264` matches render.ts's own FfmpegRenderer, which already
  * proves this exact ffmpeg build supports it in production. Downscaled
- * to 480p height — motion/cut/energy detection doesn't need more, and
- * a smaller frame is itself cheaper to decode on top of the codec
- * switch. No audio track (`-an`): extractAudio already produced a
- * separate audio file this doesn't need to duplicate. The original
- * videoPath is untouched — waveform peaks, final clip renders, and
- * playback all still use the real master.
+ * to 480p height — cut detection doesn't need more, and a smaller frame
+ * is itself cheaper to decode on top of the codec/bit-depth switch. The
+ * original videoPath is untouched — waveform peaks, final clip
+ * renders, and playback all still use the real master.
  */
 async function createVideoProxy(videoPath: string, proxyPath: string) {
   await execFileAsync("ffmpeg", [
@@ -84,6 +98,8 @@ async function createVideoProxy(videoPath: string, proxyPath: string) {
     "veryfast",
     "-crf",
     "28",
+    "-pix_fmt",
+    "yuv420p",
     "-an",
     proxyPath,
   ]);
@@ -427,9 +443,11 @@ export async function runAnalyze(
         // rather than one replacing another; knowing which one is still
         // in flight when a crash happens (or which finishes last)
         // matters as much as knowing it happened somewhere in this
-        // block. detectScenes/detectAudioEnergyEvents run against the
-        // proxy (or the original videoPath if that failed), not the
-        // original master directly — see createVideoProxy's comment.
+        // block. Only detectScenes runs against the proxy (or the
+        // original videoPath if that failed) — detectAudioEnergyEvents
+        // takes the real videoPath, deliberately, not the (audio-less)
+        // proxy; see createVideoProxy's own comment for why sharing it
+        // between the two was wrong.
         const [scenes, transcript, audioEvents] = await Promise.all([
           sceneDetector.detectScenes(sceneDetectPath).then((result) => {
             logStep(sourceVideoId, startedAt, "scenes-detected");
@@ -439,7 +457,7 @@ export async function runAnalyze(
             logStep(sourceVideoId, startedAt, "transcribed");
             return result;
           }),
-          detectAudioEnergyEvents(sceneDetectPath).then((result) => {
+          detectAudioEnergyEvents(videoPath).then((result) => {
             logStep(sourceVideoId, startedAt, "audio-energy-detected");
             return result;
           }),
