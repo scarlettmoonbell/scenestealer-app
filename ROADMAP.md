@@ -1334,6 +1334,36 @@ unpinning.
   per-frame video decode) uses the proxy. Added `-pix_fmt yuv420p` to
   `createVideoProxy` to force real 8-bit output, confirmed against a
   synthetic 10-bit source locally before redeploying.
+- **Done (2026-09-07): first real end-to-end success on the whole
+  chain of fixes above — `001_ScaryMallet@Fallout.MOV` completed in
+  14.4 minutes total** (`done-clips-created=9`), down from OOMing,
+  getting killed by timeouts, or running 30+ minutes without even
+  finishing the proxy step, across every earlier attempt this session.
+  `sourceVideos.status` reached `"analyzed"` with a real `durationSec`
+  and `waveformR2Key`, matching what the whole completion-reliability
+  investigation was for. Also confirmed the region-pinning fix above
+  mattered in practice, not just in theory: `flyctl machines list`
+  showed the spawned Machine had landed in `sjc` on this same run,
+  caught and fixed (pinned to `iad`) while it was still in flight.
+
+  **Surfaced a real data-quality question, not a reliability one**:
+  several of the 9 clips came back with `startSec === endSec` (zero
+  length), one spanned nearly the entire video. Root cause confirmed
+  by reading `snapToScenes`'s actual source (the separate
+  `scenestealer-pipeline` repo): it independently snaps a candidate
+  highlight's start and end to whichever scene boundary is nearest
+  *each*, with no guard against both landing on the same one — a
+  pre-existing gap, not something this session's changes introduced,
+  but far more likely to bite now that the proxy's scene detection
+  found only a handful of distinct boundaries for the whole ~17-minute
+  video. Not proven whether that sparsity is inherent to this
+  particular recording (plausibly a single continuous take) or an
+  artifact of the proxy's 480p/CRF 28 downscale smoothing out real
+  per-frame differences `detect-content` needs — bumped the proxy to
+  720p/CRF 20 (previous commit) as a cheap way to rule out the latter
+  before touching `snapToScenes` itself, which would mean crossing into
+  that separate repo. Revisit `snapToScenes`'s own missing-guard bug
+  directly if the quality bump doesn't fully resolve this.
 - **Live external accounts**: Clerk, Neon, Cloudflare, Fly.io, Groq,
   and Anthropic are all live and in real use as of Phase 4. Stripe is
   configured (test-mode placeholder tiers, see Phase 7) but no billing

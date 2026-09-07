@@ -80,24 +80,39 @@ async function extractAudio(videoPath: string, audioPath: string) {
  * the local sanity test that validated this function's ffmpeg command
  * used a plain 8-bit synthetic source and never exercised this path).
  * `-c:v libx264` matches render.ts's own FfmpegRenderer, which already
- * proves this exact ffmpeg build supports it in production. Downscaled
- * to 480p height — cut detection doesn't need more, and a smaller frame
- * is itself cheaper to decode on top of the codec/bit-depth switch. The
+ * proves this exact ffmpeg build supports it in production. The
  * original videoPath is untouched — waveform peaks, final clip
  * renders, and playback all still use the real master.
+ *
+ * 720p height / CRF 20 (bumped from an initial 480p / CRF 28, 2026-09-07
+ * — see ROADMAP.md): the first real end-to-end run completed but
+ * produced several degenerate zero-length clips — `snapToScenes` (the
+ * separate scenestealer-pipeline repo) independently snaps a candidate
+ * highlight's start and end to whichever scene boundary is nearest
+ * *each*, with no guard against both landing on the same one, and the
+ * proxy's scene detection found only a handful of distinct boundaries
+ * for the whole ~17-minute video — sparse enough that multiple
+ * genuinely different AI-suggested highlights collided onto the same
+ * boundary. Not proven which way the causality runs (this video may
+ * itself have few real hard cuts, being a single continuous take), but
+ * 480p/CRF 28's aggressive downscale + compression is a plausible
+ * enough way to smooth out real per-frame differences `detect-content`
+ * needs that it's worth ruling out cheaply before touching
+ * `snapToScenes` itself (a separate repo). Still far cheaper to decode
+ * than the original 10-bit HEVC Dolby Vision master either way.
  */
 async function createVideoProxy(videoPath: string, proxyPath: string) {
   await execFileAsync("ffmpeg", [
     "-i",
     videoPath,
     "-vf",
-    "scale=-2:480",
+    "scale=-2:720",
     "-c:v",
     "libx264",
     "-preset",
     "veryfast",
     "-crf",
-    "28",
+    "20",
     "-pix_fmt",
     "yuv420p",
     "-an",
