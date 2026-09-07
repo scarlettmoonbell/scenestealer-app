@@ -58,7 +58,27 @@ export default async function VideoPage({
         initialError={video.analysisError}
         initialDurationSec={video.durationSec}
       />
-      <ClipEditor sourceVideoId={video.id} initialClips={videoClips} />
+      {/*
+        Keyed on status so ClipEditor fully remounts the moment analysis
+        finishes, not just re-renders with new props. AnalyzeControl's
+        own poll already calls router.refresh() on completion, which
+        re-runs this Server Component and would hand ClipEditor fresh
+        `initialClips` — but ClipEditor is a client component whose
+        clipList state (useState(initialClips)) and waveform-fetch
+        effect only run once on mount, so a prop change alone never
+        reaches them. Confirmed for real (2026-09-07): a user who
+        stayed on this page while analysis finished got stuck seeing
+        "waveform unavailable" and no detected clips — both genuinely
+        existed in the DB/R2 by then, a full page reload showed them
+        correctly. The key forces React to tear down and recreate
+        ClipEditor exactly on that transition, so its effects re-run
+        against the now-current data instead of needing a manual reload.
+      */}
+      <ClipEditor
+        key={video.status}
+        sourceVideoId={video.id}
+        initialClips={videoClips}
+      />
     </main>
   );
 }
