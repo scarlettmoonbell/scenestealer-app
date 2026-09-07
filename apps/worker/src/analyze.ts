@@ -45,6 +45,50 @@ async function extractAudio(videoPath: string, audioPath: string) {
   ]);
 }
 
+/**
+ * A lightweight 8-bit H.264 proxy of the source video, used only for
+ * scene detection and audio-energy detection — neither needs full
+ * quality/resolution, but both currently pay the full decode cost of
+ * the ORIGINAL video's codec every time they run, since they take
+ * `videoPath` directly. Confirmed for real (2026-09-07, see
+ * ROADMAP.md): a real upload came back as 10-bit HEVC with Dolby Vision
+ * (not unusual for a modern iPhone recording), which is extremely
+ * expensive to software-decode with no hardware acceleration — Fly
+ * Machines have none, and PySceneDetect's own CLI only exposes a plain
+ * `opencv` backend (confirmed via `scenedetect --help`), so there's no
+ * hardware-decode flag to flip on either. Scene detection alone ran for
+ * over an hour on a 17-minute recording before this existed.
+ *
+ * Transcoding once to a cheap, easy-to-decode proxy and pointing both
+ * of those tools at it instead cuts their *combined* decode cost far
+ * more than tuning either tool's own options would, since it fixes the
+ * actual bottleneck (decode) once rather than working around it twice.
+ * `-c:v libx264` matches render.ts's own FfmpegRenderer, which already
+ * proves this exact ffmpeg build supports it in production. Downscaled
+ * to 480p height — motion/cut/energy detection doesn't need more, and
+ * a smaller frame is itself cheaper to decode on top of the codec
+ * switch. No audio track (`-an`): extractAudio already produced a
+ * separate audio file this doesn't need to duplicate. The original
+ * videoPath is untouched — waveform peaks, final clip renders, and
+ * playback all still use the real master.
+ */
+async function createVideoProxy(videoPath: string, proxyPath: string) {
+  await execFileAsync("ffmpeg", [
+    "-i",
+    videoPath,
+    "-vf",
+    "scale=-2:480",
+    "-c:v",
+    "libx264",
+    "-preset",
+    "veryfast",
+    "-crf",
+    "28",
+    "-an",
+    proxyPath,
+  ]);
+}
+
 const WAVEFORM_SAMPLE_RATE = 8000;
 const WAVEFORM_PEAK_COUNT = 4000;
 
@@ -355,6 +399,23 @@ export async function runAnalyze(
         }
         logStep(sourceVideoId, startedAt, "waveform-peaks-done");
 
+        // Best-effort: a proxy failure shouldn't fail the analysis this
+        // job exists for — falls back to the original videoPath (slower,
+        // but correct) rather than skipping detection outright. See
+        // createVideoProxy's own comment for why this exists at all.
+        let sceneDetectPath = videoPath;
+        try {
+          const proxyPath = join(tmpDir, "proxy.mp4");
+          await createVideoProxy(videoPath, proxyPath);
+          sceneDetectPath = proxyPath;
+        } catch (e) {
+          console.error(
+            "Video proxy creation failed (non-fatal, falling back to source video):",
+            e,
+          );
+        }
+        logStep(sourceVideoId, startedAt, "proxy-created");
+
         const sceneDetector = new PySceneDetectDetector();
         const transcriber = new GroqTranscriber(process.env.GROQ_API_KEY!);
         const scorer = new ClaudeHighlightScorer(
@@ -366,9 +427,11 @@ export async function runAnalyze(
         // rather than one replacing another; knowing which one is still
         // in flight when a crash happens (or which finishes last)
         // matters as much as knowing it happened somewhere in this
-        // block.
+        // block. detectScenes/detectAudioEnergyEvents run against the
+        // proxy (or the original videoPath if that failed), not the
+        // original master directly — see createVideoProxy's comment.
         const [scenes, transcript, audioEvents] = await Promise.all([
-          sceneDetector.detectScenes(videoPath).then((result) => {
+          sceneDetector.detectScenes(sceneDetectPath).then((result) => {
             logStep(sourceVideoId, startedAt, "scenes-detected");
             return result;
           }),
@@ -376,7 +439,7 @@ export async function runAnalyze(
             logStep(sourceVideoId, startedAt, "transcribed");
             return result;
           }),
-          detectAudioEnergyEvents(videoPath).then((result) => {
+          detectAudioEnergyEvents(sceneDetectPath).then((result) => {
             logStep(sourceVideoId, startedAt, "audio-energy-detected");
             return result;
           }),

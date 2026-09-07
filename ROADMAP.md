@@ -1120,6 +1120,59 @@ unpinning.
   app today, real Safari/iOS reliability gaps) — Web Push documented as
   a possible *supplementary* channel to revisit if alpha tester feedback
   specifically asks for it, not a replacement for email.
+- **Fixed (2026-09-07): scene detection alone ran for over an hour on a
+  17-minute recording, with no crash to blame — genuinely just slow,
+  not a bug in the reliability fixes above.** Root cause, confirmed
+  with real data pulled directly from R2 (a presigned GET signed inside
+  the running Fly machine via its own R2 credentials, `ffprobe`'d
+  locally without downloading the 1.24GB file): the source was 1080p30
+  — a perfectly reasonable resolution — but **10-bit HEVC with Dolby
+  Vision** (dual-layer BL+RPU side-data, unremarkable for a modern
+  iPhone recording). Software-decoding that with no hardware
+  acceleration (Fly Machines have none) is extremely expensive, and
+  both `detectScenes` and `detectAudioEnergyEvents` were each
+  independently paying that full decode cost on the same original file.
+
+  Considered and ruled out first: PySceneDetect's own `-d/--downscale`
+  flag — checked its actual source (`scene_manager.py`'s
+  `compute_downscale_factor`) and confirmed it already auto-downscales
+  to a ~256px effective width *by default* with no flag at all, so an
+  explicit `-d` wouldn't have changed anything; downscaling only
+  reduces post-decode resize cost, not the decode itself, which is
+  where the time was actually going. A GPU/hardware-decode compute
+  instance was also considered and rejected — PySceneDetect's CLI only
+  exposes a plain `opencv` backend (confirmed via `scenedetect --help`,
+  `-b/--backend [available: opencv]`), so it isn't doing hardware
+  decode regardless of what hardware sits underneath; getting real
+  hardware acceleration would mean building a custom decode pipeline
+  around `ffmpeg -hwaccel`, a rewrite, not a config change — while
+  GPU instances also cost meaningfully more per hour than what's
+  running today.
+
+  **Real fix**: `apps/worker/src/analyze.ts`'s new `createVideoProxy`
+  transcodes the source once to a lightweight 480p 8-bit H.264 proxy
+  (`-c:v libx264`, matching `render.ts`'s own `FfmpegRenderer` — proven
+  to work in this exact ffmpeg build already, in production) before
+  `detectScenes`/`detectAudioEnergyEvents` run, and both now decode
+  that cheap proxy instead of the original master — paying the
+  expensive decode once (during the transcode) instead of twice, and
+  making everything after that decode itself far cheaper. Verified end
+  to end against the real problem file (not just a synthetic test
+  video): SSH'd into the live Fly machine to sign a presigned R2 GET
+  with its own credentials, then ran the exact transcode command
+  locally against the real Dolby Vision HEVC source — correct 854×480
+  H.264 output, correct duration, no decode errors. Best-effort: a
+  proxy failure falls back to the original `videoPath` (slower, but
+  still correct) rather than failing the job. The original file is
+  untouched throughout — waveform peaks, final clip renders, and
+  playback all still use the real master, only scene/audio-energy
+  detection use the proxy. `--frame-skip` (confirmed via source to do a
+  genuine demux-only skip, `video.read(decode=False)`, not just a
+  post-decode discard) was identified as a secondary lever worth
+  layering on top if the proxy alone isn't enough, but lives in the
+  separate `scenestealer-pipeline` repo's `pyscenedetect.ts` — not
+  pursued in this pass, revisit if needed once real timing data exists
+  for the proxy-only fix.
 - **Live external accounts**: Clerk, Neon, Cloudflare, Fly.io, Groq,
   and Anthropic are all live and in real use as of Phase 4. Stripe is
   configured (test-mode placeholder tiers, see Phase 7) but no billing
