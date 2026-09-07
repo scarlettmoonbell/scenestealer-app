@@ -167,12 +167,22 @@ clipsRoute.post("/:id/render", async (c) => {
     .set({ status: "rendering", renderError: null })
     .where(eq(clips.id, clipId));
 
+  // clipId doubles as the correlation key tying this dispatch to
+  // render.ts's own step-level logs on the spawned Machine — same
+  // pattern as videos.ts's runAnalyzeJob/analyze.ts using
+  // sourceVideoId, extended here to close the same gap on the render
+  // path (previously silent end-to-end; see claude-docs-conventions'
+  // Logging & observability section, 2026-09-07).
+  console.log(`[render] dispatching clipId=${clipId}`);
   const result = await spawnWorkerMachine(c.env, {
     JOB_TYPE: "render",
     CLIP_ID: clipId,
   });
 
   if (!result.ok) {
+    console.log(
+      `[render] Machine spawn rejected for clipId=${clipId}: status=${result.status} body=${result.body}`,
+    );
     const renderError = `Failed to start render (Fly status ${result.status})`;
     await db
       .update(clips)
@@ -180,6 +190,7 @@ clipsRoute.post("/:id/render", async (c) => {
       .where(eq(clips.id, clipId));
     return c.json({ error: renderError }, 502);
   }
+  console.log(`[render] Machine spawned for clipId=${clipId}`);
 
   const [updated] = await db
     .select()

@@ -71,7 +71,7 @@ internalRoute.post("/analysis-complete", async (c) => {
     const email = user.primaryEmailAddress?.emailAddress;
     if (!email) {
       console.log(
-        `[analysis-complete] no email on file for Clerk user ${video.triggeredByClerkUserId}`,
+        `[analysis-complete] no email on file for Clerk user ${video.triggeredByClerkUserId} (sourceVideoId=${body.sourceVideoId})`,
       );
       return c.json({ notified: false });
     }

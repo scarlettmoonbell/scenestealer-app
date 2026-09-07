@@ -23,6 +23,18 @@ binding = "JOBS_QUEUE"
 queue = "scenestealer-jobs"
 max_batch_size = 1
 
+# 100% sampling deliberately, not the platform default — real traffic is
+# still low enough (alpha phase, one tenant testing) that full log
+# retention costs nothing meaningful, and it's the only way this gap
+# (identified via claude-docs-conventions' Logging & observability
+# section, 2026-09-07: "every Worker should ship with
+# observability.enabled: true") actually pays off in a debugging session
+# instead of after the fact. Revisit the sampling rate once real usage
+# volume makes 100% retention costly.
+[observability]
+enabled = true
+head_sampling_rate = 1
+
 [vars]
 # Non-secret config only. Secrets (DATABASE_URL, CLERK_SECRET_KEY,
 # CLERK_WEBHOOK_SIGNING_SECRET, STRIPE_SECRET_KEY, POSTIZ_API_KEY,
