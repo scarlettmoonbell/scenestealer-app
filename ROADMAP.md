@@ -1447,6 +1447,48 @@ unpinning.
   `apps/worker`'s own `logStep` output — added the same `clipId`-tagged
   logging to both, closing the same correlation gap for render jobs
   that already existed for analyze.
+- **Done (2026-09-07): large-video stress test (5.38GB, ~1hr) — found
+  and fixed two real bugs, then confirmed a clean end-to-end run.**
+  1. **Upload**: the existing presigned-upload path was a single plain
+     `PUT`, and R2 (like S3) rejects any single `PutObject` over 5 GiB
+     outright — confirmed for real, this file's upload got a flat HTTP
+     400. Added multipart upload support: `apps/api/src/r2.ts` gained
+     `createMultipartUpload`/`presignUploadPart`/
+     `completeMultipartUpload`/`abortMultipartUpload`, `apps/api/src/
+     routes/uploads.ts` gained `/multipart/create`, `/sign-part`,
+     `/complete`, `/abort`, and `apps/web/app/upload-panel.tsx`
+     automatically switches to it at/over 4.5GiB — 100MiB parts,
+     4-way concurrent upload, per-part retry, progress shown as a
+     percentage. Given this product's actual target is full show
+     recordings, this ceiling was always going to bite eventually, not
+     just for this one test.
+  2. **Auth mid-upload**: the first real multipart attempt got stuck at
+     "Uploading… 0%" — every `/uploads/multipart/sign-part` call
+     returned 401. Root cause: `handleFile` called Clerk's `getToken()`
+     once at the very top and reused that single token string for the
+     whole upload; Clerk session tokens are short-lived (~60s) and
+     meant to be re-fetched per call, not cached. Fixed by threading a
+     `getAuthHeaders()` callback through instead, called fresh
+     immediately before every request.
+  3. With both fixed, a real end-to-end run completed successfully:
+     analysis finished in ~29 minutes with no crashes and memory well
+     controlled (peaked ~400MB, settled back down between steps), and
+     produced 18 clips, zero zero-length or inverted — confirming the
+     `snapToScenes` fix (above) holds up on a much richer boundary set,
+     not just the smaller earlier test video.
+  4. **Separately surfaced, not upload-related**: a user who stayed on
+     a video's page while analysis finished got stuck seeing "waveform
+     unavailable" and no detected clips, even though both genuinely
+     existed by the time they looked — a full page reload showed them
+     correctly, confirming this was never a data problem. Root cause:
+     `AnalyzeControl`'s completion poll calls `router.refresh()`, which
+     re-runs `page.tsx` (a Server Component) with fresh data, but
+     `ClipEditor` is a client component whose `clipList` state
+     (`useState(initialClips)`) and its waveform-fetch `useEffect` only
+     ever run once on mount — neither reacts to a changed prop. Fixed
+     by keying `<ClipEditor>` on `video.status` in `page.tsx`, forcing
+     React to remount it (and re-run its effects against current data)
+     exactly when status transitions, e.g. `analyzing` -> `analyzed`.
 - **Live external accounts**: Clerk, Neon, Cloudflare, Fly.io, Groq,
   and Anthropic are all live and in real use as of Phase 4. Stripe is
   configured (test-mode placeholder tiers, see Phase 7) but no billing
