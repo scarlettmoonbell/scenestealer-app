@@ -131,6 +131,28 @@ function SchedulingContent() {
     }
   }
 
+  async function handleDeleteClip(clipId: string) {
+    if (
+      !window.confirm(
+        "Delete this clip? This removes the rendered file too and can't be undone.",
+      )
+    ) {
+      return;
+    }
+    setError(null);
+    try {
+      const res = await authedFetch(`/clips/${clipId}`, { method: "DELETE" });
+      if (!res.ok) {
+        setError("Failed to delete clip");
+        return;
+      }
+      setReadyClips((prev) => prev.filter((c) => c.id !== clipId));
+      setSelectedClipId((prev) => (prev === clipId ? null : prev));
+    } catch (e) {
+      setError(`Failed to delete clip: ${describeFetchError(e)}`);
+    }
+  }
+
   async function handleCancel(id: string) {
     if (!window.confirm("Cancel this scheduled post?")) return;
     setCancellingId(id);
@@ -210,91 +232,115 @@ function SchedulingContent() {
               No rendered clips yet — render a clip from its video page first.
             </p>
           ) : (
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr style={{ borderBottom: "2px solid #333" }}>
-                  <th style={{ ...TABLE_HEADER_STYLE, textAlign: "left" }}>
-                    Title
-                  </th>
-                  <th style={{ ...TABLE_HEADER_STYLE, textAlign: "left" }}>
-                    Clip
-                  </th>
-                  <th style={{ ...TABLE_HEADER_STYLE, textAlign: "left" }}>
-                    Reasoning
-                  </th>
-                  <th style={{ ...TABLE_HEADER_STYLE, textAlign: "left" }}>
-                    Manage
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {readyClips.map((clip, index) => (
-                  <tr
-                    key={clip.id}
-                    style={{
-                      background:
-                        index % 2 === 1 ? "var(--surface-raised)" : "none",
-                      borderBottom: "1px solid #333",
-                    }}
-                  >
-                    <td style={{ padding: "0.5rem 0.75rem" }}>
-                      <input
-                        key={`title-${clip.id}-${clip.title}`}
-                        type="text"
-                        defaultValue={clipTitle(clip)}
-                        placeholder="Untitled recording"
-                        onBlur={(e) => {
-                          if (e.target.value.trim() === clipTitle(clip)) return;
-                          void handleRename(clip.id, e.target.value);
-                        }}
-                        aria-label="Clip title"
-                        style={{
-                          width: "100%",
-                          background: "transparent",
-                          border: "1px solid transparent",
-                          borderRadius: 4,
-                          padding: "0.25rem 0.4rem",
-                          font: "inherit",
-                          color: "inherit",
-                        }}
-                        onFocus={(e) => {
-                          e.target.style.borderColor = "var(--border)";
-                        }}
-                      />
-                    </td>
-                    <td
-                      style={{
-                        padding: "0.5rem 0.75rem",
-                        fontVariantNumeric: "tabular-nums",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {formatTime(clip.startSec)} – {formatTime(clip.endSec)}
-                    </td>
-                    <td
-                      style={{
-                        padding: "0.5rem 0.75rem",
-                        fontSize: "0.9em",
-                        opacity: 0.8,
-                      }}
-                    >
-                      {clip.aiReason ?? "Manually adjusted clip"}
-                    </td>
-                    <td style={{ padding: "0.5rem 0.75rem" }}>
-                      <button
-                        type="button"
-                        disabled={clip.id === selectedClipId}
-                        onClick={() => setSelectedClipId(clip.id)}
-                      >
-                        {clip.id === selectedClipId
-                          ? "Selected"
-                          : "Publish / Schedule"}
-                      </button>
-                    </td>
+            <>
+              <p style={{ fontSize: "0.85em", color: "var(--muted)" }}>
+                Click a row to pick it for publishing/scheduling below.
+              </p>
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <colgroup>
+                  <col style={{ width: "40%" }} />
+                  <col style={{ width: "13%" }} />
+                  <col style={{ width: "32%" }} />
+                  <col style={{ width: "15%" }} />
+                </colgroup>
+                <thead>
+                  <tr style={{ borderBottom: "2px solid var(--border)" }}>
+                    <th style={{ ...TABLE_HEADER_STYLE, textAlign: "left" }}>
+                      Title
+                    </th>
+                    <th style={{ ...TABLE_HEADER_STYLE, textAlign: "left" }}>
+                      Clip
+                    </th>
+                    <th style={{ ...TABLE_HEADER_STYLE, textAlign: "left" }}>
+                      Reasoning
+                    </th>
+                    <th style={{ ...TABLE_HEADER_STYLE, textAlign: "left" }}>
+                      Manage
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {readyClips.map((clip, index) => {
+                    const selected = clip.id === selectedClipId;
+                    return (
+                      <tr
+                        key={clip.id}
+                        onClick={() => setSelectedClipId(clip.id)}
+                        style={{
+                          cursor: "pointer",
+                          background: selected
+                            ? "color-mix(in srgb, var(--accent) 18%, transparent)"
+                            : index % 2 === 1
+                              ? "var(--surface-raised)"
+                              : "none",
+                          borderBottom: "1px solid var(--border)",
+                          borderLeft: selected
+                            ? "3px solid var(--accent-text)"
+                            : "3px solid transparent",
+                        }}
+                      >
+                        <td style={{ padding: "0.5rem 0.75rem" }}>
+                          <input
+                            key={`title-${clip.id}-${clip.title}`}
+                            type="text"
+                            defaultValue={clipTitle(clip)}
+                            placeholder="Untitled recording"
+                            onBlur={(e) => {
+                              if (e.target.value.trim() === clipTitle(clip))
+                                return;
+                              void handleRename(clip.id, e.target.value);
+                            }}
+                            aria-label="Clip title"
+                            style={{
+                              width: "100%",
+                              background: "transparent",
+                              border: "1px solid transparent",
+                              borderRadius: 4,
+                              padding: "0.25rem 0.4rem",
+                              font: "inherit",
+                              color: "inherit",
+                            }}
+                            onFocus={(e) => {
+                              e.target.style.borderColor = "var(--border)";
+                            }}
+                          />
+                        </td>
+                        <td
+                          style={{
+                            padding: "0.5rem 0.75rem",
+                            fontVariantNumeric: "tabular-nums",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {formatTime(clip.startSec)} –{" "}
+                          {formatTime(clip.endSec)}
+                        </td>
+                        <td
+                          style={{
+                            padding: "0.5rem 0.75rem",
+                            fontSize: "0.9em",
+                            opacity: 0.8,
+                          }}
+                        >
+                          {clip.aiReason ?? "Manually adjusted clip"}
+                        </td>
+                        <td style={{ padding: "0.5rem 0.75rem" }}>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void handleDeleteClip(clip.id);
+                            }}
+                          >
+                            Delete
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </>
           )}
         </div>
       )}

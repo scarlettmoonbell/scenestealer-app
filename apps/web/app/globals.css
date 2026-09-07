@@ -169,6 +169,32 @@ a.btn-link:hover {
   color: #0a1628;
 }
 
+/* Text entry fields (input/select/textarea) — the same electric-blue
+   border as the button rule above, so a form reads as one consistent
+   set of controls instead of bordered buttons next to bare, unstyled
+   native fields (confirmed live 2026-09-07: the Scheduler form's
+   inputs/selects/textarea had no styling at all). Not applied
+   globally via a type selector the way `button` is — opted in per
+   field with this class, since plenty of inputs elsewhere (e.g. the
+   clip editor's inline timecode fields) deliberately stay borderless
+   until focused for a different, "click to edit text" feel. */
+.field-input {
+  display: block;
+  width: 100%;
+  background: var(--surface);
+  border: 1.5px solid var(--accent-text);
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  color: var(--text);
+  font-family: "Work Sans", system-ui, sans-serif;
+  font-size: 0.9em;
+}
+
+.field-input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
 .btn-primary {
   display: inline-flex;
   align-items: center;

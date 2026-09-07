@@ -8,6 +8,7 @@ import type {
 } from "@scenestealer/db";
 import { describeFetchError } from "../fetch-error";
 import { useAuthedFetch } from "../use-authed-fetch";
+import { CalendarPicker } from "./calendar-picker";
 
 // Extends the raw row with the real account/page name, read live from
 // Postiz — a tenant can have more than one connection per platform, so
@@ -215,13 +216,13 @@ export function Scheduler({
   return (
     <div
       style={{
-        border: "1px solid #333",
+        border: "1px solid var(--border)",
         borderRadius: 8,
         padding: "1rem",
         display: "flex",
         flexDirection: "column",
-        gap: "0.5rem",
-        maxWidth: 480,
+        gap: "0.75rem",
+        maxWidth: 560,
       }}
     >
       {error && <p role="alert">{error}</p>}
@@ -241,7 +242,8 @@ export function Scheduler({
             <select
               value={connectionId}
               onChange={(e) => setConnectionId(e.target.value)}
-              style={{ display: "block", width: "100%" }}
+              className="field-input"
+              style={{ marginTop: "0.25rem" }}
             >
               {connections.map((connection) => (
                 <option key={connection.id} value={connection.id}>
@@ -258,7 +260,8 @@ export function Scheduler({
             <select
               value={templateId}
               onChange={(e) => applyTemplate(e.target.value)}
-              style={{ display: "block", width: "100%" }}
+              className="field-input"
+              style={{ marginTop: "0.25rem" }}
             >
               <option value="">No template</option>
               {templateList
@@ -282,7 +285,8 @@ export function Scheduler({
               value={caption}
               onChange={(e) => setCaption(e.target.value)}
               rows={3}
-              style={{ display: "block", width: "100%" }}
+              className="field-input"
+              style={{ marginTop: "0.25rem" }}
             />
           </label>
 
@@ -298,7 +302,8 @@ export function Scheduler({
                       [field.key]: e.target.value,
                     }))
                   }
-                  style={{ display: "block", width: "100%" }}
+                  className="field-input"
+                  style={{ marginTop: "0.25rem" }}
                 >
                   <option value="">Select…</option>
                   {field.enumValues.map((value) => (
@@ -317,7 +322,8 @@ export function Scheduler({
                       [field.key]: e.target.value,
                     }))
                   }
-                  style={{ display: "block", width: "100%" }}
+                  className="field-input"
+                  style={{ marginTop: "0.25rem" }}
                 />
               )}
             </label>
@@ -345,20 +351,18 @@ export function Scheduler({
           </div>
 
           {scheduleMode === "later" && (
-            <label>
-              Date and time
-              <input
-                type="datetime-local"
+            <div>
+              <p style={{ marginBottom: "0.25rem" }}>Date and time</p>
+              <CalendarPicker
                 value={scheduledFor}
+                onChange={setScheduledFor}
                 min={new Date(
                   Date.now() - new Date().getTimezoneOffset() * 60000,
                 )
                   .toISOString()
                   .slice(0, 16)}
-                onChange={(e) => setScheduledFor(e.target.value)}
-                style={{ display: "block", width: "100%" }}
               />
-            </label>
+            </div>
           )}
 
           <button

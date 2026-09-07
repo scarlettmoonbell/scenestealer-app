@@ -8,7 +8,7 @@ import {
   sourceVideos,
   tenants,
 } from "@scenestealer/db";
-import { createPresignedGetUrl } from "../r2.js";
+import { createPresignedGetUrl, deleteR2Object } from "../r2.js";
 import { requireTenant } from "../auth.js";
 import { createPost } from "../postiz.js";
 import { spawnWorkerMachine } from "../fly-machines.js";
@@ -147,6 +147,46 @@ clipsRoute.patch("/:id", async (c) => {
     .returning();
 
   return c.json({ clip: updated });
+});
+
+// Lets a tenant clean up a clip they've decided they don't want to
+// keep — most relevantly a rendered clip that's outlived its source
+// video (see schema.ts's sourceVideoId comment): retention there is
+// deliberately not automatic, so this is the actual "I'm done with
+// this one" action to pair with it. Same pattern as DELETE
+// /videos/:id: storage first, so a failed R2 delete leaves the DB row
+// intact for a retry rather than a row pointing at nothing.
+clipsRoute.delete("/:id", async (c) => {
+  const tenantId = c.get("tenantId");
+  const clipId = c.req.param("id");
+  const db = createDb(c.env.DATABASE_URL);
+
+  const clip = await getOwnedClip(db, tenantId, clipId);
+  if (!clip) {
+    return c.json({ error: "Clip not found" }, 404);
+  }
+
+  if (clip.renderedR2Key) {
+    await deleteR2Object(
+      {
+        accountId: c.env.R2_ACCOUNT_ID,
+        accessKeyId: c.env.R2_ACCESS_KEY_ID,
+        secretAccessKey: c.env.R2_SECRET_ACCESS_KEY,
+        bucket: c.env.R2_BUCKET_NAME,
+      },
+      clip.renderedR2Key,
+    );
+  }
+
+  await db.transaction(async (tx) => {
+    await tx
+      .update(posts)
+      .set({ clipId: null })
+      .where(eq(posts.clipId, clipId));
+    await tx.delete(clips).where(eq(clips.id, clipId));
+  });
+
+  return c.json({ deleted: true });
 });
 
 // Spawns a fresh, disposable Fly Machine to render the clip (see
