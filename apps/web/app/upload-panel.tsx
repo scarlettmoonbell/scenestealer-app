@@ -15,11 +15,16 @@ type Status = "idle" | "uploading" | "done" | "error";
 // under the real 5 GiB (5 * 1024**3) cap as safety margin rather than
 // cutting it exactly at the boundary.
 const MULTIPART_THRESHOLD_BYTES = 4.5 * 1024 ** 3;
-// R2 multipart parts must be 5 MiB-5 GiB (except the last); 100MiB
-// keeps a 5GB+ file to a reasonable part count (~54 for 5.38GB) well
-// under the 10,000-part ceiling, without making a single failed part
-// too expensive to retry.
-const PART_SIZE_BYTES = 100 * 1024 ** 2;
+// R2 multipart parts must be 5 MiB-5 GiB (except the last); 32MiB keeps
+// a 5GB+ file to a reasonable part count (~172 for 5.38GB) well under
+// the 10,000-part ceiling. Deliberately smaller than a first version of
+// this (100MiB) — confirmed for real (2026-09-07): at 100MiB, a slower
+// home upload connection could go many minutes between progress ticks
+// (progress only advances on part *completion*, not mid-part — see
+// putPartWithXhrProgress below, which now reports continuously within
+// a part too, but a smaller part size still bounds the worst case where
+// a single failed part has to restart from zero).
+const PART_SIZE_BYTES = 32 * 1024 ** 2;
 // Parts in flight at once — same instinct as downloadFromR2ToFile's
 // PARALLEL_DOWNLOAD_CHUNKS (not bound by any one connection's own
 // congestion-control ceiling), kept lower than that constant's 6 since
@@ -53,10 +58,39 @@ type GetAuthHeaders = () => Promise<{
 }>;
 
 /**
+ * PUTs a part via XMLHttpRequest rather than fetch — fetch has no
+ * upload-progress event at all, which is exactly why a first version of
+ * this file could only advance the progress bar once per whole part
+ * (see PART_SIZE_BYTES's comment). `xhr.upload.onprogress` reports
+ * continuously as the browser actually sends bytes, so the caller can
+ * show real progress within a part, not just between them.
+ */
+function putPartWithXhrProgress(
+  url: string,
+  blob: Blob,
+  onBytes: (loaded: number) => void,
+): Promise<{ status: number; etag: string | null }> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", url);
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) onBytes(e.loaded);
+    };
+    xhr.onload = () =>
+      resolve({ status: xhr.status, etag: xhr.getResponseHeader("ETag") });
+    xhr.onerror = () =>
+      reject(new Error("Network error uploading part to storage"));
+    xhr.send(blob);
+  });
+}
+
+/**
  * Uploads a part with retries, signing a fresh URL each attempt (a
  * presigned URL is single-use in intent even if R2 doesn't literally
  * enforce that — re-signing is cheap and avoids relying on reuse
- * semantics that were never the point of presigning).
+ * semantics that were never the point of presigning). onBytes reports
+ * this part's own live progress (0 at the start of each attempt, so a
+ * retry doesn't double-count bytes from a failed prior attempt).
  */
 async function uploadPartWithRetry(
   file: File,
@@ -66,10 +100,12 @@ async function uploadPartWithRetry(
   partNumber: number,
   start: number,
   end: number,
+  onBytes: (loaded: number) => void,
 ): Promise<{ partNumber: number; etag: string }> {
   let lastError: unknown;
   for (let attempt = 1; attempt <= MAX_PART_RETRIES; attempt++) {
     try {
+      onBytes(0);
       const signRes = await fetch(`${API_URL}/uploads/multipart/sign-part`, {
         method: "POST",
         headers: await getAuthHeaders(),
@@ -82,16 +118,14 @@ async function uploadPartWithRetry(
       }
       const { url } = (await signRes.json()) as { url: string };
 
-      const putRes = await fetch(url, {
-        method: "PUT",
-        body: file.slice(start, end),
-      });
-      if (!putRes.ok) {
-        throw new Error(
-          `Storage rejected part ${partNumber} (HTTP ${putRes.status})`,
-        );
+      const { status, etag } = await putPartWithXhrProgress(
+        url,
+        file.slice(start, end),
+        onBytes,
+      );
+      if (status < 200 || status >= 300) {
+        throw new Error(`Storage rejected part ${partNumber} (HTTP ${status})`);
       }
-      const etag = putRes.headers.get("ETag");
       if (!etag) {
         throw new Error(
           `Part ${partNumber} uploaded but no ETag came back — R2's CORS ` +
@@ -137,7 +171,15 @@ async function uploadFileMultipart(
 
   const partCount = Math.ceil(file.size / PART_SIZE_BYTES);
   const parts: { partNumber: number; etag: string }[] = [];
-  let bytesDone = 0;
+  // Bytes actually sent per part slot (including in-flight, not just
+  // completed) — summed on every XHR progress tick, so the bar moves
+  // continuously as any of the concurrent parts sends data, not just
+  // when a whole part finishes.
+  const partBytesSent = new Array<number>(partCount).fill(0);
+  function reportProgress() {
+    const total = partBytesSent.reduce((a, b) => a + b, 0);
+    onProgress(total / file.size);
+  }
   let nextPartNumber = 1;
 
   async function worker() {
@@ -153,10 +195,12 @@ async function uploadFileMultipart(
         partNumber,
         start,
         end,
+        (loaded) => {
+          partBytesSent[partNumber - 1] = loaded;
+          reportProgress();
+        },
       );
       parts.push(part);
-      bytesDone += end - start;
-      onProgress(bytesDone / file.size);
     }
   }
 
@@ -308,21 +352,37 @@ export function UploadPanel() {
     [getAuthHeaders, router],
   );
 
+  // Guarding on status matters here specifically: the file <input>
+  // below is disabled while uploading, which blocks the click-to-choose
+  // path, but that disabled attribute does nothing for drag-and-drop —
+  // the label's onDrop still fires regardless. Confirmed for real
+  // (2026-09-07): a large multipart upload's progress bar only ticks
+  // once a part's worth of bytes has actually gone out, which on a
+  // slower connection can look like nothing is happening for a while;
+  // a user who dropped the same file again during that stretch started
+  // a *second*, fully concurrent multipart upload of it, halving the
+  // real upload bandwidth available to each and making both look stuck
+  // — visible in apps/api's logs as two separate /multipart/create
+  // calls ~33s apart for the same file. onFileInput doesn't strictly
+  // need this (the disabled attribute already covers it) but guards it
+  // too for consistency, in case that ever changes.
   const onDrop = useCallback(
     (e: React.DragEvent<HTMLLabelElement>) => {
       e.preventDefault();
+      if (status === "uploading") return;
       const file = e.dataTransfer.files[0];
       if (file) void handleFile(file);
     },
-    [handleFile],
+    [handleFile, status],
   );
 
   const onFileInput = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (status === "uploading") return;
       const file = e.target.files?.[0];
       if (file) void handleFile(file);
     },
-    [handleFile],
+    [handleFile, status],
   );
 
   return (
