@@ -1173,6 +1173,57 @@ unpinning.
   separate `scenestealer-pipeline` repo's `pyscenedetect.ts` — not
   pursued in this pass, revisit if needed once real timing data exists
   for the proxy-only fix.
+- **Discovered (2026-09-07): the proxy transcode above was itself still
+  slow — 30+ minutes for a 17-minute video — and it's not a codec-
+  decode-speed problem, it's `shared-cpu-2x` throttling.** SSH'd into
+  the live Fly machine and read `/proc/<pid>/stat` for the running
+  `ffmpeg` process directly: 36.5 minutes of wall-clock elapsed against
+  only ~532 seconds of actual CPU time consumed — ~24% utilization of
+  one core. Fly's own pricing docs confirm this isn't a mystery: shared-
+  CPU machines throttle hard under sustained load; only `performance`
+  (dedicated vCPU) machines don't. This is a real, structural mismatch
+  between the machine tier and a workload that needs continuous CPU for
+  potentially tens of minutes per job, not the bursty-then-idle pattern
+  shared-CPU tiers are priced for.
+
+  **Decision: don't just bump the always-on machine to a `performance`
+  size.** With `/analyze` now dispatch-only (see the "independent of
+  any HTTP connection" fix above), a job's real CPU usage is bursty
+  again from the *app's* perspective — an always-on dedicated-vCPU
+  machine would sit idle (still fully billed) between uploads, which
+  directly works against the goal of controlling per-job compute cost
+  as usage grows past one alpha tester. The plan going forward
+  (scoped separately, not yet built) is Fly's Machines API spawning a
+  disposable `performance`-CPU Machine *per job*, billed per-second
+  only while it's actually running — `auto_destroy: true` cleans it up
+  the moment the process exits, no idle cost between jobs, no
+  throttling during them. `apps/worker/src/index.ts`'s one-shot CLI
+  entry point already exists for exactly this.
+
+  **Option 2, considered and deliberately not pursued now — revisit as
+  volume grows**: a platform built specifically for bursty per-second
+  compute (e.g. Modal, RunPod, Beam.cloud) instead of Fly. Modal's own
+  published rate (~$0.0000131/CPU-core-second, no idle charge at all)
+  prices even a heavy, unoptimized job at roughly $0.06-0.10 — likely
+  cheaper in aggregate than Fly Machines at meaningful volume, and it
+  opens a real path to GPU-accelerated decode later if per-video
+  processing cost ever becomes the binding constraint on pricing. Not
+  pursued now because it's a genuine platform migration, not a config
+  change: these platforms are Python-first, and this pipeline is
+  Node.js orchestration (DB writes, R2 I/O) shelling out to Python
+  (`scenedetect`) and `ffmpeg` — moving there means either rewriting
+  orchestration in Python or splitting the architecture (Node stays put
+  for DB/R2, the specialized platform only runs the CPU-heavy step and
+  hands results back), plus a new deploy pipeline, new secrets
+  management, and a fresh round of platform-specific gotchas to learn
+  the hard way — the same category of cost this session already paid
+  once for Fly (the cookie-domain PSL issue, the 60s idle-connection
+  timeout, OOM tuning, and now this). **Revisit trigger**: once the
+  `jobs` table (now recording real per-run wall-clock time — see the
+  fix above) shows either real volume that makes Fly Machines' per-job
+  cost material, or per-video compute cost becoming the actual
+  constraint on what this product can charge end users, rather than a
+  hypothetical.
 - **Live external accounts**: Clerk, Neon, Cloudflare, Fly.io, Groq,
   and Anthropic are all live and in real use as of Phase 4. Stripe is
   configured (test-mode placeholder tiers, see Phase 7) but no billing
