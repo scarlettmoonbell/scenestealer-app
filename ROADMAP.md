@@ -1364,6 +1364,30 @@ unpinning.
   before touching `snapToScenes` itself, which would mean crossing into
   that separate repo. Revisit `snapToScenes`'s own missing-guard bug
   directly if the quality bump doesn't fully resolve this.
+- **Done (2026-09-07): `downloadFromR2ToFile` splits large objects into
+  several concurrent ranged GETs instead of one streamed GET.** A
+  single-connection download of this session's real ~1.24GB test
+  video measured ~90-100 Mbps sustained — consistent with one TCP
+  connection's own congestion-control ceiling on a multi-hop path
+  rather than R2 or Fly's network being the actual limit, so splitting
+  across several concurrent connections isn't bound by any one
+  connection's ceiling the same way. `PARALLEL_DOWNLOAD_CHUNKS = 6`,
+  each streamed straight to its own byte offset in the destination file
+  (`fs.createWriteStream`'s `start` + `flags: "r+"`, into a pre-created
+  file) rather than buffered in memory — same rationale as the original
+  single-stream fix this extends, just applied per-chunk. Falls back to
+  a single streamed GET below a 32MB threshold or if the object doesn't
+  report `Accept-Ranges: bytes`.
+
+  Verified correctness before shipping, not just typecheck/lint: a
+  disposable throwaway Machine (`flyctl machine run <image> sleep 600`,
+  destroyed after) with real R2 credentials confirmed a reference
+  single-range download and a parallel 2-chunk download of the same
+  real 64MB span produced byte-identical SHA-256 hashes — the
+  offset-write logic is correct, not just plausible. Also confirmed via
+  a real `HEAD` request that this video is exactly 1,238,455,623 bytes
+  and that R2 reports `accept-ranges: bytes`, both assumed but never
+  previously confirmed for real.
 - **Live external accounts**: Clerk, Neon, Cloudflare, Fly.io, Groq,
   and Anthropic are all live and in real use as of Phase 4. Stripe is
   configured (test-mode placeholder tiers, see Phase 7) but no billing
