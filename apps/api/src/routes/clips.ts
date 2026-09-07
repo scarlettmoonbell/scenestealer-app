@@ -18,6 +18,28 @@ import type { Variables } from "../auth.js";
 
 export const clipsRoute = new Hono<{ Bindings: Env; Variables: Variables }>();
 
+// Duration a platform will actually accept for a post — mirrors
+// scenestealer-pipeline's own PLATFORM_SPECS.instagram-reels (not a
+// shared import — apps/api has no dependency on that package, and this
+// is the only platform-format detail it needs), which cites its
+// sourcing in the parent project's PLAN.md "Platform constraints"
+// section. Deliberately checked here, not at render time: confirmed
+// for real (2026-09-07) that gating the *render* step on this meant a
+// legitimate longer highlight couldn't be rendered at all, not even to
+// look at or post to a platform this limit doesn't apply to.
+// youtube/facebook aren't listed — this app only ever renders in the
+// vertical Reels format, and Instagram is the only platform that
+// format has a researched duration ceiling for; don't add another
+// platform here without the same real research backing it.
+const PLATFORM_DURATION_LIMITS_SEC: Partial<
+  Record<
+    (typeof socialConnections.$inferSelect)["platform"],
+    { min: number; max: number }
+  >
+> = {
+  instagram: { min: 5, max: 90 },
+};
+
 clipsRoute.use("*", requireTenant);
 
 // Clips don't carry tenantId themselves — ownership is checked through
@@ -258,6 +280,19 @@ clipsRoute.post("/:id/publish", async (c) => {
     .limit(1);
   if (!connection) {
     return c.json({ error: "Connection not found" }, 404);
+  }
+
+  const durationLimit = PLATFORM_DURATION_LIMITS_SEC[connection.platform];
+  if (durationLimit) {
+    const duration = clip.endSec - clip.startSec;
+    if (duration < durationLimit.min || duration > durationLimit.max) {
+      return c.json(
+        {
+          error: `${connection.platform} requires a ${durationLimit.min}-${durationLimit.max}s clip, this one is ${duration.toFixed(1)}s`,
+        },
+        400,
+      );
+    }
   }
 
   const mediaUrl = await createPresignedGetUrl(
