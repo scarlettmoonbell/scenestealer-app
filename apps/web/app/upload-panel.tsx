@@ -265,12 +265,48 @@ export function UploadPanel() {
       setError(null);
       setProgress(file.size >= MULTIPART_THRESHOLD_BYTES ? 0 : null);
 
+      let authHeaders: { "Content-Type": string; Authorization: string };
       try {
-        await getAuthHeaders();
+        authHeaders = await getAuthHeaders();
       } catch (e) {
         setError(`Couldn't get an auth token: ${describeFetchError(e)}`);
         setStatus("error");
         return;
+      }
+
+      // Confirmed for real (2026-09-07): a page reload mid-drag-and-drop
+      // meant nothing stopped the same filename being uploaded twice —
+      // the app's own onDrop guard now blocks a second *concurrent*
+      // drop, but this catches the separate, more mundane case of a
+      // genuine second upload (a re-drag after a page reload, or
+      // someone just uploading the same file again) before it silently
+      // becomes a second, unrelated-looking row. Only a warning, not a
+      // hard block — two different recordings can legitimately share a
+      // filename (e.g. a venue's own per-night numbering).
+      try {
+        const dupRes = await fetch(
+          `${API_URL}/uploads/check-duplicate?filename=${encodeURIComponent(file.name)}`,
+          { headers: authHeaders },
+        );
+        if (dupRes.ok) {
+          const { duplicate } = (await dupRes.json()) as {
+            duplicate: { id: string; status: string; createdAt: string } | null;
+          };
+          if (duplicate) {
+            const when = new Date(duplicate.createdAt).toLocaleString();
+            const proceed = window.confirm(
+              `"${file.name}" was already uploaded on ${when} (status: ${duplicate.status}). Upload it again anyway?`,
+            );
+            if (!proceed) {
+              setStatus("idle");
+              return;
+            }
+          }
+        }
+      } catch {
+        // Best-effort — a failed duplicate check shouldn't block a real
+        // upload; worst case, the user sees two entries instead of a
+        // warning, which is no worse than before this check existed.
       }
 
       let r2Key: string;

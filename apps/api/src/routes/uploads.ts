@@ -1,3 +1,4 @@
+import { and, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { createDb, sourceVideos } from "@scenestealer/db";
 import {
@@ -28,6 +29,41 @@ function r2KeyFor(tenantId: string, filename: string): string {
   const ext = filename.includes(".") ? filename.split(".").pop() : "bin";
   return `${tenantId}/source-videos/${crypto.randomUUID()}.${ext}`;
 }
+
+// Checked by apps/web before starting an upload, so it can warn the
+// user rather than silently create a second entry for what's probably
+// the same recording — filename collisions are the common, mundane
+// case (a genuine re-upload, or an accidental second drag-and-drop; see
+// upload-panel.tsx's onDrop guard for the latter, already fixed
+// separately). Matches on title alone, not file size/hash — cheap and
+// good enough for a same-tenant warning, not meant to be a rigorous
+// dedupe (two genuinely different recordings can share a filename,
+// e.g. a venue's own numbering scheme repeating night to night).
+uploads.get("/check-duplicate", async (c) => {
+  const tenantId = c.get("tenantId");
+  const filename = c.req.query("filename");
+  if (!filename) {
+    return c.json({ error: "filename query param is required" }, 400);
+  }
+
+  const db = createDb(c.env.DATABASE_URL);
+  const [existing] = await db
+    .select({
+      id: sourceVideos.id,
+      status: sourceVideos.status,
+      createdAt: sourceVideos.createdAt,
+    })
+    .from(sourceVideos)
+    .where(
+      and(
+        eq(sourceVideos.tenantId, tenantId),
+        eq(sourceVideos.title, filename),
+      ),
+    )
+    .limit(1);
+
+  return c.json({ duplicate: existing ?? null });
+});
 
 uploads.post("/presign", async (c) => {
   const tenantId = c.get("tenantId");
