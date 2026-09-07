@@ -37,6 +37,21 @@ async function readError(res: Response, fallback: string): Promise<string> {
   }
 }
 
+// Clerk session tokens are short-lived (~60s) and meant to be re-fetched
+// per call, not cached — getToken() itself handles refreshing under the
+// hood. A multipart upload of a multi-GB file can easily run for
+// minutes across dozens of parts, so every function below takes this
+// (not a precomputed headers object) and calls it fresh immediately
+// before each request. Confirmed for real (2026-09-07): reusing one
+// getToken() result across an entire upload's worth of requests, as an
+// earlier version of this file did, made every part-sign call after the
+// first ~60s fail with 401 — the upload looked "stuck at 0%" because no
+// part ever got far enough to actually move any bytes.
+type GetAuthHeaders = () => Promise<{
+  "Content-Type": string;
+  Authorization: string;
+}>;
+
 /**
  * Uploads a part with retries, signing a fresh URL each attempt (a
  * presigned URL is single-use in intent even if R2 doesn't literally
@@ -45,7 +60,7 @@ async function readError(res: Response, fallback: string): Promise<string> {
  */
 async function uploadPartWithRetry(
   file: File,
-  authHeaders: Record<string, string>,
+  getAuthHeaders: GetAuthHeaders,
   r2Key: string,
   uploadId: string,
   partNumber: number,
@@ -57,7 +72,7 @@ async function uploadPartWithRetry(
     try {
       const signRes = await fetch(`${API_URL}/uploads/multipart/sign-part`, {
         method: "POST",
-        headers: authHeaders,
+        headers: await getAuthHeaders(),
         body: JSON.stringify({ r2Key, uploadId, partNumber }),
       });
       if (!signRes.ok) {
@@ -102,12 +117,12 @@ async function uploadPartWithRetry(
  */
 async function uploadFileMultipart(
   file: File,
-  authHeaders: Record<string, string>,
+  getAuthHeaders: GetAuthHeaders,
   onProgress: (fraction: number) => void,
 ): Promise<string> {
   const createRes = await fetch(`${API_URL}/uploads/multipart/create`, {
     method: "POST",
-    headers: authHeaders,
+    headers: await getAuthHeaders(),
     body: JSON.stringify({ filename: file.name, contentType: file.type }),
   });
   if (!createRes.ok) {
@@ -132,7 +147,7 @@ async function uploadFileMultipart(
       const end = Math.min(start + PART_SIZE_BYTES, file.size);
       const part = await uploadPartWithRetry(
         file,
-        authHeaders,
+        getAuthHeaders,
         r2Key,
         uploadId,
         partNumber,
@@ -154,17 +169,21 @@ async function uploadFileMultipart(
   } catch (e) {
     // Best-effort — the real failure is `e` regardless of whether this
     // lands; see abortMultipartUpload's own comment (apps/api/src/r2.ts).
-    void fetch(`${API_URL}/uploads/multipart/abort`, {
-      method: "POST",
-      headers: authHeaders,
-      body: JSON.stringify({ r2Key, uploadId }),
-    }).catch(() => {});
+    void getAuthHeaders()
+      .then((headers) =>
+        fetch(`${API_URL}/uploads/multipart/abort`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ r2Key, uploadId }),
+        }),
+      )
+      .catch(() => {});
     throw e;
   }
 
   const completeRes = await fetch(`${API_URL}/uploads/multipart/complete`, {
     method: "POST",
-    headers: authHeaders,
+    headers: await getAuthHeaders(),
     body: JSON.stringify({ r2Key, uploadId, parts }),
   });
   if (!completeRes.ok) {
@@ -184,19 +203,26 @@ export function UploadPanel() {
   const [uploadedTitle, setUploadedTitle] = useState<string | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
 
+  // Fetched fresh right before every authenticated call rather than
+  // once and cached — see the GetAuthHeaders comment above for the real
+  // 401-storm this caused when a single upfront token was reused across
+  // an entire multi-minute multipart upload.
+  const getAuthHeaders = useCallback(async () => {
+    const token = await getToken();
+    return {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    };
+  }, [getToken]);
+
   const handleFile = useCallback(
     async (file: File) => {
       setStatus("uploading");
       setError(null);
       setProgress(file.size >= MULTIPART_THRESHOLD_BYTES ? 0 : null);
 
-      let authHeaders: { "Content-Type": string; Authorization: string };
       try {
-        const token = await getToken();
-        authHeaders = {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        };
+        await getAuthHeaders();
       } catch (e) {
         setError(`Couldn't get an auth token: ${describeFetchError(e)}`);
         setStatus("error");
@@ -206,7 +232,7 @@ export function UploadPanel() {
       let r2Key: string;
       if (file.size >= MULTIPART_THRESHOLD_BYTES) {
         try {
-          r2Key = await uploadFileMultipart(file, authHeaders, setProgress);
+          r2Key = await uploadFileMultipart(file, getAuthHeaders, setProgress);
         } catch (e) {
           setError(`Uploading to storage failed: ${describeFetchError(e)}`);
           setStatus("error");
@@ -217,7 +243,7 @@ export function UploadPanel() {
         try {
           const presignRes = await fetch(`${API_URL}/uploads/presign`, {
             method: "POST",
-            headers: authHeaders,
+            headers: await getAuthHeaders(),
             body: JSON.stringify({
               filename: file.name,
               contentType: file.type,
@@ -258,7 +284,7 @@ export function UploadPanel() {
       try {
         const completeRes = await fetch(`${API_URL}/uploads/complete`, {
           method: "POST",
-          headers: authHeaders,
+          headers: await getAuthHeaders(),
           body: JSON.stringify({ r2Key, title: file.name }),
         });
         if (!completeRes.ok) {
@@ -279,7 +305,7 @@ export function UploadPanel() {
       // make it show the new video without a full page reload.
       router.refresh();
     },
-    [getToken, router],
+    [getAuthHeaders, router],
   );
 
   const onDrop = useCallback(
