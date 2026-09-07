@@ -77,6 +77,7 @@ clipsRoute.get("/", async (c) => {
     .select({
       id: clips.id,
       sourceVideoId: clips.sourceVideoId,
+      title: clips.title,
       startSec: clips.startSec,
       endSec: clips.endSec,
       aiReason: clips.aiReason,
@@ -113,6 +114,7 @@ clipsRoute.patch("/:id", async (c) => {
     startSec?: number;
     endSec?: number;
     status?: (typeof clips.$inferSelect)["status"];
+    title?: string;
   }>();
 
   const db = createDb(c.env.DATABASE_URL);
@@ -136,6 +138,10 @@ clipsRoute.patch("/:id", async (c) => {
       ...(body.startSec !== undefined ? { startSec: body.startSec } : {}),
       ...(body.endSec !== undefined ? { endSec: body.endSec } : {}),
       ...(body.status !== undefined ? { status: body.status } : {}),
+      // A blank string clears the title back to null (falls back to
+      // the source video's own title, or "Untitled recording") rather
+      // than storing an empty string as if it were a real title.
+      ...(body.title !== undefined ? { title: body.title.trim() || null } : {}),
     })
     .where(eq(clips.id, clipId))
     .returning();

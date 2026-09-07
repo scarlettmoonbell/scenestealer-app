@@ -14,6 +14,11 @@ interface ReadyClip {
   // the clip itself (and its rendered file) is deliberately kept, see
   // packages/db/src/schema.ts's clips.sourceVideoId comment.
   sourceVideoId: string | null;
+  // User-editable label — null until set, see the schema's own
+  // comment. clipTitle() below is the single place that decides what
+  // to show/edit; nothing else should read videoTitle directly for
+  // display.
+  title: string | null;
   startSec: number;
   endSec: number;
   aiReason: string | null;
@@ -24,6 +29,14 @@ interface ReadyClip {
   venueName: string | null;
   cityName: string | null;
   clipDurationSec: number;
+}
+
+// The one place that decides what a clip is called for display/editing
+// — a tenant's own title first, falling back to the source video's
+// title (itself only available until that video's deleted — see
+// ReadyClip.sourceVideoId), then a plain placeholder.
+function clipTitle(clip: Pick<ReadyClip, "title" | "videoTitle">): string {
+  return clip.title ?? clip.videoTitle ?? "Untitled recording";
 }
 
 interface ScheduledPost {
@@ -99,6 +112,25 @@ function SchedulingContent() {
     void loadAll();
   }, [loadAll]);
 
+  async function handleRename(clipId: string, title: string) {
+    try {
+      const res = await authedFetch(`/clips/${clipId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ title }),
+      });
+      if (!res.ok) {
+        setError("Failed to rename clip");
+        return;
+      }
+      const { clip } = (await res.json()) as { clip: ReadyClip };
+      setReadyClips((prev) =>
+        prev.map((c) => (c.id === clipId ? { ...c, title: clip.title } : c)),
+      );
+    } catch (e) {
+      setError(`Failed to rename clip: ${describeFetchError(e)}`);
+    }
+  }
+
   async function handleCancel(id: string) {
     if (!window.confirm("Cancel this scheduled post?")) return;
     setCancellingId(id);
@@ -147,14 +179,14 @@ function SchedulingContent() {
       {!loading && selectedClip && selectedClipVideoMetadata && (
         <div style={{ marginTop: "2rem" }}>
           <h2>
-            Scheduling: {selectedClip.videoTitle ?? "Untitled recording"} (
+            Scheduling: {clipTitle(selectedClip)} (
             {formatTime(selectedClip.startSec)} –{" "}
             {formatTime(selectedClip.endSec)})
           </h2>
           <div style={{ marginTop: "1rem" }}>
             <Scheduler
               clipId={selectedClip.id}
-              videoTitle={selectedClip.videoTitle ?? "Untitled recording"}
+              videoTitle={clipTitle(selectedClip)}
               organizationName={organizationName}
               videoMetadata={selectedClipVideoMetadata}
               clipDurationSec={selectedClip.clipDurationSec}
@@ -182,7 +214,7 @@ function SchedulingContent() {
               <thead>
                 <tr style={{ borderBottom: "2px solid #333" }}>
                   <th style={{ ...TABLE_HEADER_STYLE, textAlign: "left" }}>
-                    Video
+                    Title
                   </th>
                   <th style={{ ...TABLE_HEADER_STYLE, textAlign: "left" }}>
                     Clip
@@ -206,7 +238,29 @@ function SchedulingContent() {
                     }}
                   >
                     <td style={{ padding: "0.5rem 0.75rem" }}>
-                      {clip.videoTitle ?? "Untitled recording"}
+                      <input
+                        key={`title-${clip.id}-${clip.title}`}
+                        type="text"
+                        defaultValue={clipTitle(clip)}
+                        placeholder="Untitled recording"
+                        onBlur={(e) => {
+                          if (e.target.value.trim() === clipTitle(clip)) return;
+                          void handleRename(clip.id, e.target.value);
+                        }}
+                        aria-label="Clip title"
+                        style={{
+                          width: "100%",
+                          background: "transparent",
+                          border: "1px solid transparent",
+                          borderRadius: 4,
+                          padding: "0.25rem 0.4rem",
+                          font: "inherit",
+                          color: "inherit",
+                        }}
+                        onFocus={(e) => {
+                          e.target.style.borderColor = "var(--border)";
+                        }}
+                      />
                     </td>
                     <td
                       style={{

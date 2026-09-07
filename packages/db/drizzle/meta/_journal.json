@@ -64,6 +64,20 @@
       "when": 1788807061337,
       "tag": "0008_young_echo",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1788808761249,
+      "tag": "0009_steady_the_anarchist",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1788808922467,
+      "tag": "0010_rename_clips_name_to_title",
+      "breakpoints": true
     }
   ]
 }

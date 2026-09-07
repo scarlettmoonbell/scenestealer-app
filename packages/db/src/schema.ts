@@ -158,6 +158,14 @@ export const clips = pgTable("clips", {
   startSec: real("start_sec").notNull(),
   endSec: real("end_sec").notNull(),
   status: clipStatusEnum("status").notNull().default("suggested"),
+  // User-editable label — null until a tenant sets one, e.g. from the
+  // Scheduling page's "Rendered clips" table. Falls back to the source
+  // video's own title in the UI when unset, which stops working once a
+  // clip is decoupled from a deleted source (see sourceVideoId's own
+  // comment) — this is what lets a tenant give a kept clip an identity
+  // of its own instead of "Untitled recording" forever. Named "title"
+  // to match sourceVideos.title's own naming for the same concept.
+  title: text("title"),
   // AI-suggested clips carry a score/reason from the highlight scorer;
   // manually-drawn clips leave these null.
   aiScore: real("ai_score"),
