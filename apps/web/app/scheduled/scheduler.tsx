@@ -250,7 +250,7 @@ export function Scheduler({
             display: "flex",
             flexWrap: "wrap",
             gap: "2rem",
-            alignItems: "flex-start",
+            alignItems: "stretch",
           }}
         >
           <div
@@ -386,7 +386,13 @@ export function Scheduler({
           </div>
 
           {scheduleMode === "later" && (
-            <div style={{ flex: "0 0 auto" }}>
+            <div
+              style={{
+                flex: "1 1 320px",
+                display: "flex",
+                flexDirection: "column",
+              }}
+            >
               <span style={FIELD_LABEL_STYLE}>Date and time</span>
               <CalendarPicker
                 value={scheduledFor}
@@ -396,6 +402,7 @@ export function Scheduler({
                 )
                   .toISOString()
                   .slice(0, 16)}
+                style={{ flex: 1 }}
               />
             </div>
           )}

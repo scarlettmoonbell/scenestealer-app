@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 
 const MONTH_NAMES = [
   "January",
@@ -76,10 +76,12 @@ export function CalendarPicker({
   value,
   onChange,
   min,
+  style,
 }: {
   value: string;
   onChange: (value: string) => void;
   min?: string;
+  style?: CSSProperties;
 }) {
   const parsed = parseValue(value);
   const [viewYear, setViewYear] = useState(parsed.year);
@@ -136,8 +138,12 @@ export function CalendarPicker({
       style={{
         border: "1.5px solid var(--accent-text)",
         borderRadius: 8,
-        padding: "0.75rem",
-        maxWidth: 300,
+        padding: "1rem",
+        height: "100%",
+        boxSizing: "border-box",
+        display: "flex",
+        flexDirection: "column",
+        ...style,
       }}
     >
       <div
@@ -146,7 +152,7 @@ export function CalendarPicker({
           alignItems: "center",
           justifyContent: "space-between",
           gap: "0.5rem",
-          marginBottom: "0.5rem",
+          marginBottom: "0.75rem",
         }}
       >
         <button
@@ -195,15 +201,17 @@ export function CalendarPicker({
 
       <div
         style={{
+          flex: 1,
           display: "grid",
           gridTemplateColumns: "repeat(7, 1fr)",
-          gap: "2px",
-          fontSize: "0.85em",
+          gridTemplateRows: `auto repeat(${cells.length / 7}, 1fr)`,
+          gap: "4px",
+          fontSize: "1em",
           textAlign: "center",
         }}
       >
         {DAY_LABELS.map((label) => (
-          <div key={label} style={{ opacity: 0.6, padding: "0.25rem 0" }}>
+          <div key={label} style={{ opacity: 0.6, padding: "0.35rem 0" }}>
             {label}
           </div>
         ))}
@@ -217,8 +225,7 @@ export function CalendarPicker({
               disabled={isDisabled(day)}
               onClick={() => selectDay(day)}
               style={{
-                padding: "0.4rem 0",
-                borderRadius: 4,
+                borderRadius: 6,
                 border: isSelected(day)
                   ? "1.5px solid var(--accent-text)"
                   : "1px solid transparent",
@@ -229,6 +236,7 @@ export function CalendarPicker({
                     ? "var(--muted)"
                     : "var(--text)",
                 cursor: isDisabled(day) ? "not-allowed" : "pointer",
+                fontSize: "1.05em",
               }}
             >
               {day}
@@ -237,16 +245,14 @@ export function CalendarPicker({
         )}
       </div>
 
-      <label
-        style={{ display: "block", marginTop: "0.75rem", fontSize: "0.85em" }}
-      >
+      <label style={{ display: "block", marginTop: "1rem", fontSize: "0.9em" }}>
         Time
         <input
           type="time"
           value={parsed.time}
           onChange={(e) => changeTime(e.target.value)}
           className="field-input"
-          style={{ marginTop: "0.25rem" }}
+          style={{ marginTop: "0.35rem" }}
         />
       </label>
     </div>
