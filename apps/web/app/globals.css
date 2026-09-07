@@ -138,6 +138,37 @@ button:disabled {
   color: var(--muted);
 }
 
+/* For an <a> that needs a real href (a download link, a Next.js Link
+   navigating to another route) but should look and feel identical to
+   the plain buttons it sits next to (Download/Schedule in the clip
+   editor's Manage column, confirmed live 2026-09-07 as plain text
+   links with no button styling at all, inconsistent with Accept/
+   Reject/Render beside them) — same look as the button rule above,
+   just on a.btn-link instead of the button type selector, since an
+   <a> can't be a <button disabled> and still carry a working href. */
+a.btn-link {
+  display: inline-flex;
+  align-items: center;
+  background: transparent;
+  border: 1.5px solid var(--accent-text);
+  border-radius: 6px;
+  padding: 0.4rem 0.9rem;
+  color: var(--accent-text);
+  font-family: "Work Sans", system-ui, sans-serif;
+  font-size: 0.9em;
+  text-decoration: none;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+a.btn-link:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #0a1628;
+}
+
 .btn-primary {
   display: inline-flex;
   align-items: center;

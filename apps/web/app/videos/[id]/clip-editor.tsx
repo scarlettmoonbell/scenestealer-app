@@ -323,6 +323,23 @@ export function ClipEditor({
     [authedFetch],
   );
 
+  // Fetches a ready clip's download URL automatically the moment it
+  // becomes ready, instead of waiting for the user to click a "Get
+  // rendered clip" button first — Download below is then a real,
+  // one-click <a href> from the moment it appears, not a two-step
+  // fetch-then-click flow.
+  useEffect(() => {
+    for (const clip of clipList) {
+      if (
+        clip.status === "ready" &&
+        clip.renderedR2Key &&
+        !renderedUrls[clip.id]
+      ) {
+        void fetchRenderedUrl(clip.id);
+      }
+    }
+  }, [clipList, renderedUrls, fetchRenderedUrl]);
+
   const updateClip = useCallback(
     async (
       clipId: string,
@@ -734,19 +751,22 @@ export function ClipEditor({
                           href={renderedUrls[clip.id]}
                           target="_blank"
                           rel="noreferrer"
+                          className="btn-link"
                         >
                           Download
                         </a>
                       ) : (
-                        <button
-                          type="button"
-                          onClick={() => void fetchRenderedUrl(clip.id)}
-                        >
-                          Get rendered clip
+                        <button type="button" disabled>
+                          Download
                         </button>
                       ))}
                     {clip.status === "ready" && (
-                      <Link href={`/scheduled?clip=${clip.id}`}>Schedule</Link>
+                      <Link
+                        href={`/scheduled?clip=${clip.id}`}
+                        className="btn-link"
+                      >
+                        Schedule
+                      </Link>
                     )}
                   </div>
                 </td>
