@@ -11,6 +11,7 @@
     "deploy": "wrangler deploy"
   },
   "dependencies": {
+    "@clerk/backend": "^3.11.7",
     "@clerk/hono": "^0.1.53",
     "@scenestealer/db": "workspace:*",
     "aws4fetch": "^1.0.20",

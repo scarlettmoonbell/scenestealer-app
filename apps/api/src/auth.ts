@@ -6,6 +6,7 @@ import type { Env } from "./index.js";
 
 export type Variables = {
   tenantId: string;
+  userId: string;
 };
 
 /**
@@ -48,5 +49,10 @@ export const requireTenant: MiddlewareHandler<{
   }
 
   c.set("tenantId", tenant.id);
+  // auth.userId was already being read above (just for the presence
+  // check) but never exposed to route handlers — needed so
+  // POST /:id/analyze can record who triggered a run, to know who to
+  // email once it finishes (see routes/videos.ts).
+  c.set("userId", auth.userId);
   await next();
 };

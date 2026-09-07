@@ -1,6 +1,6 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { Hono } from "hono";
-import { clips, createDb, posts, sourceVideos } from "@scenestealer/db";
+import { clips, createDb, jobs, posts, sourceVideos } from "@scenestealer/db";
 import { createPresignedGetUrl, deleteR2Object } from "../r2.js";
 import { requireTenant } from "../auth.js";
 import type { Env } from "../index.js";
@@ -122,39 +122,39 @@ videos.post("/:id/clips", async (c) => {
   return c.json({ clip });
 });
 
-// The actual Fly call + resulting status update, run from the queue
-// consumer (index.ts) rather than inside POST /:id/analyze's own
-// request/response cycle — that HTTP route only enqueues and returns,
-// since apps/api sits behind a Cloudflare Custom Domain whose edge
-// proxy times out a response at ~100s regardless of the Workers
-// runtime's own execution limits, and this can run for several
-// minutes on a large upload (confirmed for real 2026-09-05, a 1.24GB
-// file). A Queue consumer invocation isn't behind that same edge-proxy
-// path and gets a 15-minute wall-time ceiling instead. Proxies to
-// apps/worker's own /analyze route (a small always-on Fly app — see
-// apps/worker/fly.toml) rather than running the pipeline here: this
-// Worker can't spawn the ffmpeg/scenedetect subprocesses the pipeline
-// functions need.
+// Dispatches the job to apps/worker's /analyze route and returns as
+// soon as the worker *accepts* it — run from the queue consumer
+// (index.ts) rather than inside POST /:id/analyze's own request/
+// response cycle, since apps/api sits behind a Cloudflare Custom
+// Domain whose edge proxy times out a response at ~100s (confirmed for
+// real 2026-09-05, a 1.24GB file).
 //
-// Always resolves (never throws) — every failure path writes "failed"
-// to sourceVideos rather than propagating, since the caller (the queue
-// consumer) has no HTTP response to report a failure through; the
-// tenant finds out via the same status column /:id/status already
-// polls.
+// Deliberately does NOT wait for the job to finish, and does NOT write
+// sourceVideos.status on success anymore — as of 2026-09-07, analyze.ts
+// owns writing its own final status directly to Postgres once it
+// actually knows the outcome (see that file's own comment). This used
+// to await the worker's full response and infer success/failure from
+// it, which was the root cause of a real incident: a Cloudflare Queue
+// consumer invocation waiting on a job past its own ~15-minute
+// wall-time ceiling got its connection abandoned mid-job, which then
+// caused Fly's own idle-connection auto-stop to kill the still-running
+// machine (see ROADMAP.md). Dispatching and returning quickly means
+// this invocation finishes and acks well inside that ceiling, so the
+// redelivery that caused all of this mostly stops happening in the
+// first place.
+//
+// The only case this function still reports itself is a fast, structural
+// dispatch failure (the worker rejected the request outright, or was
+// unreachable) — that's a real, known-now failure this invocation is
+// the last one able to record, unlike the job's real outcome, which now
+// belongs entirely to analyze.ts.
 export async function runAnalyzeJob(
   env: Env,
   sourceVideoId: string,
 ): Promise<void> {
-  // Logging kept deliberately (not a temporary debug leftover): this
-  // is genuinely the only visibility into what apps/worker actually
-  // returned and whether the DB write landed — wrangler tail's own
-  // "Queue ... - Ok" for a successful consumer invocation says nothing
-  // about either, which was the whole reason a real, live discrepancy
-  // (client showing a Cloudflare-flavored failure, every server-side
-  // log for the same request window showing a clean success) took
-  // this many rounds to actually pin down on 2026-09-05/06 — see
-  // ROADMAP.md for the full writeup.
-  console.log(`[runAnalyzeJob] starting for sourceVideoId=${sourceVideoId}`);
+  console.log(
+    `[runAnalyzeJob] dispatching sourceVideoId=${sourceVideoId}`,
+  );
   const db = createDb(env.DATABASE_URL);
   try {
     const workerRes = await fetch(`${env.WORKER_URL}/analyze`, {
@@ -166,85 +166,34 @@ export async function runAnalyzeJob(
       body: JSON.stringify({ sourceVideoId }),
     });
 
-    const rawBody = await workerRes.text();
-    console.log(
-      `[runAnalyzeJob] worker responded status=${workerRes.status} ok=${workerRes.ok} body=${rawBody.slice(0, 500)}`,
-    );
-
-    let body: { error?: string; skipped?: boolean } = {};
-    // Tracked separately from `body` staying `{}` on a parse failure —
-    // confirmed for real (2026-09-06, see ROADMAP.md) that a truncated
-    // response (the worker's connection cut off mid-job, e.g. by a
-    // Cloudflare Queue redelivery abandoning this very invocation) came
-    // back as `workerRes.ok === true` with an empty/whitespace body:
-    // JSON.parse throwing left `body.error` merely `undefined`, which
-    // read identically to a genuine success and got the video marked
-    // "analyzed" despite the job never actually finishing.
-    let parsedOk = true;
-    try {
-      body = JSON.parse(rawBody) as { error?: string; skipped?: boolean };
-    } catch (parseErr) {
-      parsedOk = false;
+    if (!workerRes.ok) {
+      const rawBody = await workerRes.text().catch(() => "");
       console.log(
-        `[runAnalyzeJob] worker response body was not valid JSON: ${String(parseErr)}`,
+        `[runAnalyzeJob] worker rejected dispatch for sourceVideoId=${sourceVideoId}: status=${workerRes.status} body=${rawBody.slice(0, 300)}`,
       );
-    }
-
-    // The worker skips a duplicate concurrent request for a video
-    // that's already being analyzed on the same machine (see analyze.ts's
-    // inFlightAnalyses guard) rather than doing redundant work — the
-    // run that's actually still in flight is the one responsible for
-    // this video's final status, so this invocation must not touch it
-    // either way (neither "analyzed" nor "failed" would be accurate).
-    if (body.skipped === true) {
-      console.log(
-        `[runAnalyzeJob] worker skipped sourceVideoId=${sourceVideoId} (already in flight on that machine) — leaving status untouched`,
-      );
+      await db
+        .update(sourceVideos)
+        .set({
+          status: "failed",
+          analysisError: `Worker rejected the job (status ${workerRes.status})`,
+        })
+        .where(eq(sourceVideos.id, sourceVideoId));
       return;
     }
 
-    // apps/worker's /analyze now always responds 200 once it commits
-    // to streaming a keepalive-padded body (see server.ts) — a real
-    // failure only shows up as this `error` field, not the HTTP
-    // status, so that has to be checked regardless of workerRes.ok. A
-    // non-JSON body (an infra-level failure before the app ever wrote
-    // anything, e.g. Fly's own proxy 524ing a dead machine, or this
-    // invocation's own connection to the worker being cut off) also
-    // counts as failed now, not just a missing `error` field.
-    const failed = !workerRes.ok || !parsedOk || body.error != null;
-
-    const [updated] = await db
-      .update(sourceVideos)
-      .set(
-        failed
-          ? {
-              status: "failed",
-              analysisError:
-                body.error ??
-                (!parsedOk
-                  ? `Worker response was truncated or malformed (worker status ${workerRes.status})`
-                  : `Analysis failed (worker status ${workerRes.status})`),
-            }
-          : { status: "analyzed" },
-      )
-      .where(eq(sourceVideos.id, sourceVideoId))
-      .returning({ status: sourceVideos.status });
     console.log(
-      `[runAnalyzeJob] DB updated for sourceVideoId=${sourceVideoId}, new status=${updated?.status}`,
+      `[runAnalyzeJob] dispatch succeeded for sourceVideoId=${sourceVideoId}`,
     );
   } catch (e) {
-    const message = e instanceof Error ? e.message : "Analysis failed";
+    const message =
+      e instanceof Error ? e.message : "Failed to dispatch analysis";
     console.log(
-      `[runAnalyzeJob] caught exception for sourceVideoId=${sourceVideoId}: ${message}`,
+      `[runAnalyzeJob] caught exception dispatching sourceVideoId=${sourceVideoId}: ${message}`,
     );
-    const [updated] = await db
+    await db
       .update(sourceVideos)
       .set({ status: "failed", analysisError: message })
-      .where(eq(sourceVideos.id, sourceVideoId))
-      .returning({ status: sourceVideos.status });
-    console.log(
-      `[runAnalyzeJob] DB updated (catch path) for sourceVideoId=${sourceVideoId}, new status=${updated?.status}`,
-    );
+      .where(eq(sourceVideos.id, sourceVideoId));
   }
 }
 
@@ -254,6 +203,7 @@ export async function runAnalyzeJob(
 // polls to find out when runAnalyzeJob (above) finishes.
 videos.post("/:id/analyze", async (c) => {
   const tenantId = c.get("tenantId");
+  const userId = c.get("userId");
   const db = createDb(c.env.DATABASE_URL);
 
   const video = await getOwnedSourceVideo(db, tenantId, c.req.param("id"));
@@ -264,15 +214,66 @@ videos.post("/:id/analyze", async (c) => {
     return c.json({ error: "Already analyzing" }, 400);
   }
 
+  // Recorded so the completion-email step (see routes/internal.ts) knows
+  // who to notify — set from the authenticated session, never trusted
+  // from the client.
   await db
     .update(sourceVideos)
-    .set({ status: "analyzing", analysisError: null })
+    .set({
+      status: "analyzing",
+      analysisError: null,
+      triggeredByClerkUserId: userId,
+    })
     .where(eq(sourceVideos.id, video.id));
 
   await c.env.JOBS_QUEUE.send({ type: "analyze", sourceVideoId: video.id });
 
   return c.json({ status: "analyzing" });
 });
+
+// Below this many real samples, an average is more likely to mislead
+// than help (one unusually long or short video could otherwise drive
+// the whole estimate) — better to show nothing than false precision.
+const MIN_SAMPLES_FOR_ESTIMATE = 3;
+
+// Rolling throughput estimate (seconds of real processing per second of
+// video) from recently succeeded `analyze` jobs — the `jobs` table was
+// defined in schema.ts but never actually used anywhere until analyze.ts
+// started writing real per-run telemetry to it (2026-09-07). Returns
+// null until enough real data exists to average, rather than falling
+// back to a hardcoded guess: at the time this was built there was
+// exactly one real timing data point for a large video, and it never
+// even finished (see ROADMAP.md) — no multiplier from that would be
+// trustworthy.
+async function estimateSecondsPerVideoSecond(
+  db: ReturnType<typeof createDb>,
+): Promise<number | null> {
+  const recent = await db
+    .select({
+      payload: jobs.payload,
+      createdAt: jobs.createdAt,
+      finishedAt: jobs.finishedAt,
+    })
+    .from(jobs)
+    .where(and(eq(jobs.type, "analyze"), eq(jobs.status, "succeeded")))
+    .orderBy(desc(jobs.createdAt))
+    .limit(20);
+
+  const ratios: number[] = [];
+  for (const row of recent) {
+    if (!row.finishedAt) continue;
+    const durationSec = (row.payload as { durationSec?: number } | null)
+      ?.durationSec;
+    if (!durationSec || durationSec <= 0) continue;
+    const wallSeconds =
+      (row.finishedAt.getTime() - row.createdAt.getTime()) / 1000;
+    if (wallSeconds <= 0) continue;
+    ratios.push(wallSeconds / durationSec);
+  }
+
+  if (ratios.length < MIN_SAMPLES_FOR_ESTIMATE) return null;
+  return ratios.reduce((a, b) => a + b, 0) / ratios.length;
+}
 
 // Lightweight status check for the frontend to poll when a tenant
 // returns to a video whose analysis is already in flight (e.g. reload,
@@ -287,9 +288,26 @@ videos.get("/:id/status", async (c) => {
     return c.json({ error: "Source video not found" }, 404);
   }
 
+  // Only worth computing once the video's own duration is known (set
+  // partway through the pipeline — see analyze.ts) and while a run is
+  // actually in flight; a null here just means "not enough information
+  // yet" and the frontend shows a generic in-progress state instead of
+  // false precision.
+  let estimatedTotalSeconds: number | null = null;
+  if (video.status === "analyzing" && video.durationSec != null) {
+    const secondsPerVideoSecond = await estimateSecondsPerVideoSecond(db);
+    if (secondsPerVideoSecond != null) {
+      estimatedTotalSeconds = Math.round(
+        video.durationSec * secondsPerVideoSecond,
+      );
+    }
+  }
+
   return c.json({
     status: video.status,
     analysisError: video.analysisError,
+    durationSec: video.durationSec,
+    estimatedTotalSeconds,
   });
 });
 

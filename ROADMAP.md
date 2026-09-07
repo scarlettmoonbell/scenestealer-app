@@ -1047,6 +1047,79 @@ unpinning.
      to both `analyze.ts` and `render.ts` (the latter downloads the
      full source video too, per `clips.ts`'s own comment already
      flagging this as the same class of risk).
+- **Fixed (2026-09-07): analyze's completion was still tied to an HTTP
+  connection surviving the job's full duration, even after the fixes
+  above — closed the actual reliability gap, added real per-run timing
+  telemetry, and wired (not yet fully turned on) a completion email.**
+  Root cause, confirmed live on `001_ScaryMallet@Fallout.MOV` right
+  after the previous fix shipped: apps/api's queue consumer invocation
+  still had its own ~15-minute wall-time ceiling, and once it hit that
+  waiting on a real job, Fly's `auto_stop_machines` read the abandoned
+  connection as "idle" and SIGINT'd the machine mid-`scenedetect`.
+  Manually reset the video's stuck `"analyzing"` status to `"failed"`
+  so it could be retried — see this session's own transcript, not
+  reproduced here.
+
+  **Real fix**: `apps/worker/src/analyze.ts`'s `runAnalyze` now owns
+  writing `sourceVideos.status`/`analysisError` itself (both on success
+  and failure), the same direct-DB-write pattern already used for
+  `waveformR2Key`/metadata — completion is authoritative the moment the
+  function itself decides the outcome, independent of any HTTP
+  round-trip. `server.ts`'s `/analyze` handler is now dispatch-only
+  (fires `runAnalyze` without awaiting it, responds 202 immediately)
+  instead of holding the connection open for the whole job via
+  `runWithKeepAlive` (kept for `/render` only — shorter jobs, hasn't hit
+  this in practice). `apps/api`'s `runAnalyzeJob` correspondingly
+  shrank to dispatch-and-ack, no longer inferring success/failure from
+  the worker's response at all — which also means the original 15-minute
+  redelivery mostly stops happening, since the queue consumer invocation
+  now finishes and acks in seconds. `apps/worker/fly.toml` also flipped
+  to always-on (`min_machines_running = 1`, `auto_stop_machines = false`)
+  as a belt-and-suspenders fix — confirmed against Fly's own pricing
+  docs, ~$22-25/month for continuous `shared-cpu-2x`/4gb, trivial next
+  to the failure mode it closes. **Deliberately not done here**: moving
+  to Fly's Machines API for a disposable per-job Machine (PLAN.md's
+  actual target architecture) — `apps/worker/src/index.ts`'s one-shot
+  CLI entry point already exists for exactly this and needs no changes,
+  only the dispatch side does; revisit once this always-on interim fix
+  has proven out.
+
+  **Also landed alongside** (same investigation, see the full plan this
+  was built from for the reasoning on each): real per-run timing
+  telemetry, finally putting the long-dormant `jobs` table (defined in
+  schema.ts, never once inserted into or read from before this) to use
+  — `analyze.ts` inserts a row at job start and records real
+  `finishedAt`/`durationSec`, and `apps/worker/src/metadata.ts` now
+  reads `format.duration` from the ffprobe call it already makes (no
+  new command needed) to populate `sourceVideos.durationSec`, also
+  previously defined but never written anywhere. `GET /videos/:id/
+  status` averages the last 20 succeeded jobs into a seconds-per-
+  video-second ratio (requires at least 3 samples — one data point
+  shouldn't drive a displayed number) and returns `estimatedTotalSeconds`;
+  `analyze-control.tsx` shows it as a deliberately wide ±30% range, not
+  a precise countdown, and falls back to a generic message until enough
+  real jobs exist.
+
+  A completion-email path is fully wired but **not yet live**: a new
+  `sourceVideos.triggeredByClerkUserId` column (set server-side from the
+  now-exposed `auth.userId` in `POST /:id/analyze` — `auth.ts`'s
+  `requireTenant` was already reading it, just never exposing it) lets
+  `analyze.ts` call a new `POST /internal/analysis-complete` route
+  (`apps/api/src/routes/internal.ts`, authenticated with the existing
+  `WORKER_SHARED_SECRET`) once a job finishes, which looks up the
+  triggering user's email via Clerk's Backend API
+  (`@clerk/backend`'s `createClerkClient` — added as apps/api's first
+  direct dependency on it, previously only pulled in transitively
+  through `@clerk/hono`) and sends via Resend's HTTP API. Skips quietly
+  (never errors the callback) when `RESEND_API_KEY` is unset, which it
+  currently is everywhere — needs a verified sending domain on Resend's
+  side first. The in-app "analyzing" copy deliberately does *not* yet
+  promise an email for this reason; update it once the key and domain
+  are live. Chosen over SMS (real per-message cost, US A2P 10DLC
+  registration overhead) and Web Push (no service worker exists in this
+  app today, real Safari/iOS reliability gaps) — Web Push documented as
+  a possible *supplementary* channel to revisit if alpha tester feedback
+  specifically asks for it, not a replacement for email.
 - **Live external accounts**: Clerk, Neon, Cloudflare, Fly.io, Groq,
   and Anthropic are all live and in real use as of Phase 4. Stripe is
   configured (test-mode placeholder tiers, see Phase 7) but no billing

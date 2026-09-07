@@ -1,0 +1,1 @@
+ALTER TABLE "source_videos" ADD COLUMN "triggered_by_clerk_user_id" text;

@@ -96,10 +96,22 @@ export const sourceVideos = pgTable("source_videos", {
   // Safari's content process repeatedly on a 1.24GB upload (see
   // ROADMAP.md, 2026-09-06).
   waveformR2Key: text("waveform_r2_key"),
+  // Read from ffprobe's own `format.duration` during analyze (see
+  // apps/worker/src/metadata.ts) — was defined but never actually
+  // written anywhere until the 2026-09-07 completion-reliability +
+  // ETA work; null for videos analyzed before that.
   durationSec: real("duration_sec"),
   title: text("title"),
   status: analysisStatusEnum("status").notNull().default("pending"),
   analysisError: text("analysis_error"),
+  // Clerk user id of whoever clicked "Analyze" — set server-side from
+  // the authenticated session in POST /:id/analyze, never client-
+  // supplied. Nullable for videos analyzed before this existed. Exists
+  // solely to email the right person when the job finishes (see
+  // apps/api/src/routes/videos.ts's completion-notify route) — Clerk
+  // itself is still the only place a user's email is stored, this just
+  // remembers *which* Clerk user to look it up for.
+  triggeredByClerkUserId: text("triggered_by_clerk_user_id"),
   // Below: read from the uploaded file's own metadata (ffprobe) during
   // analyze, when present — most uploads won't have all of these, some
   // will have none. venueName/cityName come from reverse-geocoding

@@ -8,6 +8,7 @@ import { clipsRoute } from "./routes/clips.js";
 import { postsRoute } from "./routes/posts.js";
 import { social } from "./routes/social.js";
 import { templatesRoute } from "./routes/templates.js";
+import { internalRoute } from "./routes/internal.js";
 import type { Variables } from "./auth.js";
 
 // The only job type so far — the discriminated `type` field leaves
@@ -36,6 +37,10 @@ export interface Env {
   WORKER_URL: string;
   WORKER_SHARED_SECRET: string;
   JOBS_QUEUE: Queue<AnalyzeJobMessage>;
+  // Optional on purpose — not provisioned everywhere yet (needs a
+  // verified sending domain). routes/internal.ts skips the completion
+  // email quietly when unset rather than erroring. See ROADMAP.md.
+  RESEND_API_KEY?: string;
 }
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -67,6 +72,7 @@ app.route("/clips", clipsRoute);
 app.route("/social", social);
 app.route("/templates", templatesRoute);
 app.route("/posts", postsRoute);
+app.route("/internal", internalRoute);
 
 // Phase 2+: publish action, Stripe webhook receiver.
 // See ../../README.md Status section.

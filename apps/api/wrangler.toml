@@ -30,6 +30,11 @@ max_batch_size = 1
 # via `wrangler secret put`, never committed here. CLERK_PUBLISHABLE_KEY,
 # R2_ACCOUNT_ID, and R2_BUCKET_NAME aren't sensitive, but are set the
 # same way for now rather than split across two mechanisms.
+#
+# RESEND_API_KEY (also set via `wrangler secret put`, when ready) is
+# optional — routes/internal.ts's completion-email step skips quietly
+# without it. Needs a verified sending domain on Resend's side first;
+# not yet provisioned as of 2026-09-07, see ROADMAP.md.
 WEB_ORIGIN = "https://scenestealer.app"
 # apps/worker's Fly app — see that app's fly.toml.
 WORKER_URL = "https://scenestealer-worker.fly.dev"

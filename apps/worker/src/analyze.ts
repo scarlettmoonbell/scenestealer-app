@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { and, eq } from "drizzle-orm";
-import { clips, createDb, sourceVideos } from "@scenestealer/db";
+import { clips, createDb, jobs, sourceVideos } from "@scenestealer/db";
 import {
   ClaudeHighlightScorer,
   detectAudioEnergyEvents,
@@ -135,6 +135,43 @@ function logStep(sourceVideoId: string, startedAt: number, step: string) {
   );
 }
 
+/**
+ * Best-effort notification to apps/api that this job finished, purely to
+ * trigger emailing the tenant who kicked it off (see routes/videos.ts's
+ * POST /internal/analysis-complete) — NOT for status reporting.
+ * sourceVideos.status is now written directly by this file (see
+ * runAnalyze below), so apps/api's own queue consumer no longer needs to
+ * infer the outcome from any HTTP response; this call exists solely
+ * because apps/api (not this worker) holds the Clerk credentials needed
+ * to look up an email address. A failure here is logged and swallowed —
+ * the analysis itself already succeeded or failed for real regardless of
+ * whether this notification lands.
+ */
+async function notifyApiOfCompletion(
+  sourceVideoId: string,
+  status: "analyzed" | "failed",
+  errorMessage?: string,
+): Promise<void> {
+  const apiUrl = process.env.API_URL;
+  const sharedSecret = process.env.WORKER_SHARED_SECRET;
+  if (!apiUrl || !sharedSecret) return;
+  try {
+    await fetch(`${apiUrl}/internal/analysis-complete`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${sharedSecret}`,
+      },
+      body: JSON.stringify({ sourceVideoId, status, error: errorMessage }),
+    });
+  } catch (e) {
+    console.error(
+      `[runAnalyze] completion-notify callback failed for sourceVideoId=${sourceVideoId} (non-fatal):`,
+      e,
+    );
+  }
+}
+
 // sourceVideoIds currently mid-pipeline on this machine — see the guard
 // at the top of runAnalyze for why this exists.
 const inFlightAnalyses = new Set<string>();
@@ -145,6 +182,17 @@ const inFlightAnalyses = new Set<string>();
  * functions wired together for the first time, against a real video
  * rather than mocked fetch/execFile calls. See PLAN.md's "Video
  * pipeline" section (step 2, "Analyze").
+ *
+ * Owns writing sourceVideos.status/analysisError itself (both on success
+ * and failure), rather than leaving that to apps/api's HTTP caller —
+ * confirmed for real (2026-09-06/07, see ROADMAP.md) that relying on an
+ * HTTP round-trip surviving this function's entire duration was the root
+ * cause of a real incident: a Cloudflare Queue consumer invocation timed
+ * out mid-job, abandoning its connection, which Fly's own idle-connection
+ * `auto_stop_machines` then read as "nothing to do" and killed the
+ * machine mid-run. Status is now authoritative the moment this function
+ * itself decides the outcome, independent of any caller still being
+ * around to hear about it.
  */
 export async function runAnalyze(
   sourceVideoId: string,
@@ -161,10 +209,10 @@ export async function runAnalyze(
   // landing on *this* machine, which is the case that actually
   // happened (scenestealer-worker runs as one shared
   // always-on-when-warm Fly app, not a fresh Machine per job — see
-  // fly.toml). apps/api's runAnalyzeJob treats `skipped: true` as a
-  // no-op, leaving sourceVideos.status untouched rather than marking
-  // it either done or failed, since the run that's actually still in
-  // flight is the one responsible for that.
+  // fly.toml). Much less likely to trigger at all now that apps/api's
+  // queue consumer dispatches and returns quickly instead of waiting
+  // out the job (see routes/videos.ts's runAnalyzeJob) — kept as cheap
+  // defense-in-depth regardless.
   if (inFlightAnalyses.has(sourceVideoId)) {
     console.log(
       `[runAnalyze] sourceVideoId=${sourceVideoId} skipped: already in flight on this machine`,
@@ -205,136 +253,217 @@ export async function runAnalyze(
     const startedAt = Date.now();
     logStep(sourceVideoId, startedAt, "start");
 
+    // Real per-run telemetry — `jobs` was defined in schema.ts but never
+    // actually used anywhere in the codebase until now. finishedAt minus
+    // this row's own createdAt gives real wall-clock processing time,
+    // keyed by the video's real duration (payload, updated below once
+    // known) — the data apps/api's completion-time estimate is built
+    // from (see GET /:id/status). Best-effort: telemetry must never fail
+    // the actual analysis.
+    let jobId: string | undefined;
     try {
-      await downloadFromR2ToFile(r2Config, video.r2Key, videoPath);
-      logStep(sourceVideoId, startedAt, "video-downloaded");
+      const [job] = await db
+        .insert(jobs)
+        .values({
+          tenantId: video.tenantId,
+          type: "analyze",
+          status: "running",
+          payload: { sourceVideoId },
+        })
+        .returning({ id: jobs.id });
+      jobId = job?.id;
+    } catch (e) {
+      console.error("Job telemetry insert failed (non-fatal):", e);
+    }
 
-      // Best-effort — a video with no useful tags, or a transient
-      // ffprobe/geocoding hiccup, shouldn't fail the actual analysis
-      // this job exists for.
+    try {
       try {
-        const meta = await extractVideoMetadata(videoPath);
-        const geocode =
-          meta.gpsLat != null && meta.gpsLon != null
-            ? await reverseGeocode(meta.gpsLat, meta.gpsLon)
-            : { venue: null, city: null };
-        await db
-          .update(sourceVideos)
-          .set({
-            recordedAt: meta.recordedAt,
-            deviceModel: meta.deviceModel,
-            gpsLat: meta.gpsLat,
-            gpsLon: meta.gpsLon,
-            venueName: geocode.venue,
-            cityName: geocode.city,
-          })
-          .where(eq(sourceVideos.id, sourceVideoId));
-      } catch (e) {
-        console.error("Video metadata extraction failed (non-fatal):", e);
-      }
-      logStep(sourceVideoId, startedAt, "metadata-extracted");
+        await downloadFromR2ToFile(r2Config, video.r2Key, videoPath);
+        logStep(sourceVideoId, startedAt, "video-downloaded");
 
-      const audioPath = join(tmpDir, "audio.mp3");
-      await extractAudio(videoPath, audioPath);
-      logStep(sourceVideoId, startedAt, "audio-extracted");
+        // Best-effort — a video with no useful tags, or a transient
+        // ffprobe/geocoding hiccup, shouldn't fail the actual analysis
+        // this job exists for.
+        let durationSec: number | null = null;
+        try {
+          const meta = await extractVideoMetadata(videoPath);
+          durationSec = meta.durationSec;
+          const geocode =
+            meta.gpsLat != null && meta.gpsLon != null
+              ? await reverseGeocode(meta.gpsLat, meta.gpsLon)
+              : { venue: null, city: null };
+          await db
+            .update(sourceVideos)
+            .set({
+              recordedAt: meta.recordedAt,
+              deviceModel: meta.deviceModel,
+              gpsLat: meta.gpsLat,
+              gpsLon: meta.gpsLon,
+              venueName: geocode.venue,
+              cityName: geocode.city,
+              durationSec: meta.durationSec,
+            })
+            .where(eq(sourceVideos.id, sourceVideoId));
+        } catch (e) {
+          console.error("Video metadata extraction failed (non-fatal):", e);
+        }
+        logStep(sourceVideoId, startedAt, "metadata-extracted");
 
-      // Best-effort, same rationale as the metadata block above — a
-      // waveform extraction failure shouldn't fail the analysis this job
-      // exists for. The clip editor treats a null waveformR2Key as "no
-      // waveform to show", never as "fall back to decoding the raw video
-      // client-side" (see schema.ts's comment on this column for why).
-      try {
-        const pcmPath = join(tmpDir, "audio.pcm");
-        const { peaks, duration } = await extractWaveformPeaks(
-          audioPath,
-          pcmPath,
-        );
-        const waveformR2Key = `${video.tenantId}/waveforms/${sourceVideoId}.json`;
-        await uploadToR2(
-          r2Config,
-          waveformR2Key,
-          new TextEncoder().encode(JSON.stringify({ peaks, duration })),
-          "application/json",
-        );
-        await db
-          .update(sourceVideos)
-          .set({ waveformR2Key })
-          .where(eq(sourceVideos.id, sourceVideoId));
-      } catch (e) {
-        console.error("Waveform peak extraction failed (non-fatal):", e);
-      }
-      logStep(sourceVideoId, startedAt, "waveform-peaks-done");
+        if (jobId && durationSec != null) {
+          try {
+            await db
+              .update(jobs)
+              .set({ payload: { sourceVideoId, durationSec } })
+              .where(eq(jobs.id, jobId));
+          } catch (e) {
+            console.error(
+              "Job telemetry duration update failed (non-fatal):",
+              e,
+            );
+          }
+        }
 
-      const sceneDetector = new PySceneDetectDetector();
-      const transcriber = new GroqTranscriber(process.env.GROQ_API_KEY!);
-      const scorer = new ClaudeHighlightScorer(process.env.ANTHROPIC_API_KEY!);
+        const audioPath = join(tmpDir, "audio.mp3");
+        await extractAudio(videoPath, audioPath);
+        logStep(sourceVideoId, startedAt, "audio-extracted");
 
-      // Logged individually, not just once after Promise.all — these three
-      // run concurrently, so their peak memory usage adds up rather than
-      // one replacing another; knowing which one is still in flight when a
-      // crash happens (or which finishes last) matters as much as knowing
-      // it happened somewhere in this block.
-      const [scenes, transcript, audioEvents] = await Promise.all([
-        sceneDetector.detectScenes(videoPath).then((result) => {
-          logStep(sourceVideoId, startedAt, "scenes-detected");
-          return result;
-        }),
-        transcriber.transcribe(audioPath).then((result) => {
-          logStep(sourceVideoId, startedAt, "transcribed");
-          return result;
-        }),
-        detectAudioEnergyEvents(videoPath).then((result) => {
-          logStep(sourceVideoId, startedAt, "audio-energy-detected");
-          return result;
-        }),
-      ]);
+        // Best-effort, same rationale as the metadata block above — a
+        // waveform extraction failure shouldn't fail the analysis this
+        // job exists for. The clip editor treats a null waveformR2Key
+        // as "no waveform to show", never as "fall back to decoding the
+        // raw video client-side" (see schema.ts's comment on this
+        // column for why).
+        try {
+          const pcmPath = join(tmpDir, "audio.pcm");
+          const { peaks, duration } = await extractWaveformPeaks(
+            audioPath,
+            pcmPath,
+          );
+          const waveformR2Key = `${video.tenantId}/waveforms/${sourceVideoId}.json`;
+          await uploadToR2(
+            r2Config,
+            waveformR2Key,
+            new TextEncoder().encode(JSON.stringify({ peaks, duration })),
+            "application/json",
+          );
+          await db
+            .update(sourceVideos)
+            .set({ waveformR2Key })
+            .where(eq(sourceVideos.id, sourceVideoId));
+        } catch (e) {
+          console.error("Waveform peak extraction failed (non-fatal):", e);
+        }
+        logStep(sourceVideoId, startedAt, "waveform-peaks-done");
 
-      const highlights = await scorer.scoreHighlights(
-        transcript,
-        audioEvents,
-        scenes,
-      );
-      logStep(sourceVideoId, startedAt, "highlights-scored");
-
-      // Re-running analysis on the same video (retry after a failure, or
-      // just triggered twice) shouldn't pile up duplicate suggestions —
-      // confirmed for real, this created two identical clips for the same
-      // ~5s window on a short test video. Only "suggested" (not yet
-      // reviewed) clips are replaced; accepted/rejected/rendering/ready
-      // clips reflect a real decision already made and are left alone.
-      await db
-        .delete(clips)
-        .where(
-          and(
-            eq(clips.sourceVideoId, sourceVideoId),
-            eq(clips.status, "suggested"),
-          ),
+        const sceneDetector = new PySceneDetectDetector();
+        const transcriber = new GroqTranscriber(process.env.GROQ_API_KEY!);
+        const scorer = new ClaudeHighlightScorer(
+          process.env.ANTHROPIC_API_KEY!,
         );
 
-      if (highlights.length === 0) {
-        logStep(sourceVideoId, startedAt, "done-no-highlights");
-        return { clipsCreated: 0 };
-      }
+        // Logged individually, not just once after Promise.all — these
+        // three run concurrently, so their peak memory usage adds up
+        // rather than one replacing another; knowing which one is still
+        // in flight when a crash happens (or which finishes last)
+        // matters as much as knowing it happened somewhere in this
+        // block.
+        const [scenes, transcript, audioEvents] = await Promise.all([
+          sceneDetector.detectScenes(videoPath).then((result) => {
+            logStep(sourceVideoId, startedAt, "scenes-detected");
+            return result;
+          }),
+          transcriber.transcribe(audioPath).then((result) => {
+            logStep(sourceVideoId, startedAt, "transcribed");
+            return result;
+          }),
+          detectAudioEnergyEvents(videoPath).then((result) => {
+            logStep(sourceVideoId, startedAt, "audio-energy-detected");
+            return result;
+          }),
+        ]);
 
-      const rows = highlights.map((h) => {
-        const snapped = sceneDetector.snapToScenes(
-          { startSec: h.startSec, endSec: h.endSec },
+        const highlights = await scorer.scoreHighlights(
+          transcript,
+          audioEvents,
           scenes,
         );
-        return {
-          sourceVideoId,
-          startSec: snapped.startSec,
-          endSec: snapped.endSec,
-          aiScore: h.score,
-          aiReason: h.reason,
-        };
-      });
-      await db.insert(clips).values(rows);
-      logStep(sourceVideoId, startedAt, `done-clips-created=${rows.length}`);
+        logStep(sourceVideoId, startedAt, "highlights-scored");
 
-      return { clipsCreated: rows.length };
-    } finally {
-      await rm(tmpDir, { recursive: true, force: true });
+        // Re-running analysis on the same video (retry after a failure,
+        // or just triggered twice) shouldn't pile up duplicate
+        // suggestions — confirmed for real, this created two identical
+        // clips for the same ~5s window on a short test video. Only
+        // "suggested" (not yet reviewed) clips are replaced; accepted/
+        // rejected/rendering/ready clips reflect a real decision already
+        // made and are left alone.
+        await db
+          .delete(clips)
+          .where(
+            and(
+              eq(clips.sourceVideoId, sourceVideoId),
+              eq(clips.status, "suggested"),
+            ),
+          );
+
+        let clipsCreated = 0;
+        if (highlights.length > 0) {
+          const rows = highlights.map((h) => {
+            const snapped = sceneDetector.snapToScenes(
+              { startSec: h.startSec, endSec: h.endSec },
+              scenes,
+            );
+            return {
+              sourceVideoId,
+              startSec: snapped.startSec,
+              endSec: snapped.endSec,
+              aiScore: h.score,
+              aiReason: h.reason,
+            };
+          });
+          await db.insert(clips).values(rows);
+          clipsCreated = rows.length;
+        }
+        logStep(sourceVideoId, startedAt, `done-clips-created=${clipsCreated}`);
+
+        await db
+          .update(sourceVideos)
+          .set({ status: "analyzed", analysisError: null })
+          .where(eq(sourceVideos.id, sourceVideoId));
+        if (jobId) {
+          await db
+            .update(jobs)
+            .set({ status: "succeeded", finishedAt: new Date() })
+            .where(eq(jobs.id, jobId))
+            .catch((e) =>
+              console.error("Job telemetry completion update failed:", e),
+            );
+        }
+        void notifyApiOfCompletion(sourceVideoId, "analyzed");
+
+        return { clipsCreated };
+      } finally {
+        await rm(tmpDir, { recursive: true, force: true });
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Analysis failed";
+      await db
+        .update(sourceVideos)
+        .set({ status: "failed", analysisError: message })
+        .where(eq(sourceVideos.id, sourceVideoId))
+        .catch((e) =>
+          console.error("Failed to write failure status (non-fatal):", e),
+        );
+      if (jobId) {
+        await db
+          .update(jobs)
+          .set({ status: "failed", error: message, finishedAt: new Date() })
+          .where(eq(jobs.id, jobId))
+          .catch((e) =>
+            console.error("Job telemetry failure update failed:", e),
+          );
+      }
+      void notifyApiOfCompletion(sourceVideoId, "failed", message);
+      throw err;
     }
   } finally {
     inFlightAnalyses.delete(sourceVideoId);

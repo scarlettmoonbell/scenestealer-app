@@ -56,6 +56,7 @@ export default async function VideoPage({
         sourceVideoId={video.id}
         initialStatus={video.status}
         initialError={video.analysisError}
+        initialDurationSec={video.durationSec}
       />
       <ClipEditor sourceVideoId={video.id} initialClips={videoClips} />
     </main>

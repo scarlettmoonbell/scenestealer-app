@@ -36,6 +36,13 @@
       "when": 1788672542487,
       "tag": "0004_watery_amphibian",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1788746116350,
+      "tag": "0005_lively_thing",
+      "breakpoints": true
     }
   ]
 }

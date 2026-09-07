@@ -10,20 +10,59 @@ type Status = (typeof sourceVideos.$inferSelect)["status"];
 
 const POLL_INTERVAL_MS = 5000;
 
+function formatMinutes(seconds: number): string {
+  const minutes = Math.max(1, Math.round(seconds / 60));
+  return `${minutes} minute${minutes === 1 ? "" : "s"}`;
+}
+
+// Deliberately a range, not a single number — apps/api's estimate is a
+// rolling average across a still-small, still-growing set of real jobs
+// (see GET /:id/status), not a precise prediction. ±30% keeps this
+// honest about that uncertainty rather than implying more confidence
+// than the underlying data supports (see ROADMAP.md's "Cold-start
+// honesty" note).
+function formatEstimate(
+  durationSec: number | null,
+  estimatedTotalSeconds: number | null,
+): string {
+  if (estimatedTotalSeconds != null) {
+    const low = formatMinutes(estimatedTotalSeconds * 0.7);
+    const high = formatMinutes(estimatedTotalSeconds * 1.3);
+    return `Usually takes ${low}–${high} for a recording this length.`;
+  }
+  if (durationSec != null) {
+    return "Estimating how long this will take…";
+  }
+  return "This can take a few minutes for longer shows.";
+}
+
 export function AnalyzeControl({
   sourceVideoId,
   initialStatus,
   initialError,
+  initialDurationSec,
 }: {
   sourceVideoId: string;
   initialStatus: Status;
   initialError: string | null;
+  initialDurationSec: number | null;
 }) {
   const authedFetch = useAuthedFetch();
   const router = useRouter();
   const [status, setStatus] = useState(initialStatus);
   const [error, setError] = useState(initialError);
   const [busy, setBusy] = useState(false);
+  // durationSec isn't known until partway through the pipeline (ffprobe
+  // runs after the video's downloaded — see apps/worker/src/analyze.ts),
+  // so this starts null even mid-"analyzing" and fills in from a later
+  // poll. estimatedTotalSeconds is a rolling average from real completed
+  // jobs (see apps/api's GET /:id/status) — also starts null until
+  // enough of those exist; shown only as a rough range, never false
+  // precision (see ROADMAP.md).
+  const [durationSec, setDurationSec] = useState(initialDurationSec);
+  const [estimatedTotalSeconds, setEstimatedTotalSeconds] = useState<
+    number | null
+  >(null);
   // Whether this mount owns an in-flight POST /analyze call — state,
   // not a ref: POST /analyze now only enqueues the job (see
   // apps/api's routes/videos.ts) and returns almost immediately, so
@@ -39,8 +78,18 @@ export function AnalyzeControl({
       void authedFetch(`/videos/${sourceVideoId}/status`)
         .then((res) => (res.ok ? res.json() : null))
         .then(
-          (body: { status: Status; analysisError: string | null } | null) => {
-            if (cancelled || !body || body.status === "analyzing") return;
+          (
+            body: {
+              status: Status;
+              analysisError: string | null;
+              durationSec: number | null;
+              estimatedTotalSeconds: number | null;
+            } | null,
+          ) => {
+            if (cancelled || !body) return;
+            setDurationSec(body.durationSec);
+            setEstimatedTotalSeconds(body.estimatedTotalSeconds);
+            if (body.status === "analyzing") return;
             setStatus(body.status);
             setError(body.analysisError);
             router.refresh();
@@ -60,6 +109,8 @@ export function AnalyzeControl({
     setBusy(true);
     setError(null);
     setStatus("analyzing");
+    setDurationSec(null);
+    setEstimatedTotalSeconds(null);
     setOwningRequest(true);
     try {
       const res = await authedFetch(`/videos/${sourceVideoId}/analyze`, {
@@ -99,8 +150,8 @@ export function AnalyzeControl({
       >
         <strong>Processing your recording…</strong>
         <p style={{ marginTop: "0.25rem", color: "var(--muted)" }}>
-          This can take a few minutes for longer shows — feel free to leave this
-          page, it&rsquo;ll keep running.
+          {formatEstimate(durationSec, estimatedTotalSeconds)} Feel free to
+          leave this page, it&rsquo;ll keep running.
         </p>
       </div>
     );

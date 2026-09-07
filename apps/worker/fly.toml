@@ -12,9 +12,23 @@
 # temporal/fly.toml's convention — Fly.io apps deploy via `flyctl` from
 # this repo's own tooling, not Terraform.
 #
-# Scaled to zero when idle (min_machines_running = 0, auto_stop/start),
-# unlike Postiz's always-on config — this workload is sporadic (one
-# analysis per uploaded video), not steady-state traffic.
+# Always-on (min_machines_running = 1, no auto_stop_machines) as of
+# 2026-09-07 — was scaled to zero when idle, but that's what caused a
+# real incident: `auto_stop_machines` decides a machine is idle purely
+# from connection/traffic activity, with zero visibility into whether a
+# subprocess (e.g. `scenedetect`) is still genuinely working inside it.
+# Once the *caller*'s connection dropped (a Cloudflare Queue consumer
+# invocation hit its own ~15-minute wall-time ceiling and abandoned the
+# request — see ROADMAP.md), Fly read that as "nothing to do" and
+# SIGINT'd the machine, killing a still-in-progress analyze job. ~$22-25/
+# month for a continuously-running shared-cpu-2x/4gb machine (confirmed
+# against Fly's own pricing docs, 2026-09-07) is a trivial cost next to
+# that failure mode. This is the interim fix while the real target
+# architecture (Fly Machines API spawning a disposable, dedicated
+# Machine per job — see index.ts's one-shot CLI entry point, already
+# built for exactly this and currently unused) gets built; per-job
+# Machines won't be part of this shared http_service pool at all, so
+# they won't need this always-on carve-out.
 
 app = "scenestealer-worker"
 primary_region = "iad"
@@ -26,13 +40,19 @@ primary_region = "iad"
 # are set via `flyctl secrets set`, never committed here.
 [env]
   PORT = "8080"
+  # Lets this worker call back into apps/api once a job finishes, purely
+  # to trigger emailing the tenant who kicked it off — see analyze.ts's
+  # notifyApiOfCompletion and routes/videos.ts's POST
+  # /internal/analysis-complete. Authenticated with the same
+  # WORKER_SHARED_SECRET already used for the reverse direction.
+  API_URL = "https://api.scenestealer.app"
 
 [http_service]
   internal_port = 8080
   force_https = true
-  auto_stop_machines = true
+  auto_stop_machines = false
   auto_start_machines = true
-  min_machines_running = 0
+  min_machines_running = 1
 
 [[vm]]
   size = "shared-cpu-2x"

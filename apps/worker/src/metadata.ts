@@ -8,6 +8,7 @@ export interface VideoMetadata {
   deviceModel: string | null;
   gpsLat: number | null;
   gpsLon: number | null;
+  durationSec: number | null;
 }
 
 // ISO 6709 (QuickTime's location tag shape, e.g. "+30.2672-097.7431+165.000/")
@@ -35,10 +36,16 @@ export async function extractVideoMetadata(
     videoPath,
   ]);
 
-  const tags = (JSON.parse(stdout).format?.tags ?? {}) as Record<
-    string,
-    string
-  >;
+  const format = JSON.parse(stdout).format ?? {};
+  const tags = (format.tags ?? {}) as Record<string, string>;
+
+  // `format.duration` is already present in plain `-show_format` output
+  // (a top-level field, not under `tags`) — no extra ffprobe flag or
+  // second call needed. Used for the completion-time estimate (see
+  // apps/api/src/routes/videos.ts's GET /:id/status).
+  const rawDuration = format.duration as string | undefined;
+  const parsedDuration = rawDuration ? parseFloat(rawDuration) : NaN;
+  const durationSec = Number.isFinite(parsedDuration) ? parsedDuration : null;
 
   // A single upstream ffmpeg encode has been observed to emit this
   // semicolon-joined if creation_time is set both explicitly and by the
@@ -59,6 +66,7 @@ export async function extractVideoMetadata(
     deviceModel,
     gpsLat,
     gpsLon,
+    durationSec,
   };
 }
 
