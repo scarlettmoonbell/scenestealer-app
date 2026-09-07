@@ -171,13 +171,36 @@ export async function runAnalyzeJob(
       `[runAnalyzeJob] worker responded status=${workerRes.status} ok=${workerRes.ok} body=${rawBody.slice(0, 500)}`,
     );
 
-    let body: { error?: string } = {};
+    let body: { error?: string; skipped?: boolean } = {};
+    // Tracked separately from `body` staying `{}` on a parse failure —
+    // confirmed for real (2026-09-06, see ROADMAP.md) that a truncated
+    // response (the worker's connection cut off mid-job, e.g. by a
+    // Cloudflare Queue redelivery abandoning this very invocation) came
+    // back as `workerRes.ok === true` with an empty/whitespace body:
+    // JSON.parse throwing left `body.error` merely `undefined`, which
+    // read identically to a genuine success and got the video marked
+    // "analyzed" despite the job never actually finishing.
+    let parsedOk = true;
     try {
-      body = JSON.parse(rawBody) as { error?: string };
+      body = JSON.parse(rawBody) as { error?: string; skipped?: boolean };
     } catch (parseErr) {
+      parsedOk = false;
       console.log(
         `[runAnalyzeJob] worker response body was not valid JSON: ${String(parseErr)}`,
       );
+    }
+
+    // The worker skips a duplicate concurrent request for a video
+    // that's already being analyzed on the same machine (see analyze.ts's
+    // inFlightAnalyses guard) rather than doing redundant work — the
+    // run that's actually still in flight is the one responsible for
+    // this video's final status, so this invocation must not touch it
+    // either way (neither "analyzed" nor "failed" would be accurate).
+    if (body.skipped === true) {
+      console.log(
+        `[runAnalyzeJob] worker skipped sourceVideoId=${sourceVideoId} (already in flight on that machine) — leaving status untouched`,
+      );
+      return;
     }
 
     // apps/worker's /analyze now always responds 200 once it commits
@@ -185,9 +208,10 @@ export async function runAnalyzeJob(
     // failure only shows up as this `error` field, not the HTTP
     // status, so that has to be checked regardless of workerRes.ok. A
     // non-JSON body (an infra-level failure before the app ever wrote
-    // anything, e.g. Fly's own proxy 524ing a dead machine) still
-    // falls through to the generic worker-status message below.
-    const failed = !workerRes.ok || body.error != null;
+    // anything, e.g. Fly's own proxy 524ing a dead machine, or this
+    // invocation's own connection to the worker being cut off) also
+    // counts as failed now, not just a missing `error` field.
+    const failed = !workerRes.ok || !parsedOk || body.error != null;
 
     const [updated] = await db
       .update(sourceVideos)
@@ -197,7 +221,9 @@ export async function runAnalyzeJob(
               status: "failed",
               analysisError:
                 body.error ??
-                `Analysis failed (worker status ${workerRes.status})`,
+                (!parsedOk
+                  ? `Worker response was truncated or malformed (worker status ${workerRes.status})`
+                  : `Analysis failed (worker status ${workerRes.status})`),
             }
           : { status: "analyzed" },
       )

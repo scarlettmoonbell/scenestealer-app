@@ -169,18 +169,29 @@ clipsRoute.post("/:id/render", async (c) => {
 
   const rawBody = await workerRes.text();
   let body: { error?: string } = {};
+  // Tracked separately from `body` staying `{}` on a parse failure — a
+  // truncated/malformed-but-200 response (the worker's connection cut
+  // off mid-render) must not read the same as a genuine success just
+  // because `body.error` ends up merely `undefined`; see routes/
+  // videos.ts's runAnalyzeJob for the same bug confirmed for real on
+  // the analyze path (2026-09-06, see ROADMAP.md).
+  let parsedOk = true;
   try {
     body = JSON.parse(rawBody) as { error?: string };
   } catch {
+    parsedOk = false;
     // Non-JSON body — an infra-level failure before the app ever
     // wrote anything (e.g. Fly's own proxy on a dead machine).
   }
 
-  if (!workerRes.ok || body.error != null) {
+  if (!workerRes.ok || !parsedOk || body.error != null) {
     return c.json(
       {
         error:
-          body.error ?? `Render failed (worker status ${workerRes.status})`,
+          body.error ??
+          (!parsedOk
+            ? `Worker response was truncated or malformed (worker status ${workerRes.status})`
+            : `Render failed (worker status ${workerRes.status})`),
       },
       workerRes.ok ? 500 : (workerRes.status as 400 | 401 | 500),
     );

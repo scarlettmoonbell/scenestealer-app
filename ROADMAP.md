@@ -986,6 +986,67 @@ unpinning.
   the fallback: the dedicated `audiowaveform` CLI
   (github.com/bbc/audiowaveform), which streams the input once and
   writes peaks JSON directly — not needed yet.
+- **Fixed (2026-09-06): a real OOM on `001_ScaryMallet@Fallout.MOV`
+  turned out to be two separate bugs, found by adding the step-level
+  logging above and cross-referencing it against apps/api's own queue
+  logs by exact timestamp — not "one memory-hungry step" as first
+  suspected.** The video's own `runAnalyze` logs showed **two full
+  pipeline runs** starting on the same long-lived worker machine for
+  the same `sourceVideoId`, ~15 minutes apart (23:37:08 and 23:52:03
+  UTC); apps/api's `[runAnalyzeJob] starting` logs matched those
+  almost to the second. ~15 minutes is exactly this codebase's own
+  documented Cloudflare Queue consumer wall-time ceiling (see the fix
+  above) — the first invocation was still legitimately waiting on a
+  long job when Cloudflare cut it off and redelivered the message,
+  and the worker (a single shared always-on-when-warm Fly app, not a
+  fresh Machine per job) started a **second, fully concurrent**
+  pipeline for the same video: two video downloads, two
+  scene-detection subprocesses. The eventual OOM (anon-rss ~3.7GB)
+  came from the second run's own download stacking on top of memory
+  the first run's still-active state hadn't released. Three fixes:
+  1. **Duplicate-run guard**: `analyze.ts` now tracks in-flight
+     `sourceVideoId`s in a module-level `Set` (`inFlightAnalyses`) and
+     skips a redundant concurrent request outright rather than running
+     a second pipeline, returning `{ skipped: true }`. apps/api's
+     `runAnalyzeJob` treats that as a no-op — leaves `sourceVideos.status`
+     untouched rather than marking it either done or failed, since
+     whichever run is still genuinely in flight owns that write. This is
+     a single-process guard, not a durable lock — it only protects
+     duplicates landing on the *same* machine, which is what actually
+     happened here, not the general case of two different Machines.
+     **Still open**: the deeper issue is that a legitimate job can take
+     longer than the Queue's own ~15-minute ceiling, which this guard
+     papers over (no more wasted duplicate work / OOM) without fixing —
+     a large enough video can still have its *first* invocation
+     abandoned by Cloudflare before ever writing a final status,
+     leaving `sourceVideos.status` stuck on "analyzing" indefinitely if
+     the retried invocation's own run happens to also get skipped or
+     also times out. Revisit before a real tenant uploads something
+     large enough to hit this reliably — likely needs the worker to own
+     writing its own final status directly (it already writes
+     `waveformR2Key` and metadata directly), decoupling completion from
+     any one HTTP round-trip surviving end to end.
+  2. **A quieter data-integrity bug in the same code path**: when a
+     worker response arrived truncated/malformed but still HTTP 200 (the
+     abandoned invocation from the scenario above), `JSON.parse`
+     throwing left `body` as `{}` — so `body.error` was merely
+     `undefined`, which read identically to a genuine success and the
+     video got marked `"analyzed"` despite nothing having actually
+     finished. `runAnalyzeJob` (and `clips.ts`'s `/:id/render`, same
+     bug, same fix) now tracks parse success separately and treats a
+     malformed body as a failure, not a silent success.
+  3. **The video-download step alone held ~2.4GB in memory** for what's
+     presumably a ~1.2GB file, before any real analysis work even
+     started — `downloadFromR2` returned a full `ArrayBuffer` via
+     `res.arrayBuffer()`, then `Buffer.from()` made a second full copy
+     before `writeFile` ever touched disk. Replaced with
+     `downloadFromR2ToFile`, which streams the R2 response body
+     straight to disk (`pipeline(Readable.fromWeb(res.body),
+     createWriteStream(...))`) — cuts every run's baseline memory
+     significantly, independent of the concurrency bug above. Applied
+     to both `analyze.ts` and `render.ts` (the latter downloads the
+     full source video too, per `clips.ts`'s own comment already
+     flagging this as the same class of risk).
 - **Live external accounts**: Clerk, Neon, Cloudflare, Fly.io, Groq,
   and Anthropic are all live and in real use as of Phase 4. Stripe is
   configured (test-mode placeholder tiers, see Phase 7) but no billing

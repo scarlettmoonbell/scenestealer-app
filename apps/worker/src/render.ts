@@ -1,10 +1,10 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { eq } from "drizzle-orm";
 import { clips, createDb, sourceVideos } from "@scenestealer/db";
 import { FfmpegRenderer } from "@scenestealer/pipeline";
-import { downloadFromR2, uploadToR2 } from "./r2.js";
+import { downloadFromR2ToFile, uploadToR2 } from "./r2.js";
 
 const renderer = new FfmpegRenderer();
 
@@ -53,8 +53,7 @@ export async function runRender(
       .set({ status: "rendering" })
       .where(eq(clips.id, clipId));
 
-    const bytes = await downloadFromR2(r2Config, video.r2Key);
-    await writeFile(sourcePath, Buffer.from(bytes));
+    await downloadFromR2ToFile(r2Config, video.r2Key, sourcePath);
 
     await renderer.render({
       sourcePath,
