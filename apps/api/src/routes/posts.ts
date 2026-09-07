@@ -38,7 +38,11 @@ postsRoute.get("/scheduled", async (c) => {
       eq(posts.socialConnectionId, socialConnections.id),
     )
     .innerJoin(clips, eq(posts.clipId, clips.id))
-    .innerJoin(sourceVideos, eq(clips.sourceVideoId, sourceVideos.id))
+    // Left, not inner — a post from a clip whose source video was
+    // since deleted (to save storage; the clip itself is deliberately
+    // kept, see schema.ts) would otherwise silently vanish from this
+    // list instead of just showing no video title.
+    .leftJoin(sourceVideos, eq(clips.sourceVideoId, sourceVideos.id))
     .where(
       and(
         eq(socialConnections.tenantId, tenantId),

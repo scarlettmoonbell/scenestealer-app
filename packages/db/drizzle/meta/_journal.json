@@ -50,6 +50,20 @@
       "when": 1788757372690,
       "tag": "0006_unknown_spitfire",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1788807028625,
+      "tag": "0007_organic_star_brand",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1788807061337,
+      "tag": "0008_young_echo",
+      "breakpoints": true
     }
   ]
 }

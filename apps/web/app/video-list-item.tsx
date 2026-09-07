@@ -23,7 +23,9 @@ export function VideoListItem({
   async function handleDelete() {
     if (
       !window.confirm(
-        `Delete "${title}" and every clip rendered from it? This can't be undone.`,
+        `Delete "${title}"? This frees up its storage and can't be undone. ` +
+          `Clips you've already rendered from it are kept — find them on the ` +
+          `Scheduling page — but any not-yet-rendered clips go with it.`,
       )
     ) {
       return;

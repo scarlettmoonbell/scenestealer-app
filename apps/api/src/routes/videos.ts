@@ -114,6 +114,7 @@ videos.post("/:id/clips", async (c) => {
     .insert(clips)
     .values({
       sourceVideoId: video.id,
+      tenantId,
       startSec: body.startSec,
       endSec: body.endSec,
       status: "suggested",
@@ -306,13 +307,19 @@ videos.get("/:id/status", async (c) => {
   });
 });
 
-// Deletes the video, every clip rendered from it, and the underlying R2
-// objects. Storage first: if an R2 delete fails partway through, the DB
-// rows survive and the request can just be retried, rather than leaving
-// DB rows pointing at nothing. Any posts published from this video/its
-// clips keep their history — clipId/sourceVideoId are nullable on
-// `posts` specifically so a deleted video doesn't have to drag its
-// publish record down with it.
+// Deletes the video and its underlying R2 object — the expensive part
+// storage-cost-wise — but NOT a clip that's already been rendered:
+// those are decoupled (sourceVideoId set to null, see schema.ts's
+// comment) rather than deleted, so a tenant can free up a large
+// source video without losing promo clips they'd already chosen to
+// keep. A clip that was never rendered has nothing worth keeping
+// without its source and is deleted along with it, same as before.
+// Storage first: if an R2 delete fails partway through, the DB rows
+// survive and the request can just be retried, rather than leaving DB
+// rows pointing at nothing. Any posts published from this video/its
+// deleted clips keep their history — clipId/sourceVideoId are nullable
+// on `posts` specifically so a deleted video/clip doesn't have to drag
+// its publish record down with it.
 videos.delete("/:id", async (c) => {
   const tenantId = c.get("tenantId");
   const db = createDb(c.env.DATABASE_URL);
@@ -330,11 +337,22 @@ videos.delete("/:id", async (c) => {
   };
 
   const videoClips = await db
-    .select({ id: clips.id, renderedR2Key: clips.renderedR2Key })
+    .select({
+      id: clips.id,
+      status: clips.status,
+      renderedR2Key: clips.renderedR2Key,
+    })
     .from(clips)
     .where(eq(clips.sourceVideoId, video.id));
 
-  for (const clip of videoClips) {
+  const keptClips = videoClips.filter(
+    (clip) => clip.status === "ready" && clip.renderedR2Key,
+  );
+  const removedClips = videoClips.filter(
+    (clip) => !(clip.status === "ready" && clip.renderedR2Key),
+  );
+
+  for (const clip of removedClips) {
     if (clip.renderedR2Key) {
       await deleteR2Object(r2Config, clip.renderedR2Key);
     }
@@ -342,20 +360,29 @@ videos.delete("/:id", async (c) => {
   await deleteR2Object(r2Config, video.r2Key);
 
   await db.transaction(async (tx) => {
-    const clipIds = videoClips.map((clip) => clip.id);
-    if (clipIds.length > 0) {
+    const removedClipIds = removedClips.map((clip) => clip.id);
+    if (removedClipIds.length > 0) {
       await tx
         .update(posts)
         .set({ clipId: null })
-        .where(inArray(posts.clipId, clipIds));
+        .where(inArray(posts.clipId, removedClipIds));
     }
     await tx
       .update(posts)
       .set({ sourceVideoId: null })
       .where(eq(posts.sourceVideoId, video.id));
-    await tx.delete(clips).where(eq(clips.sourceVideoId, video.id));
+    if (removedClipIds.length > 0) {
+      await tx.delete(clips).where(inArray(clips.id, removedClipIds));
+    }
+    const keptClipIds = keptClips.map((clip) => clip.id);
+    if (keptClipIds.length > 0) {
+      await tx
+        .update(clips)
+        .set({ sourceVideoId: null })
+        .where(inArray(clips.id, keptClipIds));
+    }
     await tx.delete(sourceVideos).where(eq(sourceVideos.id, video.id));
   });
 
-  return c.json({ deleted: true });
+  return c.json({ deleted: true, retainedClips: keptClips.length });
 });

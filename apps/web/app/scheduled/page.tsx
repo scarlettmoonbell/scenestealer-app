@@ -10,7 +10,10 @@ import { Scheduler, type VideoMetadata } from "./scheduler";
 
 interface ReadyClip {
   id: string;
-  sourceVideoId: string;
+  // null once the source video has been deleted to save storage —
+  // the clip itself (and its rendered file) is deliberately kept, see
+  // packages/db/src/schema.ts's clips.sourceVideoId comment.
+  sourceVideoId: string | null;
   startSec: number;
   endSec: number;
   aiReason: string | null;

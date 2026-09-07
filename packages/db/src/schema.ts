@@ -137,9 +137,24 @@ export const clipStatusEnum = pgEnum("clip_status", [
 
 export const clips = pgTable("clips", {
   id: uuid("id").primaryKey().defaultRandom(),
-  sourceVideoId: uuid("source_video_id")
+  // Nullable — a rendered clip (status "ready", a real renderedR2Key)
+  // survives its source video being deleted, decoupled by setting this
+  // to null rather than cascading the delete onto it (see DELETE
+  // /videos/:id, 2026-09-07: users asked to be able to free up a
+  // source video's storage cost without losing the promo clips they'd
+  // already chosen to keep). A non-rendered clip has nothing worth
+  // keeping without its source and is deleted outright instead.
+  sourceVideoId: uuid("source_video_id").references(() => sourceVideos.id),
+  // Ownership used to be derived entirely through sourceVideoId's own
+  // join to sourceVideos.tenantId — that stopped being reliable the
+  // moment sourceVideoId could be null, so this is now the real,
+  // direct source of truth for who owns a clip, checked instead of
+  // (not in addition to) the old join. Backfilled from that same join
+  // for every clip that existed before this column did (see the
+  // migration + one-off backfill this shipped with).
+  tenantId: uuid("tenant_id")
     .notNull()
-    .references(() => sourceVideos.id),
+    .references(() => tenants.id),
   startSec: real("start_sec").notNull(),
   endSec: real("end_sec").notNull(),
   status: clipStatusEnum("status").notNull().default("suggested"),

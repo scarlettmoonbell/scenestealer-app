@@ -1,0 +1,1 @@
+ALTER TABLE "clips" ALTER COLUMN "tenant_id" SET NOT NULL;

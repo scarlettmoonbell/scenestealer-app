@@ -166,10 +166,7 @@ async function extractWaveformPeaks(
   const sampleCount = Math.floor(pcm.length / 2); // 16-bit samples
   const duration = sampleCount / WAVEFORM_SAMPLE_RATE;
 
-  const bucketSize = Math.max(
-    1,
-    Math.floor(sampleCount / WAVEFORM_PEAK_COUNT),
-  );
+  const bucketSize = Math.max(1, Math.floor(sampleCount / WAVEFORM_PEAK_COUNT));
   const peaks: number[] = [];
   for (let start = 0; start < sampleCount; start += bucketSize) {
     const end = Math.min(start + bucketSize, sampleCount);
@@ -521,6 +518,7 @@ export async function runAnalyze(
             );
             return {
               sourceVideoId,
+              tenantId: video.tenantId,
               startSec: snapped.startSec,
               endSec: snapped.endSec,
               aiScore: h.score,

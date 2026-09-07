@@ -43,6 +43,16 @@ export async function runRender(
   if (!clip) {
     throw new Error(`clip ${clipId} not found`);
   }
+  // sourceVideoId is only ever null for a clip *already* rendered and
+  // decoupled from a since-deleted source (see schema.ts) — rendering
+  // is only ever dispatched for a not-yet-rendered clip, so this
+  // should be unreachable in practice, but the column's real type
+  // requires the check regardless.
+  if (!clip.sourceVideoId) {
+    throw new Error(
+      `clip ${clipId} has no source video (already rendered and detached?)`,
+    );
+  }
 
   const [video] = await db
     .select()

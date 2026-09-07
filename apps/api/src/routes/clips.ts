@@ -12,7 +12,6 @@ import { createPresignedGetUrl } from "../r2.js";
 import { requireTenant } from "../auth.js";
 import { createPost } from "../postiz.js";
 import { spawnWorkerMachine } from "../fly-machines.js";
-import { getOwnedSourceVideo } from "./videos.js";
 import type { Env } from "../index.js";
 import type { Variables } from "../auth.js";
 
@@ -42,8 +41,10 @@ const PLATFORM_DURATION_LIMITS_SEC: Partial<
 
 clipsRoute.use("*", requireTenant);
 
-// Clips don't carry tenantId themselves — ownership is checked through
-// the parent source video, same as the PATCH handler below.
+// clips.tenantId (not a join through sourceVideoId) is the real source
+// of truth for ownership — a rendered clip can outlive its source
+// video (see the schema comment), so the old join-based check would
+// incorrectly report a decoupled clip as unowned/not-found.
 async function getOwnedClip(
   db: ReturnType<typeof createDb>,
   tenantId: string,
@@ -52,15 +53,8 @@ async function getOwnedClip(
   const [clip] = await db
     .select()
     .from(clips)
-    .where(eq(clips.id, clipId))
+    .where(and(eq(clips.id, clipId), eq(clips.tenantId, tenantId)))
     .limit(1);
-  if (!clip) return undefined;
-  const owningVideo = await getOwnedSourceVideo(
-    db,
-    tenantId,
-    clip.sourceVideoId,
-  );
-  if (!owningVideo) return undefined;
   return clip;
 }
 
@@ -94,8 +88,13 @@ clipsRoute.get("/", async (c) => {
       cityName: sourceVideos.cityName,
     })
     .from(clips)
-    .innerJoin(sourceVideos, eq(clips.sourceVideoId, sourceVideos.id))
-    .where(and(eq(sourceVideos.tenantId, tenantId), eq(clips.status, "ready")))
+    // Left, not inner — a rendered clip whose source video was deleted
+    // to save storage still shows up here (with videoTitle etc. as
+    // null), which is the whole point of decoupling it instead of
+    // deleting it. Ownership is clips.tenantId directly, not derived
+    // through this join, for the same reason.
+    .leftJoin(sourceVideos, eq(clips.sourceVideoId, sourceVideos.id))
+    .where(and(eq(clips.tenantId, tenantId), eq(clips.status, "ready")))
     .orderBy(desc(clips.createdAt));
 
   return c.json({
@@ -118,22 +117,8 @@ clipsRoute.patch("/:id", async (c) => {
 
   const db = createDb(c.env.DATABASE_URL);
 
-  const [existing] = await db
-    .select({ sourceVideoId: clips.sourceVideoId })
-    .from(clips)
-    .where(eq(clips.id, clipId))
-    .limit(1);
+  const existing = await getOwnedClip(db, tenantId, clipId);
   if (!existing) {
-    return c.json({ error: "Clip not found" }, 404);
-  }
-  // Clips don't carry tenantId themselves — ownership is checked through
-  // the parent source video, same as the videos routes.
-  const owningVideo = await getOwnedSourceVideo(
-    db,
-    tenantId,
-    existing.sourceVideoId,
-  );
-  if (!owningVideo) {
     return c.json({ error: "Clip not found" }, 404);
   }
 
