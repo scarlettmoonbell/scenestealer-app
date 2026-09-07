@@ -1292,6 +1292,17 @@ unpinning.
   stays: it's still what verifies the *inbound* completion-notify
   callback from a spawned worker Machine (`routes/internal.ts`), just
   no longer used for the outbound direction.
+
+  **Caught and fixed within minutes of the first deploy**: with
+  `[http_service]` gone, `flyctl deploy`'s own release machine (the
+  `[[vm]]` stub above) runs the image's default CMD — `node dist/
+  index.js` with no `JOB_TYPE` set, since this app has no real default
+  process anymore — which exits 1 immediately. Fly's default restart
+  policy just rebooted it forever: confirmed live in `fly logs`, exit
+  -> reboot -> exit again, every ~11 seconds, indefinitely, until
+  manually stopped (`flyctl machine stop`). Added `[[restart]] policy =
+  "never"` to `fly.toml` — the stub still starts once per deploy and
+  exits right away (harmless, cheap), it just stops rebooting forever.
 - **Live external accounts**: Clerk, Neon, Cloudflare, Fly.io, Groq,
   and Anthropic are all live and in real use as of Phase 4. Stripe is
   configured (test-mode placeholder tiers, see Phase 7) but no billing

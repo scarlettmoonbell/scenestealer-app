@@ -57,9 +57,18 @@ primary_region = "iad"
 # default. This [[vm]] exists only as a fallback in case `flyctl deploy`
 # still expects some default Machine spec to push a release against with
 # no [http_service] present — deliberately small/cheap, since it's not
-# what real jobs actually run on. If `flyctl deploy` turns out to need
-# more than this to function cleanly (unverified as of this writing),
-# revisit here first.
+# what real jobs actually run on.
 [[vm]]
   size = "shared-cpu-1x"
   memory = "512mb"
+
+# Confirmed for real (2026-09-07): without this, `flyctl deploy`'s
+# release machine (above) crash-loops — it runs the image's default CMD
+# (`node dist/index.js` with no JOB_TYPE set, since this app has no
+# real default process — see Dockerfile's own comment), which exits 1
+# immediately, and Fly's default restart policy just reboots it forever
+# (observed live: exit -> reboot -> exit again, every ~11s). `policy =
+# "never"` still lets `flyctl deploy` start it once (it exits 1 right
+# away, harmless and cheap) but stops the endless reboot loop.
+[[restart]]
+  policy = "never"
