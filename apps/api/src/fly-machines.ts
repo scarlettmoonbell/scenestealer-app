@@ -36,6 +36,16 @@ export async function spawnWorkerMachine(
         Authorization: `Bearer ${env.FLY_API_TOKEN}`,
       },
       body: JSON.stringify({
+        // Confirmed for real (2026-09-07): omitting this doesn't default
+        // to the app's own primary_region (iad, per fly.toml) — Fly's
+        // docs say it launches "in the same region as your WireGuard
+        // peer connection," which for a Cloudflare Worker with no fixed
+        // location varies by request; the first real dispatch landed in
+        // sjc. Pinned to iad to match where the rest of this app's
+        // infra (Neon, R2) actually lives, avoiding unnecessary
+        // cross-country latency on every DB write and R2 transfer this
+        // job makes.
+        region: "iad",
         config: {
           image: env.WORKER_IMAGE_REF,
           init: { exec: ["node", "dist/index.js"] },
