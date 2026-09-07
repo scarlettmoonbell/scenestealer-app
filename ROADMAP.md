@@ -1381,10 +1381,37 @@ unpinning.
   never collide or invert. Falls back to the candidate's own original
   duration, anchored at the snapped start, on the rare case where no
   later boundary exists at all. Bumped `scenestealer-app`'s lockfile
-  to pick up the fix. _Revisit_: trigger one more real end-to-end
-  analyze run on `001_ScaryMallet@Fallout.MOV` (or similar) to confirm
-  the fix actually eliminates the zero-length clips in practice, not
-  just in the new unit tests.
+  to pick up the fix.
+
+  **First verification run appeared to disprove the fix — all 10
+  clips came back zero-length, worse than before.** Root cause wasn't
+  the fix itself: `apps/worker/Dockerfile` runs its own `npm install`
+  directly against `apps/worker/package.json` (not `pnpm-lock.yaml`),
+  and both `@scenestealer/connectors` and `@scenestealer/pipeline`
+  were pinned to the mutable `#main` ref. Since `package.json`'s
+  content never changed across several commits, Fly's remote-builder
+  layer cache kept reusing an `npm install` layer from a much earlier
+  build on every deploy since — confirmed by SSHing into a throwaway
+  Machine built from the "successfully deployed" image and finding the
+  pre-fix `snapToScenes` still bundled inside, despite three green
+  deploys since the real fix was pushed. Pinned both to the exact
+  commit SHA `pnpm-lock.yaml` already resolved (matches this account's
+  SHA-pinning convention, and makes the Docker cache key change exactly
+  when the dependency's real content changes). Verified the fix was
+  actually present in the rebuilt image before re-testing.
+
+  **Second verification run, against the genuinely-rebuilt image,
+  confirmed the fix: 10 clips, zero zero-length or inverted.** Real
+  `startSec`/`endSec` pairs from the run: `{0, 126.2}`,
+  `{126.2, 130.233}`, five clips all at `{130.233, 1016.167}`, three at
+  `{1016.167, 1021.3}`. Note the duplication — 5 different AI-suggested
+  highlights landing on the identical wide window is the sparse-
+  boundary situation itself (this video's content, not a bug in the
+  fix): with only a handful of real scene boundaries across ~17
+  minutes, multiple distinct highlight candidates within the same
+  ~886-second gap all snap to the same two boundaries. Not fixed here,
+  not asked for — noted for awareness; the frontend will show several
+  duplicate-looking clips for this particular video.
 - **Done (2026-09-07): `downloadFromR2ToFile` splits large objects into
   several concurrent ranged GETs instead of one streamed GET.** A
   single-connection download of this session's real ~1.24GB test
