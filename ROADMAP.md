@@ -1545,6 +1545,36 @@ unpinning.
      verified locally (this environment's `next dev` hits the
      pre-existing `getcwd` sandbox error noted in "No dev/staging site
      exists" below); typecheck/lint clean, worth a live look.
+  5. Small UI fixes noticed along the way: the render button used to
+     disappear and become a bare `<span>` once a clip's status flipped
+     from "accepted" to "rendering" (the actual encode running on a
+     spawned Fly Machine, not just the brief `POST /render` request) —
+     now stays a disabled button the whole time, matching every other
+     busy-state control in the app. The Adjust column's boundary
+     inputs showed raw seconds ("1836.8"), which read as frame
+     numbers — switched to the same `M:SS.S` timecode `formatTime()`
+     already used for the read-only Play column, with a
+     `parseTimecode()` for the reverse direction (still accepts a bare
+     number as a fallback).
+  6. **Real render-side cost win, found while watching a render job's
+     own logs**: it spent 582 of 648 total seconds (89%) downloading
+     the *entire* source video just to encode a 15s clip — the analyze
+     pipeline already solved the analogous "download the whole file"
+     problem with parallel ranged GETs, but a render only ever needs a
+     small window of the source regardless of file size, so the real
+     fix is different: skip downloading it at all. Verified for real
+     before shipping: ffmpeg's own `-ss <start> -to <end> -i <url>`
+     (both already input-side options in `ffmpeg-renderer.ts`,
+     unchanged) performs true HTTP range-based seeking against a
+     presigned R2 URL — timed extracting a 15s clip at both the ~5s
+     and ~1010s marks of a real 1031s/1.24GB source, both completed in
+     ~2-6s (full libx264 encode included), not the ~85s+ a full
+     download takes, confirming it's genuinely seeking and not
+     secretly reading sequentially from byte 0. `apps/worker/src/
+     r2.ts` gained `createPresignedGetUrl` (own copy, same shape as
+     apps/api's); `render.ts` now signs a URL and hands it straight to
+     `FfmpegRenderer` instead of downloading to a local file first —
+     the pipeline package itself needed zero changes.
 - **Live external accounts**: Clerk, Neon, Cloudflare, Fly.io, Groq,
   and Anthropic are all live and in real use as of Phase 4. Stripe is
   configured (test-mode placeholder tiers, see Phase 7) but no billing
