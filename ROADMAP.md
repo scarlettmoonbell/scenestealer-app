@@ -1409,6 +1409,17 @@ unpinning.
   a real `HEAD` request that this video is exactly 1,238,455,623 bytes
   and that R2 reports `accept-ranges: bytes`, both assumed but never
   previously confirmed for real.
+- **Done (2026-09-07): bumped `claude-docs-conventions` (PR #89) and
+  closed two gaps it surfaced against this repo's actual state.**
+  `apps/api/wrangler.toml` had no `[observability]` block at all —
+  added, `head_sampling_rate = 1` deliberately given today's low
+  alpha-phase traffic (revisit once real volume makes 100% retention
+  costly). Separately, the render path (`clips.ts`'s dispatch route +
+  `render.ts`) had zero logging on either side, unlike analyze where
+  `sourceVideoId` already ties `apps/api`'s dispatch logs to
+  `apps/worker`'s own `logStep` output — added the same `clipId`-tagged
+  logging to both, closing the same correlation gap for render jobs
+  that already existed for analyze.
 - **Live external accounts**: Clerk, Neon, Cloudflare, Fly.io, Groq,
   and Anthropic are all live and in real use as of Phase 4. Stripe is
   configured (test-mode placeholder tiers, see Phase 7) but no billing
