@@ -1658,6 +1658,21 @@ unpinning.
   same pre-existing `getcwd` sandbox gap noted below; typecheck/lint
   clean, worth a live look especially for the calendar and the
   selected-row highlight color.
+- **Done (2026-09-07): Scheduling page refinements from a real
+  screenshot** — narrowed the "Rendered clips" table's Title column
+  (`<colgroup>` 22/12/51/15) now that row-click selection made the
+  wide first draft unnecessary, and removed the redundant "Choose a
+  different clip" button (clicking any other row already does this).
+  Separately, `Scheduler`'s form was restructured into two columns —
+  Account/Template/Caption/settings fields/schedule-mode toggle/
+  Publish button on the left, `CalendarPicker` on the right when
+  "Schedule for later" is selected — and every field label (Account,
+  Template, Caption, each integration setting, Date and time) now uses
+  the same `TABLE_HEADER_STYLE` look as the clips table's column
+  headers (`FIELD_LABEL_STYLE` in `scheduler.tsx`: same style, block-
+  level instead of inline in a `<th>`), so the form reads consistently
+  with the table above it. Not visually verified locally — same
+  `getcwd` sandbox gap; typecheck/lint clean.
 - **Live external accounts**: Clerk, Neon, Cloudflare, Fly.io, Groq,
   and Anthropic are all live and in real use as of Phase 4. Stripe is
   configured (test-mode placeholder tiers, see Phase 7) but no billing

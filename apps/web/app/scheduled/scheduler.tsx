@@ -8,7 +8,19 @@ import type {
 } from "@scenestealer/db";
 import { describeFetchError } from "../fetch-error";
 import { useAuthedFetch } from "../use-authed-fetch";
+import { TABLE_HEADER_STYLE } from "../table-header-style";
 import { CalendarPicker } from "./calendar-picker";
+
+// Same look as a table column header (TABLE_HEADER_STYLE), just as a
+// block-level label sitting above a field instead of inline in a <th>
+// — confirmed live 2026-09-07: this form's field labels were plain
+// unstyled text, inconsistent with the "Rendered clips" table right
+// above it on the same page.
+const FIELD_LABEL_STYLE = {
+  ...TABLE_HEADER_STYLE,
+  display: "block" as const,
+  marginBottom: "0.35rem",
+};
 
 // Extends the raw row with the real account/page name, read live from
 // Postiz — a tenant can have more than one connection per platform, so
@@ -219,10 +231,7 @@ export function Scheduler({
         border: "1px solid var(--border)",
         borderRadius: 8,
         padding: "1rem",
-        display: "flex",
-        flexDirection: "column",
-        gap: "0.75rem",
-        maxWidth: 560,
+        maxWidth: 900,
       }}
     >
       {error && <p role="alert">{error}</p>}
@@ -236,123 +245,149 @@ export function Scheduler({
       )}
 
       {loaded && connections.length > 0 && (
-        <>
-          <label>
-            Account
-            <select
-              value={connectionId}
-              onChange={(e) => setConnectionId(e.target.value)}
-              className="field-input"
-              style={{ marginTop: "0.25rem" }}
-            >
-              {connections.map((connection) => (
-                <option key={connection.id} value={connection.id}>
-                  {connection.name
-                    ? `${connection.platform} — ${connection.name}`
-                    : connection.platform}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label>
-            Template (optional)
-            <select
-              value={templateId}
-              onChange={(e) => applyTemplate(e.target.value)}
-              className="field-input"
-              style={{ marginTop: "0.25rem" }}
-            >
-              <option value="">No template</option>
-              {templateList
-                .filter(
-                  (t) =>
-                    !t.platform ||
-                    t.platform ===
-                      connections.find((c) => c.id === connectionId)?.platform,
-                )
-                .map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: "2rem",
+            alignItems: "flex-start",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "0.75rem",
+              flex: "1 1 320px",
+            }}
+          >
+            <label>
+              <span style={FIELD_LABEL_STYLE}>Account</span>
+              <select
+                value={connectionId}
+                onChange={(e) => setConnectionId(e.target.value)}
+                className="field-input"
+              >
+                {connections.map((connection) => (
+                  <option key={connection.id} value={connection.id}>
+                    {connection.name
+                      ? `${connection.platform} — ${connection.name}`
+                      : connection.platform}
                   </option>
                 ))}
-            </select>
-          </label>
+              </select>
+            </label>
 
-          <label>
-            Caption
-            <textarea
-              value={caption}
-              onChange={(e) => setCaption(e.target.value)}
-              rows={3}
-              className="field-input"
-              style={{ marginTop: "0.25rem" }}
-            />
-          </label>
-
-          {settingsFields.map((field) => (
-            <label key={field.key}>
-              {field.key}
-              {field.enumValues ? (
-                <select
-                  value={settingsValues[field.key] ?? ""}
-                  onChange={(e) =>
-                    setSettingsValues((prev) => ({
-                      ...prev,
-                      [field.key]: e.target.value,
-                    }))
-                  }
-                  className="field-input"
-                  style={{ marginTop: "0.25rem" }}
-                >
-                  <option value="">Select…</option>
-                  {field.enumValues.map((value) => (
-                    <option key={value} value={value}>
-                      {value}
+            <label>
+              <span style={FIELD_LABEL_STYLE}>Template (optional)</span>
+              <select
+                value={templateId}
+                onChange={(e) => applyTemplate(e.target.value)}
+                className="field-input"
+              >
+                <option value="">No template</option>
+                {templateList
+                  .filter(
+                    (t) =>
+                      !t.platform ||
+                      t.platform ===
+                        connections.find((c) => c.id === connectionId)
+                          ?.platform,
+                  )
+                  .map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
                     </option>
                   ))}
-                </select>
-              ) : (
-                <input
-                  type="text"
-                  value={settingsValues[field.key] ?? ""}
-                  onChange={(e) =>
-                    setSettingsValues((prev) => ({
-                      ...prev,
-                      [field.key]: e.target.value,
-                    }))
-                  }
-                  className="field-input"
-                  style={{ marginTop: "0.25rem" }}
-                />
-              )}
+              </select>
             </label>
-          ))}
 
-          <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
             <label>
-              <input
-                type="radio"
-                name="scheduleMode"
-                checked={scheduleMode === "now"}
-                onChange={() => setScheduleMode("now")}
-              />{" "}
-              Publish now
+              <span style={FIELD_LABEL_STYLE}>Caption</span>
+              <textarea
+                value={caption}
+                onChange={(e) => setCaption(e.target.value)}
+                rows={3}
+                className="field-input"
+              />
             </label>
-            <label>
-              <input
-                type="radio"
-                name="scheduleMode"
-                checked={scheduleMode === "later"}
-                onChange={() => setScheduleMode("later")}
-              />{" "}
-              Schedule for later
-            </label>
+
+            {settingsFields.map((field) => (
+              <label key={field.key}>
+                <span style={FIELD_LABEL_STYLE}>{field.key}</span>
+                {field.enumValues ? (
+                  <select
+                    value={settingsValues[field.key] ?? ""}
+                    onChange={(e) =>
+                      setSettingsValues((prev) => ({
+                        ...prev,
+                        [field.key]: e.target.value,
+                      }))
+                    }
+                    className="field-input"
+                  >
+                    <option value="">Select…</option>
+                    {field.enumValues.map((value) => (
+                      <option key={value} value={value}>
+                        {value}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    value={settingsValues[field.key] ?? ""}
+                    onChange={(e) =>
+                      setSettingsValues((prev) => ({
+                        ...prev,
+                        [field.key]: e.target.value,
+                      }))
+                    }
+                    className="field-input"
+                  />
+                )}
+              </label>
+            ))}
+
+            <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
+              <label>
+                <input
+                  type="radio"
+                  name="scheduleMode"
+                  checked={scheduleMode === "now"}
+                  onChange={() => setScheduleMode("now")}
+                />{" "}
+                Publish now
+              </label>
+              <label>
+                <input
+                  type="radio"
+                  name="scheduleMode"
+                  checked={scheduleMode === "later"}
+                  onChange={() => setScheduleMode("later")}
+                />{" "}
+                Schedule for later
+              </label>
+            </div>
+
+            <button
+              type="button"
+              disabled={publishing}
+              onClick={() => void handlePublish()}
+            >
+              {publishing
+                ? scheduleMode === "later"
+                  ? "Scheduling…"
+                  : "Publishing…"
+                : scheduleMode === "later"
+                  ? "Schedule"
+                  : "Publish now"}
+            </button>
           </div>
 
           {scheduleMode === "later" && (
-            <div>
-              <p style={{ marginBottom: "0.25rem" }}>Date and time</p>
+            <div style={{ flex: "0 0 auto" }}>
+              <span style={FIELD_LABEL_STYLE}>Date and time</span>
               <CalendarPicker
                 value={scheduledFor}
                 onChange={setScheduledFor}
@@ -364,21 +399,7 @@ export function Scheduler({
               />
             </div>
           )}
-
-          <button
-            type="button"
-            disabled={publishing}
-            onClick={() => void handlePublish()}
-          >
-            {publishing
-              ? scheduleMode === "later"
-                ? "Scheduling…"
-                : "Publishing…"
-              : scheduleMode === "later"
-                ? "Schedule"
-                : "Publish now"}
-          </button>
-        </>
+        </div>
       )}
     </div>
   );
