@@ -1364,6 +1364,27 @@ unpinning.
   before touching `snapToScenes` itself, which would mean crossing into
   that separate repo. Revisit `snapToScenes`'s own missing-guard bug
   directly if the quality bump doesn't fully resolve this.
+- **Done (2026-09-07): confirmed the proxy-quality hypothesis above was
+  wrong, and fixed the real bug in `snapToScenes`.** A second real run
+  of the same video at 720p/CRF 20 produced nearly identical scene
+  boundary timestamps to the original 480p/CRF 28 run (same handful of
+  cuts, same 5-of-9 zero-length clips), for ~4.4 extra minutes of proxy
+  cost — the sparse boundaries are inherent to this video's content
+  (plausibly a single continuous take with genuinely few hard cuts),
+  not a downscale/compression artifact. Reverted the proxy to 480p/CRF
+  28.
+
+  Fixed `snapToScenes` directly in `scenestealer-pipeline` (commit
+  `1b9bb7c`, separate repo): `startSec`/`endSec` no longer snap to
+  their nearest boundary independently — `endSec` now only considers
+  boundaries strictly *after* the snapped `startSec`, so the two can
+  never collide or invert. Falls back to the candidate's own original
+  duration, anchored at the snapped start, on the rare case where no
+  later boundary exists at all. Bumped `scenestealer-app`'s lockfile
+  to pick up the fix. _Revisit_: trigger one more real end-to-end
+  analyze run on `001_ScaryMallet@Fallout.MOV` (or similar) to confirm
+  the fix actually eliminates the zero-length clips in practice, not
+  just in the new unit tests.
 - **Done (2026-09-07): `downloadFromR2ToFile` splits large objects into
   several concurrent ranged GETs instead of one streamed GET.** A
   single-connection download of this session's real ~1.24GB test
