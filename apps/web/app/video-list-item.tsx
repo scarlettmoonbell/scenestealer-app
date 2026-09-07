@@ -6,7 +6,15 @@ import { useRouter } from "next/navigation";
 import { describeFetchError } from "./fetch-error";
 import { useAuthedFetch } from "./use-authed-fetch";
 
-export function VideoListItem({ id, title }: { id: string; title: string }) {
+export function VideoListItem({
+  id,
+  title,
+  striped,
+}: {
+  id: string;
+  title: string;
+  striped: boolean;
+}) {
   const authedFetch = useAuthedFetch();
   const router = useRouter();
   const [deleting, setDeleting] = useState(false);
@@ -37,22 +45,37 @@ export function VideoListItem({ id, title }: { id: string; title: string }) {
   }
 
   return (
-    <li
-      style={{
-        padding: "0.5rem 0",
-        borderBottom: "1px solid #333",
-        display: "flex",
-        alignItems: "center",
-        gap: "0.75rem",
-      }}
+    <tr
+      style={{ background: striped ? "var(--surface-raised)" : "transparent" }}
     >
-      <Link href={`/videos/${id}`} style={{ flex: 1 }}>
-        {title}
-      </Link>
-      {error && <span role="alert">{error}</span>}
-      <button type="button" disabled={deleting} onClick={handleDelete}>
-        {deleting ? "Deleting…" : "Delete"}
-      </button>
-    </li>
+      <td
+        style={{
+          padding: "0.5rem 0.75rem 0.5rem 0",
+          borderBottom: "1px solid var(--border)",
+        }}
+      >
+        <Link href={`/videos/${id}`}>{title}</Link>
+      </td>
+      <td
+        style={{
+          padding: "0.5rem 0 0.5rem 0.75rem",
+          borderBottom: "1px solid var(--border)",
+          textAlign: "right",
+        }}
+      >
+        <div
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "0.75rem",
+          }}
+        >
+          {error && <span role="alert">{error}</span>}
+          <button type="button" disabled={deleting} onClick={handleDelete}>
+            {deleting ? "Deleting…" : "Delete"}
+          </button>
+        </div>
+      </td>
+    </tr>
   );
 }
