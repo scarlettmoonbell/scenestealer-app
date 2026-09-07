@@ -84,35 +84,31 @@ async function extractAudio(videoPath: string, audioPath: string) {
  * original videoPath is untouched — waveform peaks, final clip
  * renders, and playback all still use the real master.
  *
- * 720p height / CRF 20 (bumped from an initial 480p / CRF 28, 2026-09-07
- * — see ROADMAP.md): the first real end-to-end run completed but
- * produced several degenerate zero-length clips — `snapToScenes` (the
- * separate scenestealer-pipeline repo) independently snaps a candidate
- * highlight's start and end to whichever scene boundary is nearest
- * *each*, with no guard against both landing on the same one, and the
- * proxy's scene detection found only a handful of distinct boundaries
- * for the whole ~17-minute video — sparse enough that multiple
- * genuinely different AI-suggested highlights collided onto the same
- * boundary. Not proven which way the causality runs (this video may
- * itself have few real hard cuts, being a single continuous take), but
- * 480p/CRF 28's aggressive downscale + compression is a plausible
- * enough way to smooth out real per-frame differences `detect-content`
- * needs that it's worth ruling out cheaply before touching
- * `snapToScenes` itself (a separate repo). Still far cheaper to decode
- * than the original 10-bit HEVC Dolby Vision master either way.
+ * 480p height / CRF 28 — briefly bumped to 720p/CRF 20 (2026-09-07) to
+ * rule out the proxy's downscale/compression as the cause of several
+ * degenerate zero-length clips on a real run, but a second real run at
+ * the higher quality produced the *same* sparse scene boundaries (same
+ * handful of timestamps, same 5-of-9 zero-length clips) at ~4.4 extra
+ * minutes of cost for no improvement — confirming the sparsity is
+ * inherent to this video's content (plausibly a single continuous take
+ * with genuinely few hard cuts), not a proxy-quality artifact. Reverted
+ * to 480p/CRF 28. The real fix for the zero-length clips is
+ * `snapToScenes` itself guarding against its start/end snap both
+ * landing on the same boundary — see the separate scenestealer-pipeline
+ * repo, not this one.
  */
 async function createVideoProxy(videoPath: string, proxyPath: string) {
   await execFileAsync("ffmpeg", [
     "-i",
     videoPath,
     "-vf",
-    "scale=-2:720",
+    "scale=-2:480",
     "-c:v",
     "libx264",
     "-preset",
     "veryfast",
     "-crf",
-    "20",
+    "28",
     "-pix_fmt",
     "yuv420p",
     "-an",
