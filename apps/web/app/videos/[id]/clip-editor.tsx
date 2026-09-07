@@ -496,14 +496,13 @@ export function ClipEditor({
 
       {waveformPeaks ? (
         <p style={{ color: "var(--muted)", fontSize: "0.9em" }}>
-          Drag across an empty part of the waveform above to define a new
-          clip.
+          Drag across an empty part of the waveform above to define a new clip.
         </p>
       ) : (
         waveformUnavailable && (
           <p style={{ color: "var(--muted)", fontSize: "0.9em" }}>
-            Waveform unavailable for this video — new clips can still be
-            drawn once it&apos;s re-analyzed, or adjusted below by time.
+            Waveform unavailable for this video — new clips can still be drawn
+            once it&apos;s re-analyzed, or adjusted below by time.
           </p>
         )
       )}
@@ -703,7 +702,11 @@ export function ClipEditor({
                         {renderingIds.has(clip.id) ? "Rendering…" : "Render"}
                       </button>
                     )}
-                    {clip.status === "rendering" && <span>Rendering…</span>}
+                    {clip.status === "rendering" && (
+                      <button type="button" disabled>
+                        Rendering…
+                      </button>
+                    )}
                     {clip.status === "ready" &&
                       clip.renderedR2Key &&
                       (renderedUrls[clip.id] ? (
