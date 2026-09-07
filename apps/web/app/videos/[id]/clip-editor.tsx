@@ -708,18 +708,15 @@ export function ClipEditor({
                       gap: "0.5rem",
                     }}
                   >
-                    {clip.status !== "accepted" &&
-                      clip.status !== "ready" &&
-                      clip.status !== "rendering" && (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            void updateClip(clip.id, { status: "accepted" })
-                          }
-                        >
-                          Accept
-                        </button>
-                      )}
+                    {clip.status !== "ready" && clip.status !== "rendering" && (
+                      <button
+                        type="button"
+                        disabled={renderingIds.has(clip.id)}
+                        onClick={() => void renderClip(clip.id)}
+                      >
+                        {renderingIds.has(clip.id) ? "Rendering…" : "Accept"}
+                      </button>
+                    )}
                     {clip.status !== "rejected" && (
                       <button
                         type="button"
@@ -728,15 +725,6 @@ export function ClipEditor({
                         }
                       >
                         Reject
-                      </button>
-                    )}
-                    {clip.status === "accepted" && (
-                      <button
-                        type="button"
-                        disabled={renderingIds.has(clip.id)}
-                        onClick={() => void renderClip(clip.id)}
-                      >
-                        {renderingIds.has(clip.id) ? "Rendering…" : "Render"}
                       </button>
                     )}
                     {clip.status === "rendering" && (
