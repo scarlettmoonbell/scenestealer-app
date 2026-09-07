@@ -1640,6 +1640,24 @@ unpinning.
   though that changes how the secret takes effect (a version to
   deploy separately, not immediate) and would need its own real
   verification before adopting.
+- **Done (2026-09-07): Scheduling page overhaul** — clicking a
+  "Rendered clips" row now selects it for publishing (replacing a
+  per-row button), with a visible selected-row highlight; switching
+  rows switches the selection. Added `DELETE /clips/:id` (deletes the
+  R2 object if rendered, nulls any referencing `posts.clipId`, same
+  pattern as `DELETE /videos/:id`) wired to a new Manage-column Delete
+  button — the actual "I'm done with this one" action to pair with
+  clips now being able to outlive their source video. Title column
+  widened via `<colgroup>`. `Scheduler`'s form fields now use a new
+  shared `.field-input` class (`globals.css`) matching the button/
+  `.btn-link` electric-blue-border look, and the native
+  `datetime-local` input was replaced with a real calendar-grid date
+  picker (`calendar-picker.tsx`: month dropdown, prev/next arrows, a
+  day grid, time field underneath) producing the same value format
+  `handlePublish` already expected. Not visually verified locally —
+  same pre-existing `getcwd` sandbox gap noted below; typecheck/lint
+  clean, worth a live look especially for the calendar and the
+  selected-row highlight color.
 - **Live external accounts**: Clerk, Neon, Cloudflare, Fly.io, Groq,
   and Anthropic are all live and in real use as of Phase 4. Stripe is
   configured (test-mode placeholder tiers, see Phase 7) but no billing
