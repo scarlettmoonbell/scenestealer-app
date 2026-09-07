@@ -1616,6 +1616,30 @@ unpinning.
      vanishing from both lists. The delete-video confirm dialog no
      longer claims rendered clips get deleted — it says where to find
      them instead.
+- **Done (2026-09-07): rendered clips gained an editable `title`
+  (Scheduling page's "Rendered clips" table, first column now "Title"
+  not "Video"), and the Privacy Policy gained a dedicated AI
+  Transparency section** — what the two AI-assisted steps
+  (transcription, highlight suggestion) actually do, what the
+  highlight-suggestion model does and doesn't see (derived text only —
+  transcript, audio-energy timestamps, scene-boundary timestamps —
+  never the raw video/audio), and that a person always explicitly
+  accepts/renders/publishes; nothing is automated end-to-end.
+- **Noted, not fixed — a one-off transient CI flake**: the
+  `deploy-worker` job's "Capture and publish the deployed worker image
+  reference" step failed once (2026-09-07) with Cloudflare's own
+  `wrangler secret put` refusing because "the latest version of your
+  Worker isn't currently deployed" — a Cloudflare Worker-versioning
+  race, not anything this repo's own code caused. Re-running the exact
+  same command by hand immediately after succeeded with no other
+  intervention, and `WORKER_IMAGE_REF` was confirmed correctly set
+  afterward. Only ever seen once across many deploys this session;
+  not worth a CI workflow change on a single occurrence with an
+  unconfirmed root cause. _Revisit_: if this recurs, wrangler's own
+  error suggests `wrangler versions secret put` as a structural fix,
+  though that changes how the secret takes effect (a version to
+  deploy separately, not immediate) and would need its own real
+  verification before adopting.
 - **Live external accounts**: Clerk, Neon, Cloudflare, Fly.io, Groq,
   and Anthropic are all live and in real use as of Phase 4. Stripe is
   configured (test-mode placeholder tiers, see Phase 7) but no billing
