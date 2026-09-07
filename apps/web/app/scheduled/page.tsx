@@ -214,13 +214,6 @@ function SchedulingContent() {
               clipDurationSec={selectedClip.clipDurationSec}
             />
           </div>
-          <button
-            type="button"
-            onClick={() => setSelectedClipId(null)}
-            style={{ marginTop: "0.75rem" }}
-          >
-            Choose a different clip
-          </button>
         </div>
       )}
 
@@ -238,9 +231,9 @@ function SchedulingContent() {
               </p>
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <colgroup>
-                  <col style={{ width: "40%" }} />
-                  <col style={{ width: "13%" }} />
-                  <col style={{ width: "32%" }} />
+                  <col style={{ width: "22%" }} />
+                  <col style={{ width: "12%" }} />
+                  <col style={{ width: "51%" }} />
                   <col style={{ width: "15%" }} />
                 </colgroup>
                 <thead>
