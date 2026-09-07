@@ -415,22 +415,32 @@ export async function runAnalyze(
         }
         logStep(sourceVideoId, startedAt, "waveform-peaks-done");
 
-        // Best-effort: a proxy failure shouldn't fail the analysis this
-        // job exists for — falls back to the original videoPath (slower,
-        // but correct) rather than skipping detection outright. See
-        // createVideoProxy's own comment for why this exists at all.
-        let sceneDetectPath = videoPath;
-        try {
-          const proxyPath = join(tmpDir, "proxy.mp4");
-          await createVideoProxy(videoPath, proxyPath);
-          sceneDetectPath = proxyPath;
-        } catch (e) {
-          console.error(
-            "Video proxy creation failed (non-fatal, falling back to source video):",
-            e,
-          );
-        }
-        logStep(sourceVideoId, startedAt, "proxy-created");
+        // Kicked off here, not awaited yet — only detectScenes below
+        // actually depends on the proxy; transcribe and
+        // detectAudioEnergyEvents don't (see createVideoProxy's own
+        // comment for why), so there's no reason to make them wait
+        // behind ~6 minutes of proxy-transcode time that's irrelevant
+        // to them, needlessly extending the tenant's total wait.
+        // Best-effort, inlined into the promise chain itself: a proxy
+        // failure resolves to the original videoPath (slower, but
+        // correct) rather than skipping scene detection outright.
+        const proxyPath = join(tmpDir, "proxy.mp4");
+        const sceneDetectPathPromise: Promise<string> = createVideoProxy(
+          videoPath,
+          proxyPath,
+        )
+          .then(() => {
+            logStep(sourceVideoId, startedAt, "proxy-created");
+            return proxyPath;
+          })
+          .catch((e: unknown) => {
+            console.error(
+              "Video proxy creation failed (non-fatal, falling back to source video):",
+              e,
+            );
+            logStep(sourceVideoId, startedAt, "proxy-failed-falling-back");
+            return videoPath;
+          });
 
         const sceneDetector = new PySceneDetectDetector();
         const transcriber = new GroqTranscriber(process.env.GROQ_API_KEY!);
@@ -439,20 +449,25 @@ export async function runAnalyze(
         );
 
         // Logged individually, not just once after Promise.all — these
-        // three run concurrently, so their peak memory usage adds up
-        // rather than one replacing another; knowing which one is still
-        // in flight when a crash happens (or which finishes last)
-        // matters as much as knowing it happened somewhere in this
-        // block. Only detectScenes runs against the proxy (or the
-        // original videoPath if that failed) — detectAudioEnergyEvents
-        // takes the real videoPath, deliberately, not the (audio-less)
-        // proxy; see createVideoProxy's own comment for why sharing it
-        // between the two was wrong.
+        // three run concurrently (the proxy transcode itself overlaps
+        // with transcribe/detectAudioEnergyEvents too, not just with
+        // scene detection — see sceneDetectPathPromise above), so their
+        // peak memory/CPU usage adds up rather than one replacing
+        // another; knowing which one is still in flight when a crash
+        // happens (or which finishes last) matters as much as knowing
+        // it happened somewhere in this block. Only detectScenes runs
+        // against the proxy (or the original videoPath if that failed)
+        // — detectAudioEnergyEvents takes the real videoPath,
+        // deliberately, not the (audio-less) proxy; see
+        // createVideoProxy's own comment for why sharing it between the
+        // two was wrong.
         const [scenes, transcript, audioEvents] = await Promise.all([
-          sceneDetector.detectScenes(sceneDetectPath).then((result) => {
-            logStep(sourceVideoId, startedAt, "scenes-detected");
-            return result;
-          }),
+          sceneDetectPathPromise
+            .then((path) => sceneDetector.detectScenes(path))
+            .then((result) => {
+              logStep(sourceVideoId, startedAt, "scenes-detected");
+              return result;
+            }),
           transcriber.transcribe(audioPath).then((result) => {
             logStep(sourceVideoId, startedAt, "transcribed");
             return result;
