@@ -14,7 +14,7 @@ export default function PrivacyPolicyPage() {
     <main style={{ maxWidth: 720, margin: "0 auto", padding: "2rem 1rem" }}>
       <h1>Privacy Policy</h1>
       <p>
-        <em>Last updated: 2026-09-02</em>
+        <em>Last updated: 2026-09-07</em>
       </p>
 
       <p>
@@ -77,10 +77,73 @@ export default function PrivacyPolicyPage() {
         your review. Suggested clips are never published automatically &mdash; a
         person on your team must explicitly accept a clip, and separately,
         explicitly trigger a render and a publish. We do not use your content to
-        train AI models, and we do not sell your data.
+        train AI models, and we do not sell your data. See{" "}
+        <a href="#ai-transparency">AI Transparency</a> below for exactly what
+        our AI-assisted steps do and don&rsquo;t see.
       </p>
 
-      <h2>Third-party service providers</h2>
+      <h2 id="ai-transparency">AI Transparency</h2>
+      <p>
+        This section explains, specifically, what our AI-assisted steps do, what
+        they see, and who stays in control of what actually gets published.
+      </p>
+      <p>
+        <strong>What AI actually does.</strong> Two AI-assisted steps run
+        automatically when you upload a recording and start analysis:
+        transcription (your recording&rsquo;s audio track is transcribed to
+        text, with timestamps), and highlight suggestion (an AI model reads the
+        transcript, a list of audio-energy spikes &mdash; moments louder than
+        the surrounding baseline, typically applause, laughter, or audience
+        reaction &mdash; and the real scene/cut boundaries our own, non-AI,
+        scene-detection step already found, then proposes a ranked list of
+        candidate clip windows with a short written reason for each).
+        That&rsquo;s the full extent of it: there is no AI step that edits your
+        footage, alters what was said or done on stage, or generates any
+        synthetic video, audio, or narration. A suggested clip is always a real,
+        unmodified excerpt of your original recording &mdash; the AI only picks
+        the start and end points.
+      </p>
+      <p>
+        <strong>
+          What the AI model sees &mdash; and what it doesn&rsquo;t.
+        </strong>{" "}
+        The highlight-suggestion model never receives your raw video or audio.
+        It only receives text: the transcript, the timestamps of audio-energy
+        spikes, and the timestamps of real scene boundaries. Your actual video
+        and audio files are never uploaded to, or processed by, the AI model
+        that suggests highlights.
+      </p>
+      <p>
+        <strong>A person decides what actually happens.</strong> Nothing the AI
+        suggests is published, or even rendered, on its own. Every suggested
+        clip sits as a proposal until someone on your team accepts it (or draws
+        their own clip manually, which never involves the AI at all) &mdash; the
+        AI has no part in triggering a render. Publishing or scheduling a
+        rendered clip to a connected platform is a separate, explicit action,
+        taken by a person, every time. You can also reject any suggestion
+        outright, and adjust a clip&rsquo;s start/end points before accepting
+        it, whether or not it came from an AI suggestion.
+      </p>
+      <p>
+        <strong>Which AI providers are involved.</strong> Transcription runs on
+        Groq&rsquo;s hosted Whisper model. Highlight suggestion runs on
+        Anthropic&rsquo;s Claude &mdash; see{" "}
+        <a href="#providers">Third-party service providers</a> below for every
+        provider we use.
+      </p>
+      <p>
+        <strong>Disclosing AI involvement on platforms you publish to.</strong>{" "}
+        Some social platforms have their own rules about disclosing AI-assisted
+        content. Because the clips <Brand /> produces are always real, unaltered
+        excerpts of your own recording &mdash; the AI only chooses which moment
+        to excerpt &mdash; most of these platform rules (generally aimed at
+        synthetic or substantially altered media) are unlikely to apply.
+        We&rsquo;re not able to give platform-specific legal advice, though, so
+        if you&rsquo;re unsure, check the current disclosure policy of whichever
+        platform you&rsquo;re publishing to.
+      </p>
+
+      <h2 id="providers">Third-party service providers</h2>
       <p>
         We rely on the following providers to run <Brand />. Each only receives
         the data it needs to perform its specific function:
