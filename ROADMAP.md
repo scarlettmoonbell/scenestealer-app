@@ -1224,6 +1224,74 @@ unpinning.
   cost material, or per-video compute cost becoming the actual
   constraint on what this product can charge end users, rather than a
   hypothetical.
+- **Done (2026-09-07): built the per-job Fly Machines API spawn named
+  above as the fix — retires the always-on worker entirely, for both
+  analyze and render.** `apps/api` no longer calls a persistent
+  `scenestealer-worker` HTTP app at all; `fly-machines.ts`'s
+  `spawnWorkerMachine` (used by both `routes/videos.ts`'s
+  `runAnalyzeJob` and `routes/clips.ts`'s `POST /:id/render`) creates a
+  fresh, disposable Machine per job via Fly's Machines API —
+  `performance-2x`/4gb (non-throttled, chosen over `performance-1x`
+  since `libx264`'s encode step and whatever `scenedetect`/OpenCV
+  thread internally should both benefit from 2 dedicated cores, for a
+  per-job cost difference of fractions of a cent), `auto_destroy: true`
+  so it cleans itself up the instant its process exits, billed
+  per-second only while it actually runs. `apps/worker/src/index.ts`'s
+  one-shot CLI mode needed zero changes — it was already exactly this
+  shape since Phase 4, just unused until now.
+
+  `server.ts` (the always-on HTTP server) is deleted outright — nothing
+  serves HTTP traffic in `apps/worker` anymore. `fly.toml` drops
+  `[http_service]` entirely; the app has no `min_machines_running`/
+  `auto_stop_machines` tuning left to do, since nothing runs
+  continuously. Kept a minimal `shared-cpu-1x`/512mb `[[vm]]` stub
+  purely in case `flyctl deploy` still expects some default Machine spec
+  to push a release against with no `[http_service]` present
+  (unverified before this shipped — real jobs never use this size
+  regardless, they specify `performance-2x` explicitly per-request).
+
+  **Image reference discovery**: apps/api can't hardcode which Docker
+  image to hand the Machines API, or dispatch would go stale on the
+  next deploy. `.github/workflows/deploy.yml`'s `deploy-worker` job now
+  runs one more step after `flyctl deploy`: `flyctl status -a
+  scenestealer-worker --json` (confirmed live against the real app to
+  return `Machines[].image_ref.tag`), parsed into a full image ref and
+  published as a Cloudflare Worker secret (`WORKER_IMAGE_REF`) via
+  `wrangler secret put`, piped through `pnpm --filter @scenestealer/api
+  exec wrangler` so it picks up that package's own `wrangler.toml`.
+
+  **Render moved to the same dispatch-and-poll shape as analyze, in
+  this same pass** (a deliberate scope decision — render had shown no
+  OOM/throttling symptoms itself, but leaving it on the old synchronous
+  HTTP path would have meant keeping the always-on worker alive just
+  for it, undoing most of this fix's point). `POST /clips/:id/render`
+  now sets `status: "rendering"` itself before dispatching and returns
+  immediately, instead of awaiting the worker's full HTTP response for
+  the finished clip; a new `GET /clips/:id/status` (mirroring
+  `videos.ts`'s own status-poll route) is what `clip-editor.tsx` now
+  polls, the same pattern `analyze-control.tsx` already used. This
+  surfaced a real gap: `clips` had no error column at all — a failed
+  render used to just silently revert to `"accepted"` with no message
+  anywhere, relying on the now-gone synchronous response to carry the
+  error text to the frontend. Added `clips.renderError` (mirrors
+  `sourceVideos.analysisError`), written by `render.ts`'s existing catch
+  path and shown inline in the clip table. Render's completion
+  deliberately does **not** trigger an email (unlike analyze) — clips
+  render fast enough that the original "tenant leaves the page" problem
+  this notification exists for doesn't really apply, and wiring it
+  would have meant giving `clips` their own `triggeredByClerkUserId`
+  too; left out of scope for now.
+
+  `WORKER_URL` and the `apps/api` -> worker leg of `WORKER_SHARED_SECRET`
+  are gone; `FLY_API_TOKEN` (a new, narrowly-scoped Fly deploy token for
+  `scenestealer-worker` specifically — **not** a reuse of the CI-only
+  `FLY_API_TOKEN` GitHub Actions secret already used for `flyctl
+  deploy`) is the new dispatch credential, set manually via `wrangler
+  secret put` — **not yet provisioned as of this writing**, so
+  dispatch will fail until that's done. `WORKER_SHARED_SECRET` itself
+  stays: it's still what verifies the *inbound* completion-notify
+  callback from a spawned worker Machine (`routes/internal.ts`), just
+  no longer used for the outbound direction.
 - **Live external accounts**: Clerk, Neon, Cloudflare, Fly.io, Groq,
   and Anthropic are all live and in real use as of Phase 4. Stripe is
   configured (test-mode placeholder tiers, see Phase 7) but no billing

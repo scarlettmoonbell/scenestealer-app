@@ -11,6 +11,7 @@ import {
 import { createPresignedGetUrl } from "../r2.js";
 import { requireTenant } from "../auth.js";
 import { createPost } from "../postiz.js";
+import { spawnWorkerMachine } from "../fly-machines.js";
 import { getOwnedSourceVideo } from "./videos.js";
 import type { Env } from "../index.js";
 import type { Variables } from "../auth.js";
@@ -135,19 +136,18 @@ clipsRoute.patch("/:id", async (c) => {
   return c.json({ clip: updated });
 });
 
-// Proxies to apps/worker's /render route — same shape as
-// videos.ts's POST /:id/analyze, except still fully synchronous
-// within this HTTP request (not queue-dispatched — clips are
-// typically much shorter than a full source video, so this hasn't
-// hit apps/api's Custom Domain edge-proxy timeout in practice the way
-// analyze did, but it's the same class of risk for a slow render and
-// not yet fixed the same way; see ROADMAP.md).
-//
-// apps/worker's /render always responds 200 now, once it commits to
-// streaming a keepalive-padded body to survive Fly's own 60s
-// idle-connection proxy timeout (see apps/worker/src/server.ts) — a
-// real failure only shows up as the body's own `error` field, not the
-// HTTP status, so that has to be checked regardless of workerRes.ok.
+// Spawns a fresh, disposable Fly Machine to render the clip (see
+// fly-machines.ts) and returns as soon as it's dispatched — same
+// dispatch-and-poll shape as videos.ts's POST /:id/analyze, moved to
+// this pattern 2026-09-07 alongside analyze (previously synchronous:
+// this route awaited apps/worker's own HTTP response for the whole
+// render, which was the same class of risk analyze already hit for
+// real, just not yet observed on the shorter render path — see
+// ROADMAP.md). The spawned Machine owns writing the clip's own final
+// status directly to Postgres (render.ts, unchanged) — GET
+// /:id/status below is what the frontend now polls to find out when a
+// render actually finishes, the same way analyze-control.tsx already
+// does for analyze.
 clipsRoute.post("/:id/render", async (c) => {
   const tenantId = c.get("tenantId");
   const clipId = c.req.param("id");
@@ -158,54 +158,54 @@ clipsRoute.post("/:id/render", async (c) => {
     return c.json({ error: "Clip not found" }, 404);
   }
 
-  const workerRes = await fetch(`${c.env.WORKER_URL}/render`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${c.env.WORKER_SHARED_SECRET}`,
-    },
-    body: JSON.stringify({ clipId: clip.id }),
+  // Set immediately (not left to the spawned Machine) so the frontend's
+  // own optimistic "Rendering…" state is backed by the real row the
+  // moment this call returns, matching POST /:id/analyze's
+  // status: "analyzing" write.
+  await db
+    .update(clips)
+    .set({ status: "rendering", renderError: null })
+    .where(eq(clips.id, clipId));
+
+  const result = await spawnWorkerMachine(c.env, {
+    JOB_TYPE: "render",
+    CLIP_ID: clipId,
   });
 
-  const rawBody = await workerRes.text();
-  let body: { error?: string } = {};
-  // Tracked separately from `body` staying `{}` on a parse failure — a
-  // truncated/malformed-but-200 response (the worker's connection cut
-  // off mid-render) must not read the same as a genuine success just
-  // because `body.error` ends up merely `undefined`; see routes/
-  // videos.ts's runAnalyzeJob for the same bug confirmed for real on
-  // the analyze path (2026-09-06, see ROADMAP.md).
-  let parsedOk = true;
-  try {
-    body = JSON.parse(rawBody) as { error?: string };
-  } catch {
-    parsedOk = false;
-    // Non-JSON body — an infra-level failure before the app ever
-    // wrote anything (e.g. Fly's own proxy on a dead machine).
+  if (!result.ok) {
+    const renderError = `Failed to start render (Fly status ${result.status})`;
+    await db
+      .update(clips)
+      .set({ status: "accepted", renderError })
+      .where(eq(clips.id, clipId));
+    return c.json({ error: renderError }, 502);
   }
 
-  if (!workerRes.ok || !parsedOk || body.error != null) {
-    return c.json(
-      {
-        error:
-          body.error ??
-          (!parsedOk
-            ? `Worker response was truncated or malformed (worker status ${workerRes.status})`
-            : `Render failed (worker status ${workerRes.status})`),
-      },
-      workerRes.ok ? 500 : (workerRes.status as 400 | 401 | 500),
-    );
-  }
-
-  // The worker returns { renderedR2Key }, not the full row — re-read it
-  // so the response shape matches PATCH /:id's { clip }, which the
-  // clip editor already knows how to fold into its local state.
   const [updated] = await db
     .select()
     .from(clips)
-    .where(eq(clips.id, clip.id))
+    .where(eq(clips.id, clipId))
     .limit(1);
   return c.json({ clip: updated });
+});
+
+// Lightweight status check the clip editor polls while a render is in
+// flight — same role as videos.ts's GET /:id/status for analyze.
+clipsRoute.get("/:id/status", async (c) => {
+  const tenantId = c.get("tenantId");
+  const clipId = c.req.param("id");
+  const db = createDb(c.env.DATABASE_URL);
+
+  const clip = await getOwnedClip(db, tenantId, clipId);
+  if (!clip) {
+    return c.json({ error: "Clip not found" }, 404);
+  }
+
+  return c.json({
+    status: clip.status,
+    renderError: clip.renderError,
+    renderedR2Key: clip.renderedR2Key,
+  });
 });
 
 // Publishes a rendered clip to a connected account via Postiz. `settings`

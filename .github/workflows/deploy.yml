@@ -145,3 +145,18 @@ jobs:
         run: flyctl deploy --config apps/worker/fly.toml --dockerfile apps/worker/Dockerfile
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      # apps/api dispatches analyze/render jobs by spawning a fresh Fly
+      # Machine per job (see apps/api/src/fly-machines.ts) rather than
+      # calling an always-on worker app — it needs to know which image
+      # to use for that, so this captures the image reference this
+      # deploy just pushed and publishes it as a Cloudflare Worker
+      # secret apps/api reads at dispatch time. Runs once per deploy
+      # here rather than apps/api querying Fly itself on every dispatch.
+      - name: Capture and publish the deployed worker image reference
+        run: |
+          IMAGE_REF="registry.fly.io/scenestealer-worker:$(flyctl status -a scenestealer-worker --json | jq -r '.Machines[0].image_ref.tag')"
+          echo "$IMAGE_REF" | pnpm --filter @scenestealer/api exec wrangler secret put WORKER_IMAGE_REF
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

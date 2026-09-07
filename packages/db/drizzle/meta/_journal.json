@@ -43,6 +43,13 @@
       "when": 1788746116350,
       "tag": "0005_lively_thing",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1788757372690,
+      "tag": "0006_unknown_spitfire",
+      "breakpoints": true
     }
   ]
 }

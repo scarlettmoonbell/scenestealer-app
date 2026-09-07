@@ -35,7 +35,16 @@ max_batch_size = 1
 # optional — routes/internal.ts's completion-email step skips quietly
 # without it. Needs a verified sending domain on Resend's side first;
 # not yet provisioned as of 2026-09-07, see ROADMAP.md.
+#
+# FLY_API_TOKEN (`wrangler secret put`, manual — a narrowly-scoped Fly
+# deploy token for the scenestealer-worker app specifically, distinct
+# from the CI-only FLY_API_TOKEN GitHub Actions secret) and
+# WORKER_IMAGE_REF (set automatically by .github/workflows/deploy.yml's
+# deploy-worker job after each deploy) are how apps/api spawns a
+# per-job Fly Machine via fly-machines.ts — see that file and
+# apps/worker/fly.toml for the full picture. WORKER_URL is gone: as of
+# 2026-09-07 apps/api never calls the worker over HTTP itself, only the
+# other direction (routes/internal.ts's completion-notify callback,
+# still authenticated with WORKER_SHARED_SECRET).
 WEB_ORIGIN = "https://scenestealer.app"
-# apps/worker's Fly app — see that app's fly.toml.
-WORKER_URL = "https://scenestealer-worker.fly.dev"
 

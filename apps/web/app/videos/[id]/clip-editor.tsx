@@ -40,6 +40,8 @@ const HEADER_CELL_STYLE: CSSProperties = {
   ...TABLE_HEADER_STYLE,
 };
 
+const RENDER_POLL_INTERVAL_MS = 5000;
+
 function formatTime(sec: number): string {
   const m = Math.floor(sec / 60);
   const s = (sec % 60).toFixed(1);
@@ -197,14 +199,22 @@ export function ClipEditor({
   const renderClip = useCallback(
     async (clipId: string) => {
       setRenderingIds((prev) => new Set(prev).add(clipId));
+      setError(null);
       try {
         const res = await authedFetch(`/clips/${clipId}/render`, {
           method: "POST",
         });
         if (!res.ok) {
-          setError("Failed to render clip");
+          const body = (await res.json().catch(() => null)) as {
+            error?: string;
+          } | null;
+          setError(body?.error ?? "Failed to render clip");
           return;
         }
+        // Dispatched, not finished — this now reflects status:
+        // "rendering", not the finished render (apps/api spawns a Fly
+        // Machine to do the actual work — see fly-machines.ts). The
+        // polling effect below picks up the real outcome.
         const { clip } = (await res.json()) as { clip: Clip };
         setClipList((prev) => prev.map((c) => (c.id === clip.id ? clip : c)));
       } catch (e) {
@@ -219,6 +229,58 @@ export function ClipEditor({
     },
     [authedFetch],
   );
+
+  // Polls every clip currently showing status "rendering" until it
+  // resolves to something else — same role as analyze-control.tsx's own
+  // polling effect for analyze, needed here because POST /:id/render no
+  // longer waits for the render to actually finish (see renderClip
+  // above). A single persistent interval, not one keyed to clipList
+  // changing: reads the latest clip list via a ref on each tick instead
+  // of restarting the interval on every unrelated edit (a drag, a
+  // boundary-field change, etc.).
+  const clipListRef = useRef(clipList);
+  useEffect(() => {
+    clipListRef.current = clipList;
+  }, [clipList]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const renderingClipIds = clipListRef.current
+        .filter((c) => c.status === "rendering")
+        .map((c) => c.id);
+      for (const clipId of renderingClipIds) {
+        void authedFetch(`/clips/${clipId}/status`)
+          .then((res) => (res.ok ? res.json() : null))
+          .then(
+            (
+              body: {
+                status: Clip["status"];
+                renderError: string | null;
+                renderedR2Key: string | null;
+              } | null,
+            ) => {
+              if (!body || body.status === "rendering") return;
+              setClipList((prev) =>
+                prev.map((c) =>
+                  c.id === clipId
+                    ? {
+                        ...c,
+                        status: body.status,
+                        renderError: body.renderError,
+                        renderedR2Key: body.renderedR2Key,
+                      }
+                    : c,
+                ),
+              );
+            },
+          )
+          .catch(() => {
+            // Transient — keep polling.
+          });
+      }
+    }, RENDER_POLL_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [authedFetch]);
 
   const fetchRenderedUrl = useCallback(
     async (clipId: string) => {
@@ -596,6 +658,11 @@ export function ClipEditor({
                 </td>
                 <td style={{ ...CELL_STYLE, fontSize: "0.85em", opacity: 0.7 }}>
                   {clip.status}
+                  {clip.renderError && (
+                    <p role="alert" style={{ margin: "0.25rem 0 0" }}>
+                      {clip.renderError}
+                    </p>
+                  )}
                 </td>
                 <td style={CELL_STYLE}>
                   <div

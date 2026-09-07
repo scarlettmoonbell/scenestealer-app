@@ -50,7 +50,7 @@ export async function runRender(
   try {
     await db
       .update(clips)
-      .set({ status: "rendering" })
+      .set({ status: "rendering", renderError: null })
       .where(eq(clips.id, clipId));
 
     await downloadFromR2ToFile(r2Config, video.r2Key, sourcePath);
@@ -75,9 +75,14 @@ export async function runRender(
 
     return { renderedR2Key };
   } catch (err) {
+    // renderError persisted so the frontend has something real to show
+    // — before render moved to a dispatch-and-poll model (per-job Fly
+    // Machine, 2026-09-07), the synchronous HTTP response carried this
+    // text directly; nothing was ever stored on the row itself.
+    const message = err instanceof Error ? err.message : "Render failed";
     await db
       .update(clips)
-      .set({ status: "accepted" })
+      .set({ status: "accepted", renderError: message })
       .where(eq(clips.id, clipId));
     throw err;
   } finally {

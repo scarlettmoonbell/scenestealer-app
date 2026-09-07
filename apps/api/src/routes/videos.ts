@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import { clips, createDb, jobs, posts, sourceVideos } from "@scenestealer/db";
 import { createPresignedGetUrl, deleteR2Object } from "../r2.js";
 import { requireTenant } from "../auth.js";
+import { spawnWorkerMachine } from "../fly-machines.js";
 import type { Env } from "../index.js";
 import type { Variables } from "../auth.js";
 
@@ -122,67 +123,61 @@ videos.post("/:id/clips", async (c) => {
   return c.json({ clip });
 });
 
-// Dispatches the job to apps/worker's /analyze route and returns as
-// soon as the worker *accepts* it — run from the queue consumer
-// (index.ts) rather than inside POST /:id/analyze's own request/
-// response cycle, since apps/api sits behind a Cloudflare Custom
-// Domain whose edge proxy times out a response at ~100s (confirmed for
-// real 2026-09-05, a 1.24GB file).
+// Spawns a fresh, disposable Fly Machine to run the job (see
+// fly-machines.ts) and returns as soon as the Machine is *created* — run
+// from the queue consumer (index.ts) rather than inside POST
+// /:id/analyze's own request/response cycle, since apps/api sits behind
+// a Cloudflare Custom Domain whose edge proxy times out a response at
+// ~100s (confirmed for real 2026-09-05, a 1.24GB file).
 //
 // Deliberately does NOT wait for the job to finish, and does NOT write
-// sourceVideos.status on success anymore — as of 2026-09-07, analyze.ts
-// owns writing its own final status directly to Postgres once it
-// actually knows the outcome (see that file's own comment). This used
-// to await the worker's full response and infer success/failure from
-// it, which was the root cause of a real incident: a Cloudflare Queue
-// consumer invocation waiting on a job past its own ~15-minute
-// wall-time ceiling got its connection abandoned mid-job, which then
-// caused Fly's own idle-connection auto-stop to kill the still-running
-// machine (see ROADMAP.md). Dispatching and returning quickly means
-// this invocation finishes and acks well inside that ceiling, so the
-// redelivery that caused all of this mostly stops happening in the
-// first place.
+// sourceVideos.status on success — analyze.ts owns writing its own final
+// status directly to Postgres once it actually knows the outcome (see
+// that file's own comment). This used to call an always-on worker app
+// over HTTP and infer success/failure from the response, which was the
+// root cause of two real incidents in turn (see ROADMAP.md,
+// 2026-09-05 through 09-07): a Cloudflare Queue consumer invocation
+// waiting on a job past its own ~15-minute wall-time ceiling abandoning
+// the connection, and — once that was fixed by dispatching quickly
+// instead — the always-on machine it was calling turning out to throttle
+// hard under sustained load. Spawning a dedicated-CPU Machine per job
+// fixes both: Machine-create returns in a few seconds regardless of how
+// long the job itself takes, and the spawned Machine gets real,
+// non-throttled CPU only while it's actually running, not 24/7.
 //
 // The only case this function still reports itself is a fast, structural
-// dispatch failure (the worker rejected the request outright, or was
-// unreachable) — that's a real, known-now failure this invocation is
-// the last one able to record, unlike the job's real outcome, which now
-// belongs entirely to analyze.ts.
+// dispatch failure (bad image ref, Fly outage, bad token) — that's a
+// real, known-now failure this invocation is the last one able to
+// record, unlike the job's real outcome, which now belongs entirely to
+// analyze.ts.
 export async function runAnalyzeJob(
   env: Env,
   sourceVideoId: string,
 ): Promise<void> {
-  console.log(
-    `[runAnalyzeJob] dispatching sourceVideoId=${sourceVideoId}`,
-  );
+  console.log(`[runAnalyzeJob] dispatching sourceVideoId=${sourceVideoId}`);
   const db = createDb(env.DATABASE_URL);
   try {
-    const workerRes = await fetch(`${env.WORKER_URL}/analyze`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${env.WORKER_SHARED_SECRET}`,
-      },
-      body: JSON.stringify({ sourceVideoId }),
+    const result = await spawnWorkerMachine(env, {
+      JOB_TYPE: "analyze",
+      SOURCE_VIDEO_ID: sourceVideoId,
     });
 
-    if (!workerRes.ok) {
-      const rawBody = await workerRes.text().catch(() => "");
+    if (!result.ok) {
       console.log(
-        `[runAnalyzeJob] worker rejected dispatch for sourceVideoId=${sourceVideoId}: status=${workerRes.status} body=${rawBody.slice(0, 300)}`,
+        `[runAnalyzeJob] Machine spawn rejected for sourceVideoId=${sourceVideoId}: status=${result.status} body=${result.body}`,
       );
       await db
         .update(sourceVideos)
         .set({
           status: "failed",
-          analysisError: `Worker rejected the job (status ${workerRes.status})`,
+          analysisError: `Failed to start analysis (Fly status ${result.status})`,
         })
         .where(eq(sourceVideos.id, sourceVideoId));
       return;
     }
 
     console.log(
-      `[runAnalyzeJob] dispatch succeeded for sourceVideoId=${sourceVideoId}`,
+      `[runAnalyzeJob] Machine spawned for sourceVideoId=${sourceVideoId}`,
     );
   } catch (e) {
     const message =

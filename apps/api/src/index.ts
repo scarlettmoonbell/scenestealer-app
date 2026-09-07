@@ -34,9 +34,23 @@ export interface Env {
   R2_SECRET_ACCESS_KEY: string;
   R2_BUCKET_NAME: string;
   WEB_ORIGIN: string;
-  WORKER_URL: string;
+  // Verifies the inbound completion-notify callback from a spawned
+  // worker Machine (routes/internal.ts) — the only direction this
+  // secret is used for now; apps/api no longer calls the worker over
+  // HTTP itself (see FLY_API_TOKEN below).
   WORKER_SHARED_SECRET: string;
   JOBS_QUEUE: Queue<AnalyzeJobMessage>;
+  // Dispatch, as of 2026-09-07: apps/api spawns a fresh, disposable Fly
+  // Machine per analyze/render job via Fly's Machines API (see
+  // fly-machines.ts) instead of calling an always-on worker app over
+  // HTTP. FLY_API_TOKEN is a narrowly-scoped Fly deploy token for the
+  // scenestealer-worker app specifically — a separate credential from
+  // the CI-only FLY_API_TOKEN GitHub Actions secret used for `flyctl
+  // deploy`, not a reuse of it. WORKER_IMAGE_REF is set automatically by
+  // .github/workflows/deploy.yml's deploy-worker job after each deploy,
+  // so dispatch always targets whatever image is actually live.
+  FLY_API_TOKEN: string;
+  WORKER_IMAGE_REF: string;
   // Optional on purpose — not provisioned everywhere yet (needs a
   // verified sending domain). routes/internal.ts skips the completion
   // email quietly when unset rather than erroring. See ROADMAP.md.

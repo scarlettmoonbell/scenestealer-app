@@ -148,6 +148,13 @@ export const clips = pgTable("clips", {
   aiScore: real("ai_score"),
   aiReason: text("ai_reason"),
   renderedR2Key: text("rendered_r2_key"),
+  // Mirrors sourceVideos.analysisError — added when render moved to a
+  // dispatch-and-poll model (per-job Fly Machine, 2026-09-07), same as
+  // analyze earlier. Before that, a failed render just silently reverted
+  // status to "accepted" with no error message stored anywhere; the
+  // synchronous HTTP response used to carry the error text directly to
+  // the frontend, which no longer exists once rendering isn't awaited.
+  renderError: text("render_error"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

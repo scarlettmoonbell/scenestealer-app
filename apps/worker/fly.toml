@@ -1,34 +1,38 @@
-# Deploy config for apps/worker's always-on HTTP mode (src/server.ts) —
-# a deliberately smaller first cut than PLAN.md's eventual architecture
-# (Cloudflare Queue -> consumer Worker -> Fly Machines API -> a fresh
-# Machine spawned per job). apps/api's POST /videos/:id/analyze now
-# dispatches via the scenestealer-jobs Cloudflare Queue (2026-09-05,
-# fixing a real edge-proxy timeout — see ROADMAP.md), but that queue's
-# consumer still calls this one always-on-when-warm Fly app's /analyze
-# route rather than spawning a fresh Machine per job via the Machines
-# API — that half of PLAN.md's eventual architecture isn't built yet.
+# Deploy config for apps/worker — as of 2026-09-07, this app has no
+# always-on process at all. apps/api dispatches each analyze/render job
+# by spawning a fresh, disposable Machine per job via Fly's Machines API
+# (see routes/videos.ts and clips.ts), each running index.ts's one-shot
+# CLI mode with JOB_TYPE/SOURCE_VIDEO_ID or CLIP_ID as env vars and
+# `auto_destroy: true` — the Machine cleans itself up the instant the
+# process exits, billed per-second only while it actually runs. This is
+# PLAN.md's originally-envisioned target architecture (Cloudflare Queue
+# -> Fly Machines API -> a fresh Machine spawned per job), finally built;
+# index.ts's one-shot CLI entry point existed for exactly this since
+# Phase 4 and was unused until now.
+#
+# This *replaces* the previous always-on `[http_service]` approach
+# (server.ts, removed) rather than sitting alongside it. That approach
+# went through two real failure modes before landing here (see
+# ROADMAP.md, 2026-09-05 through 09-07): first, Fly's own idle-connection
+# `auto_stop_machines` killing a still-in-progress job because it had no
+# visibility into whether a subprocess was genuinely still working;
+# fixed by going always-on instead (min_machines_running = 1). Second,
+# once always-on, `shared-cpu-2x` throttled hard under the sustained CPU
+# load a real transcode/scene-detection job needs — confirmed by reading
+# `/proc/<pid>/stat` for the actual `ffmpeg` process on the live machine:
+# 36.5 minutes of wall-clock elapsed against only ~532 CPU-seconds
+# consumed, ~24% of one core. Bumping the *always-on* machine to a
+# `performance` (non-throttled) size would have fixed the throttling but
+# reintroduced the original cost problem this whole investigation was
+# about: paying 24/7 for dedicated CPU that's idle between uploads,
+# directly working against controlling per-job compute cost as usage
+# grows past one alpha tester. Per-job Machines with `performance` CPU
+# sizing (set per-request in the Machines API call, not here) solve both
+# at once — no throttling, no idle cost.
 #
 # Lives here (not scenestealer-infra), matching postiz/fly.toml and
 # temporal/fly.toml's convention — Fly.io apps deploy via `flyctl` from
 # this repo's own tooling, not Terraform.
-#
-# Always-on (min_machines_running = 1, no auto_stop_machines) as of
-# 2026-09-07 — was scaled to zero when idle, but that's what caused a
-# real incident: `auto_stop_machines` decides a machine is idle purely
-# from connection/traffic activity, with zero visibility into whether a
-# subprocess (e.g. `scenedetect`) is still genuinely working inside it.
-# Once the *caller*'s connection dropped (a Cloudflare Queue consumer
-# invocation hit its own ~15-minute wall-time ceiling and abandoned the
-# request — see ROADMAP.md), Fly read that as "nothing to do" and
-# SIGINT'd the machine, killing a still-in-progress analyze job. ~$22-25/
-# month for a continuously-running shared-cpu-2x/4gb machine (confirmed
-# against Fly's own pricing docs, 2026-09-07) is a trivial cost next to
-# that failure mode. This is the interim fix while the real target
-# architecture (Fly Machines API spawning a disposable, dedicated
-# Machine per job — see index.ts's one-shot CLI entry point, already
-# built for exactly this and currently unused) gets built; per-job
-# Machines won't be part of this shared http_service pool at all, so
-# they won't need this always-on carve-out.
 
 app = "scenestealer-worker"
 primary_region = "iad"
@@ -39,33 +43,23 @@ primary_region = "iad"
 # R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET, WORKER_SHARED_SECRET)
 # are set via `flyctl secrets set`, never committed here.
 [env]
-  PORT = "8080"
-  # Lets this worker call back into apps/api once a job finishes, purely
-  # to trigger emailing the tenant who kicked it off — see analyze.ts's
-  # notifyApiOfCompletion and routes/videos.ts's POST
+  # Lets a per-job Machine call back into apps/api once it finishes,
+  # purely to trigger emailing the tenant who kicked an analyze run off
+  # — see analyze.ts's notifyApiOfCompletion and routes/videos.ts's POST
   # /internal/analysis-complete. Authenticated with the same
   # WORKER_SHARED_SECRET already used for the reverse direction.
   API_URL = "https://api.scenestealer.app"
 
-[http_service]
-  internal_port = 8080
-  force_https = true
-  auto_stop_machines = false
-  auto_start_machines = true
-  min_machines_running = 1
-
+# No [http_service] — nothing serves HTTP traffic in this app anymore;
+# every real job runs as a one-shot Machine spawned directly via the
+# Machines API, sized per-request (performance-2x/4gb as of this
+# writing — see routes/videos.ts and clips.ts), not from a fly.toml
+# default. This [[vm]] exists only as a fallback in case `flyctl deploy`
+# still expects some default Machine spec to push a release against with
+# no [http_service] present — deliberately small/cheap, since it's not
+# what real jobs actually run on. If `flyctl deploy` turns out to need
+# more than this to function cleanly (unverified as of this writing),
+# revisit here first.
 [[vm]]
-  size = "shared-cpu-2x"
-  # 1gb -> 2gb (2026-09-05) wasn't enough either: `fly logs` confirmed
-  # two MORE OOM kills afterward on the same 1.24GB upload, anon-rss
-  # reaching ~1.87GB and ~1.9GB before each kill — right up against
-  # the 2048MB ceiling, not comfortably under it. Fly's own proxy
-  # reports "connection closed before message completed" when the
-  # machine dies mid-request, which apps/api's fetch sees as a plain-
-  # text "error code: 502" response — the real source of what looked
-  # like a live Cloudflare timeout in the UI (see ROADMAP.md). Bumped
-  # to 4gb for real headroom above the ~1.9GB actually observed. Not a
-  # scale-to-zero cost concern — only affects the size of the machine
-  # while it's actually running a job, not whether it runs
-  # continuously.
-  memory = "4gb"
+  size = "shared-cpu-1x"
+  memory = "512mb"

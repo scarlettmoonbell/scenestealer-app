@@ -80,10 +80,14 @@ COPY packages/db/package.json packages/db/dist ./node_modules/@scenestealer/db/
 
 COPY apps/worker/dist ./dist
 
-# server.ts's always-on HTTP mode — the deployed target for this app's
-# Fly deployment (fly.toml), scaled to zero via Fly's own auto-stop/
-# auto-start rather than the per-job dynamic Machine-spawn model
-# PLAN.md eventually calls for (not built yet — see fly.toml's comment).
-# index.ts's one-shot CLI mode (dist/index.js) is what that future model
-# will actually invoke, and stays available for local testing today.
-CMD ["node", "dist/server.js"]
+# index.ts's one-shot CLI mode is the only entrypoint now (2026-09-07) —
+# apps/api dispatches a job by spawning a fresh Machine per analyze/
+# render via Fly's Machines API (see routes/videos.ts and clips.ts),
+# each with JOB_TYPE/SOURCE_VIDEO_ID or CLIP_ID set as env vars and
+# auto_destroy: true, rather than routing to a shared always-on HTTP
+# service the way server.ts (removed) used to. This CMD is effectively
+# unused in normal operation — the Machines API's own `init.exec`
+# overrides it per-request — but Docker/flyctl still expect an image to
+# define one; running it with no JOB_TYPE set just exits 1 immediately
+# (see index.ts), which is fine since nothing invokes it this way.
+CMD ["node", "dist/index.js"]
