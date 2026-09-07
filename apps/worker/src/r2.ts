@@ -20,6 +20,44 @@ function r2Client(config: R2Config): AwsClient {
   });
 }
 
+/**
+ * Presigned GET URL — unlike downloadFromR2ToFile above, this exists
+ * specifically so a *separate subprocess* (ffmpeg, for render.ts) can
+ * fetch the object itself; this worker's own in-process AwsClient
+ * signing has no way to hand ffmpeg an authenticated request. Same
+ * signing shape as apps/api's own createPresignedGetUrl (a distinct
+ * copy, not a shared import — R2Config/AwsClient setup already exists
+ * separately in each app, and this is the only presigned URL apps/worker
+ * itself needs to generate).
+ *
+ * Confirmed for real (2026-09-07): ffmpeg's `-ss <start> -to <end> -i
+ * <url>` (both -ss/-to as *input* options, already how
+ * ffmpeg-renderer.ts invokes it) performs true HTTP range-based seeking
+ * against a presigned R2 URL, not a sequential read from byte 0 — timed
+ * a 15s extraction at both the ~5s mark and the ~1010s mark of a
+ * real 1031s/1.24GB source and both completed in ~2-4s, not the ~85s+ a
+ * full download of that file takes. Lets render skip downloading the
+ * entire source file just to encode a short clip out of it.
+ */
+export async function createPresignedGetUrl(
+  config: R2Config,
+  key: string,
+  expiresInSeconds = 3600,
+): Promise<string> {
+  const client = r2Client(config);
+  const url = new URL(
+    `https://${config.accountId}.r2.cloudflarestorage.com/${config.bucket}/${key}`,
+  );
+  url.searchParams.set("X-Amz-Expires", String(expiresInSeconds));
+
+  const signed = await client.sign(url.toString(), {
+    method: "GET",
+    aws: { signQuery: true },
+  });
+
+  return signed.url;
+}
+
 // 6 concurrent ranged GETs — a real, single-TCP-stream download of this
 // object measured ~90-100 Mbps sustained (confirmed for real, 2026-09-07:
 // a ~1.1GB analyze source took ~90-100s), consistent with one
