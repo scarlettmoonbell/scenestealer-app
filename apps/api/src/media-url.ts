@@ -37,7 +37,17 @@ export async function signMediaUrl(
 ): Promise<string> {
   const exp = Math.floor(Date.now() / 1000) + expiresInSeconds;
   const sig = await hmac(env.MEDIA_URL_SECRET, `${key}:${exp}`);
-  const url = new URL(`${env.API_ORIGIN}/media`);
+  // Postiz validates this URL itself before ever creating the post
+  // (libraries/helpers/src/utils/valid.url.path.ts's ValidUrlExtension,
+  // confirmed live 2026-09-08 after this exact gap 400'd a real publish
+  // attempt): it strips everything from the first "?" onward and checks
+  // *that* ends in .png/.jpg/.jpeg/.gif/.webp/.mp4 — a bare `/media?...`
+  // path fails outright, regardless of the query string. The filename
+  // segment's actual text is otherwise unused; routes/media.ts identifies
+  // the real object purely from the `key` query param below.
+  const extMatch = /\.[a-zA-Z0-9]+$/.exec(key);
+  const ext = extMatch ? extMatch[0] : ".mp4";
+  const url = new URL(`${env.API_ORIGIN}/media/clip${ext}`);
   url.searchParams.set("key", key);
   url.searchParams.set("exp", String(exp));
   url.searchParams.set("sig", sig);

@@ -13,7 +13,13 @@ export const mediaRoute = new Hono<{ Bindings: Env }>();
 // signing a fresh, real request to R2 server-side per incoming request
 // instead of reusing one static presigned URL — see media-url.ts's
 // top comment for why a presigned URL alone can't do this.
-mediaRoute.on(["GET", "HEAD"], "/", async (c) => {
+//
+// The `:filename` segment is never read — it exists only so the URL's
+// path ends in a real extension, since Postiz's own request validation
+// (confirmed live 2026-09-08) rejects a media URL outright unless the
+// part before its "?" ends in .png/.jpg/.jpeg/.gif/.webp/.mp4. The real
+// object is identified purely by the `key` query param below.
+mediaRoute.on(["GET", "HEAD"], "/:filename", async (c) => {
   const key = c.req.query("key");
   const exp = c.req.query("exp");
   const sig = c.req.query("sig");
