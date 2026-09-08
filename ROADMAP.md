@@ -1762,6 +1762,21 @@ unpinning.
     real deployed route, not just typecheck: `HEAD` returns the real
     `Content-Length`, ranged `GET` returns real `Content-Range`, and a
     tampered signature gets a 403.
+
+    **Follow-up regression caught by a real retry (2026-09-08)**: the
+    very next live publish attempt hit a *new* error — Postiz's own
+    request validation (`libraries/helpers/src/utils/
+    valid.url.path.ts`'s `ValidUrlExtension`) rejects a post's media
+    URL outright unless the part before its `?` ends in
+    `.png`/`.jpg`/`.jpeg`/`.gif`/`.webp`/`.mp4`. The old raw R2
+    presigned URL satisfied this by accident (its path ended in
+    `.mp4` before the query string); the new bare `/media?key=...`
+    proxy URL didn't. Fixed by giving the URL a real filename segment
+    (`/media/clip.mp4?key=...&exp=...&sig=...`) — the filename text
+    itself is never read, the real object is still identified purely
+    by the signed `key` query param. Verified live again after the
+    fix: the URL now passes Postiz's own check, and `HEAD`/ranged
+    `GET` still both work correctly.
   - **Facebook — diagnosed, needs the account holder.** `(#100) No
     permission to publish the video` is Facebook's own Graph API error
     (confirmed by reading `facebook.provider.ts`'s own
