@@ -14,7 +14,7 @@
     "@neondatabase/serverless": "^0.10.4",
     "@scenestealer/connectors": "github:scarlettmoonbell/scenestealer-connectors#5506b0a6ea53dc6f0a7996e90ba8ef3a541c9b1f",
     "@scenestealer/db": "workspace:*",
-    "@scenestealer/pipeline": "github:scarlettmoonbell/scenestealer-pipeline#1d515e0a3557e0f571d61fb1cbc602d21074bb3e",
+    "@scenestealer/pipeline": "github:scarlettmoonbell/scenestealer-pipeline#54782506a7c2202f8d004acb109be6640031fdf3",
     "aws4fetch": "^1.0.20",
     "drizzle-orm": "^0.45.2"
   },
