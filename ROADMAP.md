@@ -1673,6 +1673,66 @@ unpinning.
   level instead of inline in a `<th>`), so the form reads consistently
   with the table above it. Not visually verified locally — same
   `getcwd` sandbox gap; typecheck/lint clean.
+- **Fixed (2026-09-08): the self-hosted Postiz instance's own
+  publish pipeline had silently stopped delivering anything at all —
+  no crash, no error, just permanently stuck posts — and separately,
+  this app's own `posts` table lied about it.** A tenant reported
+  "post now" to Facebook and a scheduled post from the day before both
+  showing nothing on the platform, with no error in the UI. Root
+  cause, confirmed live: Postiz's `orchestrator` process (a
+  Temporal.io workflow worker responsible for actually delivering
+  posts) had gone completely unresponsive — `pm2 list` showed it
+  "online" with 4 days uptime and 0% CPU, but its logs showed zero
+  activity beyond the startup banner, and its Redis instance held
+  exactly one non-queue key, confirming no jobs were ever being
+  processed, not just failing quietly. The dependency behind that:
+  `scenestealer-temporal` runs `temporal server start-dev` (a
+  single-process, SQLite-backed dev server, never meant for
+  production) and had itself become unresponsive after weeks of
+  uptime — TCP connections to it succeeded, but real gRPC calls
+  apparently never completed. Restarting the Temporal machine, then
+  the Postiz machine, cleared the hang; the orchestrator reconnected
+  and immediately drained its backlog of 5 stuck posts. _Revisit_:
+  `start-dev` is explicitly not a production-grade Temporal
+  deployment — worth moving to a real persistent-store Temporal setup
+  before this becomes a recurring failure mode rather than a one-off.
+
+  **Draining that backlog surfaced the second, separate bug**: every
+  one of the 5 posts failed for a real, specific platform reason
+  (Facebook: "No permission to publish the video"; YouTube: "Could
+  not determine the video size for the YouTube upload"; Instagram:
+  "Media upload has failed with error code 2207076" — each its own
+  follow-up investigation, not yet resolved) — but this app's own
+  `POST /clips/:id/publish` (`clips.ts`) had already written
+  `status: "published"` the instant Postiz's API merely *accepted*
+  the create-post request, which is all a "now" publish or a
+  "schedule" request ever confirms — Postiz's own `Post.state` starts
+  at `QUEUE` regardless, and actual delivery happens later,
+  asynchronously. So even once delivery is fixed, a real platform
+  failure would have kept showing as a silent "published" success.
+
+  Fixed by adding a `"queued"` status (new `post_status` enum value,
+  migration `0011`) written instead of `"published"` for an immediate
+  publish, and a new `GET /posts/:id/status` (`posts.ts`) that checks
+  Postiz's real per-post state before confirming either outcome —
+  called via `getPostStatus` (`postiz.ts`), which hits a *different*,
+  unversioned Postiz route (`/api/public/posts/:id`, not the
+  `/api/public/v1/posts` list endpoint already used elsewhere) since
+  that's the only one that returns an actual error message rather than
+  just a bare `state` enum. **Flagged, not fixed — out of this app's
+  control**: that per-ID route requires no authentication at all on
+  the live instance, returning full post content, internal
+  org/integration IDs, and a live presigned R2 download URL for the
+  private clip to anyone who knows a post's ID — a real gap in
+  Postiz's own access control, worth reporting upstream; not exploited
+  further here beyond reading this tenant's own posts by ID.
+  `Scheduler` (`scheduler.tsx`) now polls this after a "publish now"
+  request instead of declaring success the moment the request
+  returns; a `"scheduled"` post whose time has passed gets the same
+  reconciliation lazily, as a side effect of loading the "Already
+  scheduled" list (`GET /posts/scheduled`), which now also surfaces
+  recent failures with their real error message instead of the post
+  just silently vanishing once it's no longer `"scheduled"`.
 - **Live external accounts**: Clerk, Neon, Cloudflare, Fly.io, Groq,
   and Anthropic are all live and in real use as of Phase 4. Stripe is
   configured (test-mode placeholder tiers, see Phase 7) but no billing
