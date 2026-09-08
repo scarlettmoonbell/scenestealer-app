@@ -1733,6 +1733,54 @@ unpinning.
   scheduled" list (`GET /posts/scheduled`), which now also surfaces
   recent failures with their real error message instead of the post
   just silently vanishing once it's no longer `"scheduled"`.
+
+  **Going platform by platform through the 5 real failures that
+  backlog drain surfaced** (Facebook: "No permission to publish the
+  video"; YouTube: "Could not determine the video size for the
+  YouTube upload"; Instagram: "Media upload has failed with error
+  code 2207076"):
+  - **YouTube — done (2026-09-08), root-caused and fixed for real.**
+    Confirmed live against the actual R2 bucket: a SigV4 presigned URL
+    is strictly bound to the single HTTP method it was signed for — a
+    GET-signed URL 403s on `HEAD` with no `Content-Length` at all
+    (and the reverse: a HEAD-signed URL 403s on `GET`). Postiz's
+    `youtubeMediaSize` (read straight from its source on GitHub) does
+    exactly a `HEAD` to size the upload, then ranged `GET`s to stream
+    it, against the *same* URL — something no single R2 presigned URL
+    can satisfy, which is the entire cause of this error. Fixed by
+    adding a `GET`/`HEAD` `/media` proxy route (`routes/media.ts`)
+    that live-signs a fresh, real per-method R2 request on every
+    incoming request instead of reusing one static presigned URL —
+    sidesteps the method-binding limitation entirely rather than
+    working around it. Authenticated with a signed key+expiry
+    (`media-url.ts`, HMAC-SHA256 via Web Crypto, new
+    `MEDIA_URL_SECRET`) since Postiz/the platforms fetch this directly
+    with no Clerk session. `POST /clips/:id/publish` now signs a
+    `/media` URL instead of calling `createPresignedGetUrl` for the
+    `mediaUrl` handed to Postiz; playback/waveform URLs are untouched
+    (GET-only consumers, never hit this). Verified live against the
+    real deployed route, not just typecheck: `HEAD` returns the real
+    `Content-Length`, ranged `GET` returns real `Content-Range`, and a
+    tampered signature gets a 403.
+  - **Facebook — diagnosed, needs the account holder.** `(#100) No
+    permission to publish the video` is Facebook's own Graph API error
+    (confirmed by reading `facebook.provider.ts`'s own
+    `handleErrors` — Postiz just relabels it), not a bug in this
+    codebase or Postiz's. Most likely cause given this project's own
+    history: Meta App Review for `pages_manage_posts` was never
+    actually submitted (still an open item as of 2026-09-02's entry
+    above), and Facebook has specifically tightened video publishing
+    in ways that sometimes fail even for an app's own Development-mode
+    testers. Needs the account holder to check, in Meta for Developers,
+    the `SceneStealerContent` app (id `1172031222039637`): **App
+    Roles** (is the connected Facebook account actually added as
+    Admin/Developer/Tester?) and **App Review → Permissions and
+    Features** (`pages_manage_posts`'s real status). Submitting App
+    Review for this permission is likely necessary regardless, and is
+    the single longest lead-time item in this whole area (2-4 weeks).
+  - **Instagram — not yet investigated.** `Media upload has failed
+    with error code 2207076` is an Instagram Graph API media-processing
+    error; next to look into.
 - **Live external accounts**: Clerk, Neon, Cloudflare, Fly.io, Groq,
   and Anthropic are all live and in real use as of Phase 4. Stripe is
   configured (test-mode placeholder tiers, see Phase 7) but no billing
