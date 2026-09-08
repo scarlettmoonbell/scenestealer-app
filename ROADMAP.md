@@ -1793,9 +1793,32 @@ unpinning.
     Features** (`pages_manage_posts`'s real status). Submitting App
     Review for this permission is likely necessary regardless, and is
     the single longest lead-time item in this whole area (2-4 weeks).
-  - **Instagram — not yet investigated.** `Media upload has failed
-    with error code 2207076` is an Instagram Graph API media-processing
-    error; next to look into.
+  - **Instagram — root-caused and fixed for real (2026-09-08),
+    scenestealer-pipeline commit `5478250`.** A real retry (after the
+    two fixes above) reproduced the same `Media upload has failed with
+    error code 2207076` on a *different* clip, ruling out the
+    low-resolution theory from the first investigation — this one was
+    real theater-show footage at a normal resolution. `ffprobe`'d the
+    actual rendered R2 object directly and found a third stream beyond
+    video and audio: a `data`-type stream whose frame rate matched the
+    video's exactly — the signature of an Apple QuickTime timecode
+    track (`tmcd`), which iPhone recordings commonly embed linked to
+    their video stream. `FfmpegRenderer` (`ffmpeg-renderer.ts`) never
+    passed an explicit `-map`, so ffmpeg's default stream selection
+    carried this track straight into the render; a much older,
+    separately-produced test file with no such track (not shot on an
+    iPhone — the earlier ASHERTEASER.m4v clip from the first
+    investigation) had published without incident by comparison,
+    consistent with this being the real, file-dependent cause rather
+    than something universal. Fixed with `-map 0:v:0 -map 0:a:0?` —
+    the trailing `?` on the audio map keeps today's graceful behavior
+    for a source with no audio at all, rather than hard-failing the
+    render. Existing test suite's exact-args assertions updated
+    alongside; full `typecheck`/`lint`/`test` (26 tests) green before
+    pushing. `apps/worker/package.json`'s pin bumped to the new commit,
+    `pnpm-lock.yaml` regenerated, deployed — `deploy-worker` rebuilds
+    the Docker image fresh each time (see the earlier Docker-layer-
+    cache staleness entry above for why this matters), confirmed green.
 - **Live external accounts**: Clerk, Neon, Cloudflare, Fly.io, Groq,
   and Anthropic are all live and in real use as of Phase 4. Stripe is
   configured (test-mode placeholder tiers, see Phase 7) but no billing
