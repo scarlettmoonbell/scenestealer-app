@@ -42,7 +42,9 @@ function clipTitle(clip: Pick<ReadyClip, "title" | "videoTitle">): string {
 interface ScheduledPost {
   id: string;
   clipId: string | null;
+  status: "scheduled" | "failed";
   scheduledAt: string;
+  error: string | null;
   platform: string;
   videoTitle: string | null;
 }
@@ -342,7 +344,9 @@ function SchedulingContent() {
         <div style={{ marginTop: "2rem" }}>
           <h2>Already scheduled</h2>
           {postList.length === 0 ? (
-            <p style={{ color: "var(--muted)" }}>Nothing scheduled yet.</p>
+            <p style={{ color: "var(--muted)" }}>
+              Nothing scheduled yet, and no recent publish failures.
+            </p>
           ) : (
             <ul style={{ listStyle: "none", padding: 0 }}>
               {postList.map((post) => (
@@ -369,16 +373,26 @@ function SchedulingContent() {
                       {post.platform}
                     </span>
                   </span>
-                  <span style={{ fontSize: "0.85em", color: "var(--muted)" }}>
-                    {new Date(post.scheduledAt).toLocaleString()}
-                  </span>
-                  <button
-                    type="button"
-                    disabled={cancellingId === post.id}
-                    onClick={() => void handleCancel(post.id)}
-                  >
-                    {cancellingId === post.id ? "Cancelling…" : "Cancel"}
-                  </button>
+                  {post.status === "failed" ? (
+                    <span style={{ fontSize: "0.85em", color: "#e5484d" }}>
+                      Failed: {post.error ?? "Unknown error"}
+                    </span>
+                  ) : (
+                    <>
+                      <span
+                        style={{ fontSize: "0.85em", color: "var(--muted)" }}
+                      >
+                        {new Date(post.scheduledAt).toLocaleString()}
+                      </span>
+                      <button
+                        type="button"
+                        disabled={cancellingId === post.id}
+                        onClick={() => void handleCancel(post.id)}
+                      >
+                        {cancellingId === post.id ? "Cancelling…" : "Cancel"}
+                      </button>
+                    </>
+                  )}
                 </li>
               ))}
             </ul>

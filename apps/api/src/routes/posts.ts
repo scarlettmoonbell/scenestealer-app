@@ -1,4 +1,4 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, gte, isNotNull, lte, or } from "drizzle-orm";
 import { Hono } from "hono";
 import {
   clips,
@@ -8,13 +8,57 @@ import {
   sourceVideos,
 } from "@scenestealer/db";
 import { requireTenant } from "../auth.js";
-import { cancelPost } from "../postiz.js";
+import { cancelPost, getPostStatus } from "../postiz.js";
 import type { Env } from "../index.js";
 import type { Variables } from "../auth.js";
 
 export const postsRoute = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 postsRoute.use("*", requireTenant);
+
+// Checks a "scheduled" post whose time has already passed (Postiz should
+// have picked it up by now) against Postiz's real per-post state, and
+// writes the real outcome — nothing here assumes success just because
+// the scheduled time arrived. Best-effort: a Postiz hiccup leaves the
+// row untouched rather than failing the caller, since this only ever
+// runs as a side effect of a read.
+async function reconcileDuePosts(
+  env: Env,
+  db: ReturnType<typeof createDb>,
+  tenantId: string,
+) {
+  const due = await db
+    .select({ id: posts.id, externalPostId: posts.externalPostId })
+    .from(posts)
+    .innerJoin(
+      socialConnections,
+      eq(posts.socialConnectionId, socialConnections.id),
+    )
+    .where(
+      and(
+        eq(socialConnections.tenantId, tenantId),
+        eq(posts.status, "scheduled"),
+        lte(posts.scheduledAt, new Date()),
+        isNotNull(posts.externalPostId),
+      ),
+    );
+
+  for (const row of due) {
+    if (!row.externalPostId) continue;
+    const remote = await getPostStatus(env, row.externalPostId);
+    if (remote?.state === "PUBLISHED") {
+      await db
+        .update(posts)
+        .set({ status: "published", publishedAt: new Date(), error: null })
+        .where(eq(posts.id, row.id));
+    } else if (remote?.state === "ERROR") {
+      await db
+        .update(posts)
+        .set({ status: "failed", error: remote.error ?? "Publish failed" })
+        .where(eq(posts.id, row.id));
+    }
+  }
+}
 
 // Scheduled posts live in our own table already scoped by tenant (via
 // socialConnections), so listing them never has to touch Postiz's own
@@ -24,11 +68,15 @@ postsRoute.get("/scheduled", async (c) => {
   const tenantId = c.get("tenantId");
   const db = createDb(c.env.DATABASE_URL);
 
+  await reconcileDuePosts(c.env, db, tenantId);
+
   const rows = await db
     .select({
       id: posts.id,
       clipId: posts.clipId,
+      status: posts.status,
       scheduledAt: posts.scheduledAt,
+      error: posts.error,
       platform: socialConnections.platform,
       videoTitle: sourceVideos.title,
     })
@@ -46,12 +94,77 @@ postsRoute.get("/scheduled", async (c) => {
     .where(
       and(
         eq(socialConnections.tenantId, tenantId),
-        eq(posts.status, "scheduled"),
+        // "scheduled" still upcoming, plus recently-failed so a post
+        // that failed after its scheduled time (or a same-day "publish
+        // now" failure) doesn't just silently vanish with nothing in
+        // the UI explaining why — the exact gap that made the original
+        // stuck-post bug invisible.
+        or(
+          eq(posts.status, "scheduled"),
+          and(
+            eq(posts.status, "failed"),
+            gte(
+              posts.createdAt,
+              new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+            ),
+          ),
+        ),
       ),
     )
     .orderBy(asc(posts.scheduledAt));
 
   return c.json({ posts: rows });
+});
+
+// Polled by the Scheduler right after a "publish now" request — that
+// request only means Postiz *accepted* the post, not that it actually
+// reached the platform (see clips.ts's /:id/publish). Reconciles this
+// one post against Postiz's real state before returning, so the caller
+// never has to wait for the next full-list reconciliation above.
+postsRoute.get("/:id/status", async (c) => {
+  const tenantId = c.get("tenantId");
+  const postId = c.req.param("id");
+  const db = createDb(c.env.DATABASE_URL);
+
+  const [row] = await db
+    .select({
+      id: posts.id,
+      status: posts.status,
+      error: posts.error,
+      externalPostId: posts.externalPostId,
+    })
+    .from(posts)
+    .innerJoin(
+      socialConnections,
+      eq(posts.socialConnectionId, socialConnections.id),
+    )
+    .where(and(eq(posts.id, postId), eq(socialConnections.tenantId, tenantId)))
+    .limit(1);
+  if (!row) {
+    return c.json({ error: "Post not found" }, 404);
+  }
+
+  if (row.status === "queued" && row.externalPostId) {
+    const remote = await getPostStatus(c.env, row.externalPostId);
+    if (remote?.state === "PUBLISHED") {
+      const [updated] = await db
+        .update(posts)
+        .set({ status: "published", publishedAt: new Date(), error: null })
+        .where(eq(posts.id, postId))
+        .returning();
+      return c.json({ post: updated });
+    }
+    if (remote?.state === "ERROR") {
+      const [updated] = await db
+        .update(posts)
+        .set({ status: "failed", error: remote.error ?? "Publish failed" })
+        .where(eq(posts.id, postId))
+        .returning();
+      return c.json({ post: updated });
+    }
+  }
+
+  return c.json({ post: row });
 });
 
 postsRoute.delete("/:id", async (c) => {

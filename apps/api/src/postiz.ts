@@ -143,6 +143,67 @@ export async function createPost(
   return res.json();
 }
 
+export interface PostizPostStatus {
+  state: "QUEUE" | "PUBLISHED" | "ERROR" | "DRAFT";
+  releaseURL: string | null;
+  // Only meaningful when state is "ERROR" — Postiz stores this as a
+  // JSON-stringified Temporal ApplicationFailure, not a plain string.
+  error?: string;
+}
+
+// Confirmed live 2026-09-08 against the real deployed instance: this
+// endpoint needs no Authorization header at all (a real gap in Postiz's
+// own access control, not relied on beyond reading our own posts by ID —
+// flagged upstream separately) and lives under a *different*, unversioned
+// base path (`/api/public`, not `/api/public/v1` used everywhere else in
+// this file). It exists because the public v1 `/posts` list endpoint
+// (used by createPost/cancelPost's siblings) never exposes an error
+// message at all — only this per-ID route does, which is the entire
+// reason it's used instead of extending the versioned one.
+export async function getPostStatus(
+  env: Env,
+  postId: string,
+): Promise<PostizPostStatus | null> {
+  const base = env.POSTIZ_API_URL.replace(/\/v1\/?$/, "");
+  const res = await fetch(`${base}/posts/${postId}`, {
+    headers: { Authorization: env.POSTIZ_API_KEY },
+  });
+  if (!res.ok) {
+    return null;
+  }
+  const body = (await res.json()) as Array<{
+    state: PostizPostStatus["state"];
+    releaseURL: string | null;
+    error?: string | null;
+  }>;
+  const post = body[0];
+  if (!post) {
+    return null;
+  }
+  return {
+    state: post.state,
+    releaseURL: post.releaseURL,
+    error: post.error ? extractPostizErrorMessage(post.error) : undefined,
+  };
+}
+
+// post.error is a JSON-stringified Temporal ApplicationFailure, e.g.
+// `{"cause":{"failure":{"message":"Facebook return: No permission to
+// publish the video", ...}}}` — confirmed against a real failed post.
+// Falls back to the raw string if that shape ever changes upstream,
+// rather than swallowing a real error into nothing.
+function extractPostizErrorMessage(raw: string): string {
+  try {
+    const parsed = JSON.parse(raw) as {
+      cause?: { failure?: { message?: string } };
+      message?: string;
+    };
+    return parsed.cause?.failure?.message ?? parsed.message ?? raw;
+  } catch {
+    return raw;
+  }
+}
+
 export async function cancelPost(env: Env, postId: string): Promise<void> {
   const res = await postizFetch(env, `/posts/${postId}`, {
     method: "DELETE",

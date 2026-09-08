@@ -345,15 +345,26 @@ clipsRoute.post("/:id/publish", async (c) => {
       settings: body.settings ?? {},
       scheduledFor: body.scheduledFor,
     });
+    // Postiz accepting this request only means it queued the post —
+    // its own Post.state starts at "QUEUE" regardless of immediate vs.
+    // scheduled, and actual delivery happens later, asynchronously, via
+    // its own orchestrator. Writing "published" here was a real bug
+    // (confirmed for real 2026-09-07): a stuck orchestrator left posts
+    // that never actually reached Facebook/YouTube/Instagram permanently
+    // marked "published" in our own DB with no error anywhere. A
+    // "scheduled" request is genuinely scheduled the moment Postiz
+    // accepts it, so that status is accurate as-is; an immediate request
+    // is "queued" until GET /posts/:id/status (posts.ts) confirms real
+    // delivery against Postiz's own per-post state.
     const [post] = await db
       .insert(posts)
       .values({
         clipId: clip.id,
         socialConnectionId: connection.id,
         templateId: body.templateId ?? null,
-        status: body.scheduledFor ? "scheduled" : "published",
+        status: body.scheduledFor ? "scheduled" : "queued",
         scheduledAt: body.scheduledFor ? new Date(body.scheduledFor) : null,
-        publishedAt: body.scheduledFor ? null : new Date(),
+        publishedAt: null,
         externalPostId: results[0]?.postId,
       })
       .returning();

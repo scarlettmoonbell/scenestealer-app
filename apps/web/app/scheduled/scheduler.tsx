@@ -187,6 +187,41 @@ export function Scheduler({
     }
   }
 
+  // Postiz accepting the publish request only means it queued the post
+  // — actual delivery happens asynchronously via its own orchestrator,
+  // so a "now" publish isn't done the moment the POST above resolves.
+  // Polls GET /posts/:id/status (apps/api/src/routes/posts.ts), which
+  // checks Postiz's real per-post state and updates our own row, until
+  // it reaches a terminal status or this gives up. Confirmed for real
+  // (2026-09-07) that skipping this and just showing "Published!"
+  // immediately can lie — a stuck orchestrator once left posts
+  // permanently un-delivered with our own UI still claiming success.
+  async function pollPostStatus(postId: string) {
+    for (let attempt = 0; attempt < 12; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+      try {
+        const res = await authedFetch(`/posts/${postId}/status`);
+        if (!res.ok) continue;
+        const { post } = (await res.json()) as {
+          post: { status: string; error: string | null };
+        };
+        if (post.status === "published") {
+          setResult("Published!");
+          return;
+        }
+        if (post.status === "failed") {
+          setError(post.error ?? "Failed to publish");
+          return;
+        }
+      } catch {
+        // Transient — keep polling until attempts run out.
+      }
+    }
+    setResult(
+      "Still publishing — Postiz is taking longer than usual. Check back shortly.",
+    );
+  }
+
   async function handlePublish() {
     if (!connectionId) return;
     if (scheduleMode === "later" && !scheduledFor) {
@@ -217,7 +252,13 @@ export function Scheduler({
         setError(body?.error ?? "Failed to publish");
         return;
       }
-      setResult(scheduleMode === "later" ? "Scheduled!" : "Published!");
+      if (scheduleMode === "later") {
+        setResult("Scheduled!");
+        return;
+      }
+      const { post } = (await res.json()) as { post: { id: string } };
+      setResult("Publishing…");
+      await pollPostStatus(post.id);
     } catch (e) {
       setError(`Failed to publish: ${describeFetchError(e)}`);
     } finally {

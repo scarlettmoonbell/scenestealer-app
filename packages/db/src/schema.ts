@@ -197,6 +197,14 @@ export const templates = pgTable("templates", {
 
 export const postStatusEnum = pgEnum("post_status", [
   "scheduled",
+  // Handed off to Postiz (a "publish now" request accepted) but not yet
+  // confirmed delivered — Postiz's own Post.state starts at "QUEUE"
+  // regardless of immediate-vs-scheduled, so "published" was previously
+  // written the instant Postiz *accepted* the request, not once it
+  // actually posted. Confirmed for real (2026-09-07): a stuck Postiz
+  // orchestrator left posts in this state indefinitely with our own DB
+  // still claiming "published" and no error anywhere.
+  "queued",
   "published",
   "failed",
   "cancelled",
