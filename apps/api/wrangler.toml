@@ -38,10 +38,11 @@ head_sampling_rate = 1
 [vars]
 # Non-secret config only. Secrets (DATABASE_URL, CLERK_SECRET_KEY,
 # CLERK_WEBHOOK_SIGNING_SECRET, STRIPE_SECRET_KEY, POSTIZ_API_KEY,
-# R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, WORKER_SHARED_SECRET) are set
-# via `wrangler secret put`, never committed here. CLERK_PUBLISHABLE_KEY,
-# R2_ACCOUNT_ID, and R2_BUCKET_NAME aren't sensitive, but are set the
-# same way for now rather than split across two mechanisms.
+# R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, WORKER_SHARED_SECRET,
+# MEDIA_URL_SECRET) are set via `wrangler secret put`, never committed
+# here. CLERK_PUBLISHABLE_KEY, R2_ACCOUNT_ID, and R2_BUCKET_NAME aren't
+# sensitive, but are set the same way for now rather than split across
+# two mechanisms.
 #
 # RESEND_API_KEY (also set via `wrangler secret put`, when ready) is
 # optional — routes/internal.ts's completion-email step skips quietly
@@ -59,4 +60,6 @@ head_sampling_rate = 1
 # other direction (routes/internal.ts's completion-notify callback,
 # still authenticated with WORKER_SHARED_SECRET).
 WEB_ORIGIN = "https://scenestealer.app"
+# This Worker's own public origin — see index.ts's Env.API_ORIGIN.
+API_ORIGIN = "https://api.scenestealer.app"
 

@@ -9,6 +9,7 @@ import {
   tenants,
 } from "@scenestealer/db";
 import { createPresignedGetUrl, deleteR2Object } from "../r2.js";
+import { signMediaUrl } from "../media-url.js";
 import { requireTenant } from "../auth.js";
 import { createPost } from "../postiz.js";
 import { spawnWorkerMachine } from "../fly-machines.js";
@@ -326,15 +327,14 @@ clipsRoute.post("/:id/publish", async (c) => {
     }
   }
 
-  const mediaUrl = await createPresignedGetUrl(
-    {
-      accountId: c.env.R2_ACCOUNT_ID,
-      accessKeyId: c.env.R2_ACCESS_KEY_ID,
-      secretAccessKey: c.env.R2_SECRET_ACCESS_KEY,
-      bucket: c.env.R2_BUCKET_NAME,
-    },
-    clip.renderedR2Key,
-  );
+  // Not createPresignedGetUrl: confirmed live 2026-09-08 that a plain R2
+  // presigned URL is strictly bound to one HTTP method (GET-signed 403s
+  // on HEAD, no Content-Length either), but Postiz's YouTube provider
+  // does a HEAD to size the upload and ranged GETs to stream it against
+  // the *same* URL — no single presigned URL can satisfy both. This
+  // signs a URL to our own /media proxy instead, which live-signs a
+  // fresh, real per-method R2 request on every call. See media-url.ts.
+  const mediaUrl = await signMediaUrl(c.env, clip.renderedR2Key);
 
   try {
     const results = await createPost(c.env, {

@@ -9,6 +9,7 @@ import { postsRoute } from "./routes/posts.js";
 import { social } from "./routes/social.js";
 import { templatesRoute } from "./routes/templates.js";
 import { internalRoute } from "./routes/internal.js";
+import { mediaRoute } from "./routes/media.js";
 import type { Variables } from "./auth.js";
 
 // The only job type so far — the discriminated `type` field leaves
@@ -34,6 +35,17 @@ export interface Env {
   R2_SECRET_ACCESS_KEY: string;
   R2_BUCKET_NAME: string;
   WEB_ORIGIN: string;
+  // This Worker's own public origin — needed to build the /media proxy
+  // URL (see routes/media.ts, media-url.ts) that Postiz/the social
+  // platforms fetch directly, unlike WEB_ORIGIN above which points at
+  // the Next.js app instead.
+  API_ORIGIN: string;
+  // Signs/verifies /media proxy URLs (media-url.ts) — a plain R2
+  // presigned URL can't work there since it's strictly bound to one
+  // HTTP method (confirmed live 2026-09-08: GET-signed 403s on HEAD and
+  // vice versa), but Postiz's YouTube provider needs both HEAD (to size
+  // the upload) and ranged GET (to stream it) against the same URL.
+  MEDIA_URL_SECRET: string;
   // Verifies the inbound completion-notify callback from a spawned
   // worker Machine (routes/internal.ts) — the only direction this
   // secret is used for now; apps/api no longer calls the worker over
@@ -87,6 +99,7 @@ app.route("/social", social);
 app.route("/templates", templatesRoute);
 app.route("/posts", postsRoute);
 app.route("/internal", internalRoute);
+app.route("/media", mediaRoute);
 
 // Phase 2+: publish action, Stripe webhook receiver.
 // See ../../README.md Status section.

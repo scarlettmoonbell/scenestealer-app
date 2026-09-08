@@ -1,0 +1,47 @@
+import { AwsClient } from "aws4fetch";
+import { Hono } from "hono";
+import { verifyMediaUrl } from "../media-url.js";
+import type { Env } from "../index.js";
+
+// No Variables generic (same reason as routes/internal.ts) — this is
+// fetched directly by Postiz's/the platforms' own servers, which carry
+// no Clerk session, so it isn't mounted under requireTenant. Authenticated
+// instead with a signed key+expiry (see media-url.ts's verifyMediaUrl).
+export const mediaRoute = new Hono<{ Bindings: Env }>();
+
+// Proxies a single R2 object for both GET (ranged or not) and HEAD,
+// signing a fresh, real request to R2 server-side per incoming request
+// instead of reusing one static presigned URL — see media-url.ts's
+// top comment for why a presigned URL alone can't do this.
+mediaRoute.on(["GET", "HEAD"], "/", async (c) => {
+  const key = c.req.query("key");
+  const exp = c.req.query("exp");
+  const sig = c.req.query("sig");
+  if (!key || !exp || !sig) {
+    return c.text("Bad request", 400);
+  }
+  if (!(await verifyMediaUrl(c.env, key, exp, sig))) {
+    return c.text("Forbidden", 403);
+  }
+
+  const client = new AwsClient({
+    accessKeyId: c.env.R2_ACCESS_KEY_ID,
+    secretAccessKey: c.env.R2_SECRET_ACCESS_KEY,
+    region: "auto",
+    service: "s3",
+  });
+  const url = `https://${c.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${c.env.R2_BUCKET_NAME}/${key}`;
+  const range = c.req.header("range");
+
+  const upstream = await client.fetch(url, {
+    method: c.req.method,
+    headers: range ? { Range: range, "Accept-Encoding": "identity" } : {},
+  });
+
+  const headers = new Headers(upstream.headers);
+  headers.delete("content-encoding");
+  return new Response(c.req.method === "HEAD" ? null : upstream.body, {
+    status: upstream.status,
+    headers,
+  });
+});
