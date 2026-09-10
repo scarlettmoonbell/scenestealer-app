@@ -214,9 +214,20 @@ export const posts = pgTable("posts", {
   id: uuid("id").primaryKey().defaultRandom(),
   clipId: uuid("clip_id").references(() => clips.id),
   sourceVideoId: uuid("source_video_id").references(() => sourceVideos.id),
-  socialConnectionId: uuid("social_connection_id")
-    .notNull()
-    .references(() => socialConnections.id),
+  // Nullable: disconnecting an account (DELETE /social/connections/:id)
+  // deletes any non-"published" post tied to it outright (queued/
+  // scheduled/failed/cancelled — nothing of value survives the
+  // connection going away) but nulls this column instead for a genuinely
+  // "published" one, preserving real publish history rather than either
+  // destroying it or leaving a dangling reference that blocks the
+  // connection's own deletion. Confirmed for real (2026-09-10): this was
+  // a NOT NULL FK before, and any connection with post history — success
+  // or failure — could never be disconnected at all, failing with a raw
+  // foreign-key-violation the UI only ever showed as a generic
+  // "Failed to disconnect account".
+  socialConnectionId: uuid("social_connection_id").references(
+    () => socialConnections.id,
+  ),
   templateId: uuid("template_id").references(() => templates.id),
   status: postStatusEnum("status").notNull().default("scheduled"),
   scheduledAt: timestamp("scheduled_at"),

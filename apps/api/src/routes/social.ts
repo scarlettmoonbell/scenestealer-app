@@ -1,6 +1,6 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { Hono } from "hono";
-import { createDb, socialConnections } from "@scenestealer/db";
+import { createDb, posts, socialConnections } from "@scenestealer/db";
 import { requireTenant } from "../auth.js";
 import {
   deleteIntegration,
@@ -157,9 +157,35 @@ social.delete("/connections/:id", async (c) => {
   }
 
   await deleteIntegration(c.env, connection.postizIntegrationId);
-  await db
-    .delete(socialConnections)
-    .where(eq(socialConnections.id, connection.id));
+
+  // posts.socialConnectionId was NOT NULL until this was fixed for real
+  // (2026-09-10): any connection with post history at all — a queued,
+  // scheduled, failed, or even successfully published post — could never
+  // be disconnected, since deleting it would violate that foreign key.
+  // Confirmed live: the route's own deleteIntegration call above
+  // succeeded fine, but the row delete below then threw a raw
+  // NeonDbError the tenant only ever saw as a generic
+  // "Failed to disconnect account". A queued/scheduled/failed/cancelled
+  // post has no value once its connection is gone, so those are deleted
+  // outright; a genuinely "published" post is real history worth
+  // keeping, so its reference is nulled instead of destroying the row.
+  await db.transaction(async (tx) => {
+    await tx
+      .delete(posts)
+      .where(
+        and(
+          eq(posts.socialConnectionId, connection.id),
+          inArray(posts.status, ["queued", "scheduled", "failed", "cancelled"]),
+        ),
+      );
+    await tx
+      .update(posts)
+      .set({ socialConnectionId: null })
+      .where(eq(posts.socialConnectionId, connection.id));
+    await tx
+      .delete(socialConnections)
+      .where(eq(socialConnections.id, connection.id));
+  });
 
   return c.json({ deleted: true });
 });

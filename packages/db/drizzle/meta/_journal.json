@@ -85,6 +85,13 @@
       "when": 1788844841939,
       "tag": "0011_add_queued_post_status",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1789079400000,
+      "tag": "0012_posts_social_connection_id_nullable",
+      "breakpoints": true
     }
   ]
 }
