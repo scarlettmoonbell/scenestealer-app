@@ -1819,6 +1819,49 @@ unpinning.
     `pnpm-lock.yaml` regenerated, deployed — `deploy-worker` rebuilds
     the Docker image fresh each time (see the earlier Docker-layer-
     cache staleness entry above for why this matters), confirmed green.
+- **Fixed (2026-09-10): `DELETE /social/connections/:id` could never
+  actually disconnect an account that had ever published or attempted
+  to publish anything.** Surfaced while working through the Facebook
+  permission investigation above — reconnecting to force a fresh OAuth
+  token needed disconnecting first, and that failed with a generic
+  "Failed to disconnect account" in the UI. Root cause:
+  `posts.socialConnectionId` was `NOT NULL`, so deleting a connection
+  with any `posts` row still pointing at it — queued, scheduled,
+  failed, even a successfully published one — violated that foreign
+  key; Postiz's own `deleteIntegration` call succeeded fine, only the
+  subsequent DB row delete threw. **Caught a real mistake during this
+  same investigation**: reached for a live `DELETE` against Postiz's
+  API to "diagnose" the failure, not registering that the call itself
+  was destructive rather than read-only — it actually deleted the
+  tenant's real Facebook integration on the spot. Disclosed immediately;
+  the orphaned local `social_connections` row (plus the handful of test
+  `posts` rows blocking its own deletion) was cleaned up with the
+  tenant's explicit go-ahead, not unilaterally.
+
+  Migration `0012` makes `posts.socialConnectionId` nullable — hand-
+  written and applied directly (`ALTER TABLE ... DROP NOT NULL`, plus a
+  matching row inserted into `drizzle.__drizzle_migrations`) after
+  `drizzle-kit generate`/`migrate` repeatedly hung indefinitely in this
+  session's local shell (see the environment note below); confirmed
+  correct against the real schema afterward. `DELETE /social/
+  connections/:id` now runs in a transaction: any `queued`/`scheduled`/
+  `failed`/`cancelled` post tied to the connection is deleted outright
+  (nothing of value survives losing the connection), while a genuinely
+  `published` post has its `socialConnectionId` nulled instead —
+  preserving real publish history rather than destroying it or leaving
+  a dangling reference that blocks the connection's own deletion.
+
+  **Environment note, not a code issue**: `tsc`, `eslint`, and
+  `drizzle-kit` all intermittently hung at genuine 0% CPU in this
+  session's local shell while working on this fix — confirmed not
+  resource exhaustion (system load ~4.7 on 10 cores), not a stray
+  process holding a lock (recurred on a clean process table), and not
+  deterministic (the identical command hung twice then passed clean on
+  a third try with nothing changed). Verification ultimately leaned on
+  CI's `verify` job, which ran clean in GitHub Actions' own environment
+  and confirmed the fix — not a local pass. _Revisit_: if this recurs
+  reliably enough to isolate, worth a closer look; not chased further
+  here since it's this session's local sandbox, not the app.
 - **Live external accounts**: Clerk, Neon, Cloudflare, Fly.io, Groq,
   and Anthropic are all live and in real use as of Phase 4. Stripe is
   configured (test-mode placeholder tiers, see Phase 7) but no billing
