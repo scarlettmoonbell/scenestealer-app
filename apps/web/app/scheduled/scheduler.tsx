@@ -242,14 +242,23 @@ export function Scheduler({
   // redundant. A genuine failure interrupts the tenant via the error
   // banner below; reaching "published" surfaces its own confirmation
   // (2026-09-11, tenant's own follow-up request — the button simply
-  // going back to normal read as "did anything happen?"). A pending-
-  // too-long post (attempts exhausted, neither terminal status reached)
-  // still resolves correctly next time this page — or "Already
-  // scheduled" — reconciles it, same as it always did; nothing is shown
-  // for that case since it isn't actually known yet either way.
+  // going back to normal read as "did anything happen?").
+  //
+  // 90 attempts/4.5s (~6.75 minutes), not the original 12/3s (~36s):
+  // confirmed for real (2026-09-12) that the original window was simply
+  // too short — every *failure* this session resolved well within it
+  // (Instagram's own error paths short-circuit fast), but a genuine
+  // success apparently takes longer than 36s to reach Postiz's own
+  // "PUBLISHED" state, so the banner never fired even though the post
+  // really did land. A pending-too-long post (attempts exhausted, still
+  // neither terminal status) is reconciled in the background regardless
+  // — GET /posts/scheduled (apps/api/src/routes/posts.ts) now checks
+  // "queued" posts the same way it already did "scheduled" ones past
+  // their time — but that happens off-page, so nothing shows here for
+  // that case since success/failure isn't actually known yet either way.
   async function pollPostStatus(postId: string) {
-    for (let attempt = 0; attempt < 12; attempt++) {
-      await new Promise((resolve) => setTimeout(resolve, 3000));
+    for (let attempt = 0; attempt < 90; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, 4500));
       try {
         const res = await authedFetch(`/posts/${postId}/status`);
         if (!res.ok) continue;

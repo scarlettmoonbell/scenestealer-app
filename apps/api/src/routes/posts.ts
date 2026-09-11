@@ -17,18 +17,30 @@ export const postsRoute = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 postsRoute.use("*", requireTenant);
 
-// Checks a "scheduled" post whose time has already passed (Postiz should
-// have picked it up by now) against Postiz's real per-post state, and
-// writes the real outcome — nothing here assumes success just because
-// the scheduled time arrived. Best-effort: a Postiz hiccup leaves the
-// row untouched rather than failing the caller, since this only ever
-// runs as a side effect of a read.
-async function reconcileDuePosts(
+// Checks any post Postiz might have a real, resolved outcome for by now
+// — a "scheduled" post whose time has already passed, or a "queued"
+// one (an immediate "publish now") — against its real per-post state,
+// and writes the real outcome. Nothing here assumes success just
+// because time passed. Best-effort: a Postiz hiccup leaves a row
+// untouched rather than failing the caller, since this only ever runs
+// as a side effect of a read.
+//
+// "queued" specifically was a real gap, not just a nice-to-have
+// (2026-09-12): Scheduler's own poll after a "publish now" request was
+// the *only* thing that ever reconciled a "queued" post — nothing else
+// in the app touched it, and that component only polls for a bounded
+// window (extended, but still bounded) before giving up. A post that
+// took longer than that to actually land was stuck at "queued" forever,
+// invisible everywhere (not shown by GET /scheduled below either, which
+// only returns "scheduled"/recently-"failed"), even though it had
+// genuinely published. This closes that permanently, independent of
+// whether any particular tab is still open polling it.
+async function reconcilePendingPosts(
   env: Env,
   db: ReturnType<typeof createDb>,
   tenantId: string,
 ) {
-  const due = await db
+  const pending = await db
     .select({
       id: posts.id,
       externalPostId: posts.externalPostId,
@@ -42,13 +54,18 @@ async function reconcileDuePosts(
     .where(
       and(
         eq(socialConnections.tenantId, tenantId),
-        eq(posts.status, "scheduled"),
-        lte(posts.scheduledAt, new Date()),
         isNotNull(posts.externalPostId),
+        or(
+          and(
+            eq(posts.status, "scheduled"),
+            lte(posts.scheduledAt, new Date()),
+          ),
+          eq(posts.status, "queued"),
+        ),
       ),
     );
 
-  for (const row of due) {
+  for (const row of pending) {
     if (!row.externalPostId) continue;
     const remote = await getPostStatus(env, row.externalPostId);
     if (remote?.state === "PUBLISHED") {
@@ -78,7 +95,7 @@ postsRoute.get("/scheduled", async (c) => {
   const tenantId = c.get("tenantId");
   const db = createDb(c.env.DATABASE_URL);
 
-  await reconcileDuePosts(c.env, db, tenantId);
+  await reconcilePendingPosts(c.env, db, tenantId);
 
   const rows = await db
     .select({
