@@ -1957,10 +1957,21 @@ unpinning.
   by Postiz's own completion flow via the already-correct proxy
   script) to know when to stop polling and do a final refresh — it
   never causes the close itself. The 5-minute timeout fallback still
-  force-closes a genuinely abandoned tab. _Not yet re-verified_: needs
-  a real reconnect attempt against this deploy to confirm the picker
-  now stays open through a real Save click, and that `internalId`
-  actually updates to the Page.
+  force-closes a genuinely abandoned tab.
+
+  **Confirmed fixed for real, 2026-09-11**: a genuine reconnect
+  completed end to end — `GET /integrations` now shows a real, new
+  Facebook integration ID with `"name": "SceneStealer App"`, not the
+  tenant's personal profile. First real platform working out of the
+  three.
+- **Done (2026-09-11): dropped the redundant "Publishing…" status
+  text on the Scheduler** (tenant's own request) — the Publish
+  button's own disabled/label state already said this; a second
+  inline text block saying it again, plus a separate "Published!"/
+  "Scheduled!" success message, was noise beyond what the button and
+  the page's own clip/schedule lists already show. Only a genuine
+  failure now surfaces inline, as a real visually-distinct banner
+  (tinted background, border) instead of a bare paragraph.
 
   **Also surfaced and reverted the same investigation**: tried fixing
   Postiz's own outbound emails (which link to `FRONTEND_URL` +
