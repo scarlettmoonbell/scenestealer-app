@@ -200,6 +200,15 @@ postsRoute.get("/:id/status", async (c) => {
   return c.json({ post: row });
 });
 
+// "scheduled" -> cancel (Postiz has a real, live post to call off, so
+// that happens first; the row itself is kept, marked "cancelled", same
+// as always). "failed" -> dismiss: a failed post never has anything
+// live on Postiz's side worth cancelling (either the create call itself
+// never succeeded, or Postiz's own state is already a terminal ERROR),
+// so this just clears the row outright — requested for real
+// (2026-09-12) after a tenant found "Already scheduled" cluttered with
+// weeks-old, already-understood failures with no way to clear them
+// short of waiting out GET /scheduled's own 7-day window.
 postsRoute.delete("/:id", async (c) => {
   const tenantId = c.get("tenantId");
   const postId = c.req.param("id");
@@ -221,8 +230,17 @@ postsRoute.delete("/:id", async (c) => {
   if (!row) {
     return c.json({ error: "Post not found" }, 404);
   }
+
+  if (row.status === "failed") {
+    await db.delete(posts).where(eq(posts.id, postId));
+    return c.json({ ok: true });
+  }
+
   if (row.status !== "scheduled") {
-    return c.json({ error: "Only scheduled posts can be cancelled" }, 400);
+    return c.json(
+      { error: "Only scheduled or failed posts can be cancelled/dismissed" },
+      400,
+    );
   }
 
   if (row.externalPostId) {

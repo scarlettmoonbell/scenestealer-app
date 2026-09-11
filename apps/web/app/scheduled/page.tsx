@@ -180,19 +180,30 @@ function SchedulingContent() {
     }
   }
 
-  async function handleCancel(id: string) {
-    if (!window.confirm("Cancel this scheduled post?")) return;
+  // Shared by both "Cancel" (a still-"scheduled" post — Postiz calls
+  // off a real pending post) and "Dismiss" (a "failed" one — nothing
+  // live on Postiz's side to cancel, just clears the row so it stops
+  // cluttering this list; see the DELETE /posts/:id route's own
+  // comment). Both are DELETE under the hood, so the request/local-
+  // state-update shape is identical — only the confirm/error copy and
+  // button label differ.
+  async function handleCancelOrDismiss(
+    id: string,
+    confirmMessage: string,
+    failureMessage: string,
+  ) {
+    if (!window.confirm(confirmMessage)) return;
     setCancellingId(id);
     setError(null);
     try {
       const res = await authedFetch(`/posts/${id}`, { method: "DELETE" });
       if (!res.ok) {
-        setError("Failed to cancel post");
+        setError(failureMessage);
         return;
       }
       setPostList((prev) => prev.filter((p) => p.id !== id));
     } catch (e) {
-      setError(`Failed to cancel post: ${describeFetchError(e)}`);
+      setError(`${failureMessage}: ${describeFetchError(e)}`);
     } finally {
       setCancellingId(null);
     }
@@ -423,9 +434,24 @@ function SchedulingContent() {
                     </span>
                   </span>
                   {post.status === "failed" ? (
-                    <span style={{ fontSize: "0.85em", color: "#e5484d" }}>
-                      Failed: {post.error ?? "Unknown error"}
-                    </span>
+                    <>
+                      <span style={{ fontSize: "0.85em", color: "#e5484d" }}>
+                        Failed: {post.error ?? "Unknown error"}
+                      </span>
+                      <button
+                        type="button"
+                        disabled={cancellingId === post.id}
+                        onClick={() =>
+                          void handleCancelOrDismiss(
+                            post.id,
+                            "Dismiss this failed post? This only clears it from this list, it doesn't retry or undo anything.",
+                            "Failed to dismiss post",
+                          )
+                        }
+                      >
+                        {cancellingId === post.id ? "Dismissing…" : "Dismiss"}
+                      </button>
+                    </>
                   ) : (
                     <>
                       <span
@@ -436,7 +462,13 @@ function SchedulingContent() {
                       <button
                         type="button"
                         disabled={cancellingId === post.id}
-                        onClick={() => void handleCancel(post.id)}
+                        onClick={() =>
+                          void handleCancelOrDismiss(
+                            post.id,
+                            "Cancel this scheduled post?",
+                            "Failed to cancel post",
+                          )
+                        }
                       >
                         {cancellingId === post.id ? "Cancelling…" : "Cancel"}
                       </button>
