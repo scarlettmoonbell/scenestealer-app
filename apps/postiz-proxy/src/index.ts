@@ -31,19 +31,27 @@ export interface Env {
 // A tenant reported the popup closing while that picker was still on
 // screen, before Save could be clicked; confirmed separately that the
 // stored integration never actually updated to the selected page.
-// Root cause not fully pinned down (Postiz's own two-step trigger has
-// a `refresh` short-circuit that's plausible but unconfirmed here),
-// so the fix doesn't depend on knowing the exact trigger: never close
-// while that picker's own heading text is present in the DOM, no
-// matter what triggered the added= transition. hasAdded latches the
-// signal; a MutationObserver re-checks on every DOM change and closes
-// once the picker is confirmed gone (Save succeeded, or the tenant
-// navigated past it some other way) rather than closing eagerly.
+//
+// A first fix (checking the DOM for the picker's own heading text
+// before closing) still weren't enough — confirmed live 2026-09-11,
+// same symptom recurred. Root cause: that check ran synchronously the
+// instant the added= signal was seen, which can be *before* React has
+// painted anything at all — an empty, not-yet-rendered page looks
+// identical to "no picker" to a text search, so it closed on a false
+// negative rather than a real absence. This version never evaluates
+// pickerShowing() until at least settleDelayMs after the signal, and
+// keeps re-checking (both on a timer and via MutationObserver) rather
+// than deciding once — so a picker that hasn't rendered *yet* gets
+// time to, and one that's genuinely there keeps deferring the close
+// until it's actually gone (Save succeeded).
 function buildInjectedScript(webOrigin: string): string {
   return `<script>(function(){
 try {
   var hasAdded = false;
   var closed = false;
+  var settleDelayMs = 600;
+  var pollMs = 400;
+  var addedAt = null;
 
   function pickerShowing() {
     try {
@@ -54,13 +62,22 @@ try {
   }
 
   function doClose() {
-    if (closed) return;
-    if (pickerShowing()) return;
     closed = true;
     try { window.close(); } catch (e) {}
     setTimeout(function () {
       window.location.href = ${JSON.stringify(`${webOrigin}/connections`)};
     }, 500);
+  }
+
+  function maybeClose() {
+    if (closed || !hasAdded) return;
+    // Give the page real time to render before the very first
+    // evaluation — an unrendered page and a genuinely picker-free one
+    // both read as "no picker text found," so this window is what
+    // tells them apart.
+    if (Date.now() - addedAt < settleDelayMs) return;
+    if (pickerShowing()) return;
+    doClose();
   }
 
   function maybeCloseFor(urlStr) {
@@ -71,8 +88,11 @@ try {
       return;
     }
     if (!target.searchParams.has("added")) return;
-    hasAdded = true;
-    doClose();
+    if (!hasAdded) {
+      hasAdded = true;
+      addedAt = Date.now();
+    }
+    maybeClose();
   }
 
   // Covers a direct load of a URL that already carries the param.
@@ -88,13 +108,24 @@ try {
     };
   });
 
-  // Retries doClose() once the picker's own DOM node disappears —
-  // covers the case where added= was already seen (hasAdded) but the
-  // picker was still showing at that moment.
+  // Two independent re-check mechanisms, since either alone has a
+  // gap: MutationObserver catches the picker's own removal (Save
+  // succeeded) quickly, but only fires on a DOM change — nothing
+  // re-evaluates purely because settleDelayMs has now elapsed if the
+  // DOM happens to stay static across that boundary. The interval
+  // covers exactly that case; both are cheap and both stop once closed.
   var observer = new MutationObserver(function () {
-    if (hasAdded && !closed) doClose();
+    maybeClose();
   });
   observer.observe(document.documentElement, { childList: true, subtree: true });
+
+  var interval = setInterval(function () {
+    if (closed) {
+      clearInterval(interval);
+      return;
+    }
+    maybeClose();
+  }, pollMs);
 } catch (e) {}
 })();</script>`;
 }
