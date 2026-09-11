@@ -2055,6 +2055,55 @@ unpinning.
   can be verified for real before going live. _Revisit_: before
   onboarding a real tenant, given every change until now has been
   effectively tested in production.
+- **Done (2026-09-11): duration-limit errors read as a time, not raw
+  seconds; manual clip creation gained editable timing fields.** The
+  Instagram duration-limit error (`clips.ts`'s `/:id/publish`) printed
+  a real clip's own duration as a bare decimal seconds count (e.g.
+  "657.0s") — reads like a frame number, not a duration, for anything
+  longer than single digits; `formatDurationLabel` mirrors the
+  client's existing `formatTime` (M:SS.S) for the same reason it
+  exists there. Separately, drawing a new clip on the waveform only
+  let the boundaries be set by the drag itself — no way to fine-tune
+  afterward. `clip-editor.tsx`'s pending-selection block now carries
+  its own editable start/end inputs (same uncontrolled-input +
+  `parseTimecode`-on-blur pattern as the existing per-clip Adjust
+  column), backed by new `pendingStart`/`pendingEnd` state kept in
+  sync with the wavesurfer region via `setOptions`.
+- **Fixed for real (2026-09-11): the Instagram 2207076 failure — for a
+  THIRD time — root-caused to the mp4's moov atom landing after mdat
+  (no `-movflags +faststart`), independent of both the stream-mapping
+  and metadata-stripping fixes already shipped.** A fresh clip
+  (rendered hours after the metadata-stripping fix was confirmed live)
+  still failed with the identical error — ruling that fix out as the
+  full story. Traced through Postiz's own source
+  (`instagram.provider.ts`'s `igContainerStatus`): the message shown
+  in our UI is Meta's own raw `status` text for a container whose
+  `status_code` is `ERROR`, returned while *polling* a container
+  that's already been created — meaning Instagram had already fetched
+  the file by then, and the failure is in its own async processing,
+  not our HTTP serving of it. Pulled the actual rendered object back
+  from R2 (`wrangler r2 object get ... --remote`, the local `wrangler
+  whoami` confirming an authenticated session existed) and parsed its
+  atom layout directly: `mdat` (the frame data, ~8.7MB) sits right
+  after `ftyp`, with `moov` (duration/dimensions/sample-table
+  metadata) only at the very end — ffmpeg's default mp4-muxer
+  behavior, since `FfmpegRenderer` never set `-movflags +faststart`.
+  This is a well-known cause of exactly this class of opaque
+  "processing failed" response from platforms that read a file's
+  leading bytes to validate it before committing to a full download.
+  Verified locally against this same real file that `+faststart`
+  relocates `moov` to right after `ftyp`. Fixed in
+  `scenestealer-pipeline` (commit `6c273d6`, full test suite — 26
+  tests — green); `apps/worker`'s pin bumped, `pnpm-lock.yaml`
+  regenerated, deployed via CI (all jobs green). Confirmed directly
+  against the live deployed image rather than assumed working, same
+  discipline as the metadata-stripping fix after being burned once
+  already: spun up a throwaway Fly Machine from the exact deployed
+  image and grepped its bundled `dist/render/ffmpeg-renderer.js` for
+  `+faststart`, found it present, machine destroyed after. _Not yet
+  re-verified against a real end-to-end publish_ — needs a clip
+  rendered after this deploy (any clip rendered before it still
+  carries the old moov-last output).
 
 ## How to use this document
 
