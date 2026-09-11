@@ -156,9 +156,24 @@ export default function ConnectionsPage() {
   }
 
   // Fires from the real <a>'s onClick, once the tab it opens (see below)
-  // reaches the new-connection state. Closes that tab once detected — or
-  // on timeout, since a stray tab left open indefinitely is worse than
-  // closing one the tenant might still be using.
+  // reaches the new-connection state.
+  //
+  // Deliberately never force-closes the tab on detecting a new
+  // connection — confirmed for real (2026-09-11) that doing so was a
+  // real bug, not a convenience: Postiz creates an integration row the
+  // instant its OAuth callback runs, using a placeholder (the tenant's
+  // own personal profile) *before* a required second step where the
+  // tenant picks their real Page. That placeholder is enough for
+  // /finalize below to see a "new" integration ID and insert our own
+  // socialConnections row, which used to also call opened.close() —
+  // closing the tab mid-flow, sometimes before the tenant ever saw the
+  // Page-picker, sometimes cutting them off mid-selection. Postiz's own
+  // flow (via apps/postiz-proxy's injected script) already knows when
+  // the tenant is truly done and closes the tab itself; this function
+  // only detects that closing to know when to stop polling and do a
+  // final refresh — it never causes it. The 5-minute timeout still
+  // force-closes a stray abandoned tab, the one case where that's
+  // actually the safer default.
   async function beginPolling(
     platform: string,
     beforeIds: string[],
@@ -172,7 +187,9 @@ export default function ConnectionsPage() {
     startingRef.current = false;
     const deadline = Date.now() + POLL_TIMEOUT_MS;
     while (Date.now() < deadline) {
+      if (opened?.closed) break;
       await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+      if (opened?.closed) break;
       try {
         const finalizeRes = await authedFetch(`/social/${platform}/finalize`, {
           method: "POST",
@@ -184,19 +201,22 @@ export default function ConnectionsPage() {
         };
         if (newOnes.length > 0) {
           await loadConnections();
-          setConnectingPlatform(null);
-          opened?.close();
-          return;
         }
       } catch {
         // Transient — keep polling until the deadline.
       }
     }
-    setError(
-      `Still waiting on ${platform} after five minutes — if you finished connecting, refresh this page to check.`,
-    );
+    if (!opened?.closed) {
+      setError(
+        `Still waiting on ${platform} after five minutes — if you finished connecting, refresh this page to check.`,
+      );
+      opened?.close();
+    }
+    // Final refresh regardless of which loop exit fired — covers the
+    // tab closing (by the tenant or Postiz's own flow) between the
+    // last successful /finalize call and this point.
+    await loadConnections();
     setConnectingPlatform(null);
-    opened?.close();
   }
 
   async function handleDisconnect(id: string) {
