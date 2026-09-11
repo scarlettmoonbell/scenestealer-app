@@ -2186,6 +2186,67 @@ unpinning.
   by Meta as malformed as sent, but the real sub-token inside it may
   still be live — reconnecting invalidates whatever's currently
   stored regardless.
+- **Fixed for real (2026-09-11): the 24h-TTL entry above was a real
+  hardening but not the actual fix — the true root cause of 2207076,
+  every single time, was our own signed media URL's query string
+  getting mangled by Postiz's own request construction, not the file
+  or timing at all.** The tenant published again right after the TTL
+  deploy and hit the identical error within *45 seconds* of the
+  request — Postiz's own `Post.createdAt`/`updatedAt` (read directly
+  from its database, not guessed) proved this wasn't a stale-URL race;
+  a signature that had been valid for barely a minute cannot be the
+  cause of "expired." Re-opened the investigation rather than declaring
+  victory on the TTL fix.
+
+  Re-read `InstagramProvider.postPending` (already fetched during the
+  earlier investigation, hadn't been examined closely enough) and found
+  the real bug: it builds Meta's request as a raw, hand-assembled query
+  string — `` `video_url=${m.path}&media_type=REELS&thumb_offset=${...}` ``
+  — with **no `encodeURIComponent` around `m.path`**. `m.path` is our
+  own signed media URL, which (at the time) was itself
+  `.../media/clip.mp4?key=...&exp=...&sig=...` — a URL with its own
+  query string. Splicing that whole string into Postiz's *own* query
+  string means the first bare `&` inside our URL (right after
+  `key=...`) terminates the `video_url` value early, right there in
+  the request Meta actually receives — `exp` and `sig` become
+  orphaned, ignored top-level params on Meta's endpoint instead of part
+  of our URL. Meta accepts the syntactically-valid-looking (but now
+  truncated) `video_url` immediately without fetching it synchronously
+  — hence the container always "succeeds" instantly — and only fails
+  later, fast, when its own async ingestion tries to actually fetch
+  that broken URL and gets a 400 from our `/media` route (missing
+  `exp`/`sig`), surfacing as this exact generic, opaque
+  "processing failed" status with zero indication anywhere that the
+  URL itself was the problem. This explains everything: 100%
+  reproducible regardless of file quality (the timecode-track and
+  faststart fixes were both real, correct improvements that were
+  simply never the actual blocker), fails fast every time, and — the
+  clinching test — calling Meta's API directly with a plain JSON body
+  (`{media_type: "REELS", video_url: mediaUrl}`, no string splicing)
+  using this exact file worked every single time.
+
+  Fixed on our side, not Postiz's: `media-url.ts`'s `signMediaUrl` now
+  returns a URL with **no query string at all** —
+  `/media/:exp/:sig/:key/:filename`, all path segments. First pass
+  used `encodeURIComponent(key)` for the `:key` segment (R2 keys
+  contain real `/`), which removes the immediate bug but leans on an
+  unverifiable assumption — that nothing between Postiz and Meta ever
+  decodes that `%2F` back into a literal `/` before dereferencing the
+  URL, which would silently shift every path segment after it again.
+  Replaced with base64url encoding instead: its whole alphabet has no
+  `/`, `&`, `=`, `?`, or `%` in it, so there's nothing left for
+  anything to decode, ever, regardless of how many layers the URL
+  passes through — confirmed by literally re-running Postiz's own
+  unescaped-concatenation logic against the new URL and diffing the
+  `video_url` value Meta would receive against the original: exact
+  byte-for-byte match. `routes/media.ts` decodes the `:key` segment
+  back (`decodeMediaKey`) before using it as the real R2 object key.
+  Verified live against production for both the intermediate
+  `encodeURIComponent` version and the final base64url version (GET
+  and HEAD, correct `Content-Length`/`Content-Type` on the real
+  rendered object) before either was relied on. `typecheck`/`lint`
+  green, deployed via CI, all jobs green. _Not yet confirmed against a
+  real end-to-end Instagram publish_ — that's the next real test.
 
 ## How to use this document
 
