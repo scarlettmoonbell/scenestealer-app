@@ -128,20 +128,35 @@ export function ClipEditor({
     import("wavesurfer.js/dist/plugins/regions.js").default | null
   >(null);
   const disableDragSelectionRef = useRef<(() => void) | null>(null);
+  // Mirrors pendingNewClip.id, read from inside region-updated below —
+  // that handler is registered once when the wavesurfer effect first
+  // runs, so reading the pendingNewClip state variable directly there
+  // would only ever see whatever it was at that moment, not later
+  // updates (the same staleness region-created's own functional
+  // setState updater sidesteps, but there's no equivalent for a read
+  // rather than a state transition).
+  const pendingClipIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    pendingClipIdRef.current = pendingNewClip?.id ?? null;
+  }, [pendingNewClip]);
 
   // Arms drag-selection once, for the life of the wavesurfer instance
   // (the effect below calls this exactly once, and cleans it up on
   // unmount) — drawing a new selection while one is already pending
   // replaces it (see region-created below) rather than being blocked,
   // so unlike an earlier version of this, there's no disable/re-enable
-  // dance needed around Create/Cancel any more.
+  // dance needed around Create/Cancel any more. drag/resize both on
+  // (2026-09-12, requested for real): the pending region's boundaries
+  // are draggable/resizable the same as any saved clip's, not fixed the
+  // instant it's drawn — the editable start/end fields (below, in the
+  // pending-clip block) are kept in sync either way, via region-updated.
   const enablePendingDragSelection = useCallback(() => {
     const regions = regionsPluginRef.current;
     if (!regions) return;
     disableDragSelectionRef.current = regions.enableDragSelection({
       color: REGION_COLOR_PENDING,
-      drag: false,
-      resize: false,
+      drag: true,
+      resize: true,
     });
   }, []);
 
@@ -498,6 +513,14 @@ export function ClipEditor({
       }
 
       regions.on("region-updated", (region: Region) => {
+        // The pending region has no real clip id yet — dragging/resizing
+        // it updates the editable start/end fields below instead of
+        // trying (and failing) to PATCH a clip that doesn't exist.
+        if (region.id === pendingClipIdRef.current) {
+          setPendingStart(region.start);
+          setPendingEnd(region.end);
+          return;
+        }
         void updateClip(region.id, {
           startSec: region.start,
           endSec: region.end,
