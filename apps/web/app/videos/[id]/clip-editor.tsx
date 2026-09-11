@@ -672,6 +672,7 @@ export function ClipEditor({
           <tr style={{ borderBottom: "2px solid #333" }}>
             <th style={HEADER_CELL_STYLE}>Play</th>
             <th style={HEADER_CELL_STYLE}>Adjust</th>
+            <th style={HEADER_CELL_STYLE}>Format</th>
             <th style={HEADER_CELL_STYLE}>Reasoning</th>
             <th style={HEADER_CELL_STYLE}>Status</th>
             <th style={HEADER_CELL_STYLE}>Manage</th>
@@ -762,6 +763,52 @@ export function ClipEditor({
                     </span>
                   )}
                 </td>
+                <td style={CELL_STYLE}>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "0.2rem",
+                    }}
+                  >
+                    <label
+                      style={{ display: "flex", gap: "0.35rem" }}
+                      title="Cuts off the sides to fill the 9:16 frame"
+                    >
+                      <input
+                        type="radio"
+                        name={`fitMode-${clip.id}`}
+                        checked={clip.fitMode === "crop"}
+                        disabled={
+                          renderingIds.has(clip.id) ||
+                          clip.status === "rendering"
+                        }
+                        onChange={() =>
+                          void updateClip(clip.id, { fitMode: "crop" })
+                        }
+                      />
+                      Crop
+                    </label>
+                    <label
+                      style={{ display: "flex", gap: "0.35rem" }}
+                      title="Keeps the whole picture, adding black bars"
+                    >
+                      <input
+                        type="radio"
+                        name={`fitMode-${clip.id}`}
+                        checked={clip.fitMode === "pad"}
+                        disabled={
+                          renderingIds.has(clip.id) ||
+                          clip.status === "rendering"
+                        }
+                        onChange={() =>
+                          void updateClip(clip.id, { fitMode: "pad" })
+                        }
+                      />
+                      Fit
+                    </label>
+                  </div>
+                </td>
                 <td style={{ ...CELL_STYLE, fontSize: "0.9em", opacity: 0.8 }}>
                   {clip.aiReason ?? "Manually adjusted clip"}
                   {clip.aiScore != null &&
@@ -783,31 +830,17 @@ export function ClipEditor({
                       gap: "0.5rem",
                     }}
                   >
-                    {clip.status !== "ready" && clip.status !== "rendering" && (
-                      <>
-                        <select
-                          value={clip.fitMode}
-                          onChange={(e) =>
-                            void updateClip(clip.id, {
-                              fitMode: e.target.value as Clip["fitMode"],
-                            })
-                          }
-                          disabled={renderingIds.has(clip.id)}
-                          aria-label="How to fit this clip into 9:16"
-                          title="Crop cuts off the sides to fill the frame; Fit keeps the whole picture, adding black bars"
-                        >
-                          <option value="crop">Crop to fill</option>
-                          <option value="pad">Fit (black bars)</option>
-                        </select>
-                        <button
-                          type="button"
-                          disabled={renderingIds.has(clip.id)}
-                          onClick={() => void renderClip(clip.id)}
-                        >
-                          {renderingIds.has(clip.id) ? "Rendering…" : "Accept"}
-                        </button>
-                      </>
-                    )}
+                    <button
+                      type="button"
+                      disabled={
+                        renderingIds.has(clip.id) || clip.status === "rendering"
+                      }
+                      onClick={() => void renderClip(clip.id)}
+                    >
+                      {renderingIds.has(clip.id) || clip.status === "rendering"
+                        ? "Rendering…"
+                        : "Render"}
+                    </button>
                     {clip.status !== "rejected" && (
                       <button
                         type="button"
@@ -816,11 +849,6 @@ export function ClipEditor({
                         }
                       >
                         Reject
-                      </button>
-                    )}
-                    {clip.status === "rendering" && (
-                      <button type="button" disabled>
-                        Rendering…
                       </button>
                     )}
                     {clip.status === "ready" &&
