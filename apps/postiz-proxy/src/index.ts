@@ -22,9 +22,47 @@ export interface Env {
 // real connect still left the tenant on Postiz's calendar. Patching
 // pushState/replaceState catches the transition at the moment it
 // actually happens, regardless of which page it started from.
+//
+// Some providers (Facebook confirmed for real, 2026-09-11) are
+// "two-step": ContinueIntegration renders a "Configure Your Channel"
+// page-picker *inline* on this same /integrations/social/[provider]
+// page — no navigation while it's up — and only calls the added=
+// push once the tenant picks a page and clicks that UI's own Save.
+// A tenant reported the popup closing while that picker was still on
+// screen, before Save could be clicked; confirmed separately that the
+// stored integration never actually updated to the selected page.
+// Root cause not fully pinned down (Postiz's own two-step trigger has
+// a `refresh` short-circuit that's plausible but unconfirmed here),
+// so the fix doesn't depend on knowing the exact trigger: never close
+// while that picker's own heading text is present in the DOM, no
+// matter what triggered the added= transition. hasAdded latches the
+// signal; a MutationObserver re-checks on every DOM change and closes
+// once the picker is confirmed gone (Save succeeded, or the tenant
+// navigated past it some other way) rather than closing eagerly.
 function buildInjectedScript(webOrigin: string): string {
   return `<script>(function(){
 try {
+  var hasAdded = false;
+  var closed = false;
+
+  function pickerShowing() {
+    try {
+      return !!document.body && document.body.innerText.indexOf("Configure Your Channel") !== -1;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function doClose() {
+    if (closed) return;
+    if (pickerShowing()) return;
+    closed = true;
+    try { window.close(); } catch (e) {}
+    setTimeout(function () {
+      window.location.href = ${JSON.stringify(`${webOrigin}/connections`)};
+    }, 500);
+  }
+
   function maybeCloseFor(urlStr) {
     var target;
     try {
@@ -33,10 +71,8 @@ try {
       return;
     }
     if (!target.searchParams.has("added")) return;
-    try { window.close(); } catch (e) {}
-    setTimeout(function () {
-      window.location.href = ${JSON.stringify(`${webOrigin}/connections`)};
-    }, 500);
+    hasAdded = true;
+    doClose();
   }
 
   // Covers a direct load of a URL that already carries the param.
@@ -51,6 +87,14 @@ try {
       return result;
     };
   });
+
+  // Retries doClose() once the picker's own DOM node disappears —
+  // covers the case where added= was already seen (hasAdded) but the
+  // picker was still showing at that moment.
+  var observer = new MutationObserver(function () {
+    if (hasAdded && !closed) doClose();
+  });
+  observer.observe(document.documentElement, { childList: true, subtree: true });
 } catch (e) {}
 })();</script>`;
 }
