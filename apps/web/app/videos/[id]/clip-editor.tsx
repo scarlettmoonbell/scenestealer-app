@@ -204,17 +204,20 @@ export function ClipEditor({
     return () => activePlaybackCleanupRef.current?.();
   }, []);
 
-  const playClip = useCallback((clip: Clip) => {
+  // Takes plain start/end rather than a Clip so the same playback logic
+  // covers both a saved clip's Play button and the pending (not yet
+  // created) selection below, which has no Clip row to pass in.
+  const playRange = useCallback((startSec: number, endSec: number) => {
     const videoEl = videoRef.current;
     if (!videoEl) return;
 
     activePlaybackCleanupRef.current?.();
 
-    videoEl.currentTime = clip.startSec;
+    videoEl.currentTime = startSec;
     void videoEl.play();
 
     const onTimeUpdate = () => {
-      if (videoEl.currentTime >= clip.endSec) {
+      if (videoEl.currentTime >= endSec) {
         videoEl.pause();
         cleanup();
       }
@@ -631,6 +634,16 @@ export function ClipEditor({
           </span>
           <button
             type="button"
+            onClick={() => playRange(pendingStart, pendingEnd)}
+            disabled={!playbackUrl}
+            title="Play this selection"
+            aria-label={`Play selection from ${formatTime(pendingStart)} to ${formatTime(pendingEnd)}`}
+            style={{ lineHeight: 1 }}
+          >
+            &#9654;
+          </button>
+          <button
+            type="button"
             disabled={creatingClip}
             onClick={() =>
               void createClip(pendingStart, pendingEnd, pendingNewClip)
@@ -679,7 +692,7 @@ export function ClipEditor({
                 <td style={CELL_STYLE}>
                   <button
                     type="button"
-                    onClick={() => playClip(clip)}
+                    onClick={() => playRange(clip.startSec, clip.endSec)}
                     disabled={!playbackUrl}
                     title="Play this clip"
                     aria-label={`Play clip from ${formatTime(clip.startSec)} to ${formatTime(clip.endSec)}`}

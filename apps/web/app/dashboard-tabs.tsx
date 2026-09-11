@@ -8,8 +8,8 @@ import { usePathname } from "next/navigation";
 // Media/Templates.
 const TABS = [
   { href: "/", label: "Media" },
-  { href: "/templates", label: "Caption Templates" },
   { href: "/scheduled", label: "Scheduling" },
+  { href: "/templates", label: "Caption Templates" },
   { href: "/connections", label: "Connected Accounts" },
   { href: "/settings", label: "Settings" },
 ] as const;
