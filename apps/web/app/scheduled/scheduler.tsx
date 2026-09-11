@@ -191,13 +191,26 @@ export function Scheduler({
       .then((data) => {
         const required = data.output.settings.required ?? [];
         const properties = data.output.settings.properties ?? {};
-        setSettingsFields(
-          required.map((key) => ({
-            key,
-            enumValues: properties[key]?.enum,
-          })),
+        const fields = required.map((key) => ({
+          key,
+          enumValues: properties[key]?.enum,
+        }));
+        setSettingsFields(fields);
+        // Confirmed for real (2026-09-12): an untouched "Select…"
+        // placeholder was never actually a valid submission for a
+        // *required* enum field — Postiz's own validation 400s on it
+        // ("post_type should not be one of the following values: post,
+        // story"), so leaving it blank was only ever a trap, not a
+        // real "no preference" option. Defaulting to the field's own
+        // first real choice means a tenant who never touches this
+        // dropdown still submits something Postiz actually accepts.
+        setSettingsValues(
+          Object.fromEntries(
+            fields
+              .filter((f) => f.enumValues && f.enumValues.length > 0)
+              .map((f) => [f.key, f.enumValues![0]]),
+          ),
         );
-        setSettingsValues({});
       })
       .catch((e) =>
         setError(
