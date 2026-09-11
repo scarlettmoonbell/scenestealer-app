@@ -442,8 +442,14 @@ unpinning.
   throws explicitly rather than silently downgrading to a worse result.
   Real face detection/tracking is a meaningfully bigger undertaking
   than the mechanical encode/crop implemented here.
-- **Still open**: templating engine (caption variables) in
-  `apps/web`/`apps/api` — the rest of Phase 5.
+- **Done — this "still open" note was stale (caught and corrected
+  2026-09-12): templating engine (caption variables) in
+  `apps/web`/`apps/api`, the rest of Phase 5, shipped as part of Phase
+  6's connect→template→publish loop** (`routes/templates.ts`'s CRUD +
+  `{{video_title}}`/`{{date}}`/`{{organization}}` substitution, later
+  extended with `{{duration}}`/`{{recorded_date}}`/`{{venue}}`/
+  `{{city}}` — see Phase 6's "Done" entries below). This bullet just
+  never got updated once that happened.
 
 ## 🗓 Phase 6 — Resumed (2026-08-31): Meta
 
@@ -1214,13 +1220,16 @@ unpinning.
   again from the *app's* perspective — an always-on dedicated-vCPU
   machine would sit idle (still fully billed) between uploads, which
   directly works against the goal of controlling per-job compute cost
-  as usage grows past one alpha tester. The plan going forward
-  (scoped separately, not yet built) is Fly's Machines API spawning a
-  disposable `performance`-CPU Machine *per job*, billed per-second
-  only while it's actually running — `auto_destroy: true` cleans it up
-  the moment the process exits, no idle cost between jobs, no
-  throttling during them. `apps/worker/src/index.ts`'s one-shot CLI
-  entry point already exists for exactly this.
+  as usage grows past one alpha tester. The plan going forward is Fly's
+  Machines API spawning a disposable `performance`-CPU Machine *per
+  job*, billed per-second only while it's actually running —
+  `auto_destroy: true` cleans it up the moment the process exits, no
+  idle cost between jobs, no throttling during them.
+  `apps/worker/src/index.ts`'s one-shot CLI entry point already exists
+  for exactly this. **Built the same day — see the "Done (2026-09-07):
+  built the per-job Fly Machines API spawn" entry a few bullets down**;
+  this paragraph's "scoped separately, not yet built" framing was left
+  stale after that shipped (caught and corrected 2026-09-12).
 
   **Option 2, considered and deliberately not pursued now — revisit as
   volume grows**: a platform built specifically for bursty per-second
