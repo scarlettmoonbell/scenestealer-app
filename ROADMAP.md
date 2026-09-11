@@ -1929,9 +1929,38 @@ unpinning.
   doesn't depend on pinning down Postiz's exact internal trigger
   (a `refresh`-param short-circuit in `ContinueIntegration` looked
   plausible during this investigation but was never confirmed as the
-  actual cause here). _Not yet re-verified_: needs a real reconnect
-  attempt against the deployed fix to confirm `internalId` actually
-  updates to the Page this time.
+  actual cause here). Confirmed live this fix deployed correctly (the
+  live `/integrations/social/facebook` HTML was checked directly for
+  the new script content, not just a green CI run) — **but the tenant
+  reported the exact same symptom afterward, once even worse (the
+  picker never rendered at all before the window closed).** This
+  `postiz-proxy` self-close script was never the actual culprit.
+
+  **Real root cause, found after the proxy fix demonstrably didn't
+  help**: `apps/web/app/connections/page.tsx`'s own `beginPolling` —
+  completely independent of `postiz-proxy` — was calling
+  `opened.close()` itself the instant `POST /social/:platform/finalize`
+  saw *any* new Postiz integration ID appear. Postiz creates that
+  integration row (using the placeholder personal-profile info) the
+  moment its OAuth callback runs, before the two-step Page-picker that
+  's supposed to replace it ever gets a chance to render — so our own
+  polling (every `POLL_INTERVAL_MS`) was closing the popup out from
+  under the tenant, sometimes before the picker painted at all,
+  sometimes mid-selection, regardless of anything in the proxy script.
+  Two full rounds of `postiz-proxy` fixes above were chasing a
+  mechanism that turned out not to be the actual problem — a real
+  reminder to verify against the reported symptom recurring, not just
+  confirm a deploy landed, before declaring a fix done.
+
+  Fixed by removing the early `opened.close()` entirely:
+  `beginPolling` now only detects the popup closing (by the tenant, or
+  by Postiz's own completion flow via the already-correct proxy
+  script) to know when to stop polling and do a final refresh — it
+  never causes the close itself. The 5-minute timeout fallback still
+  force-closes a genuinely abandoned tab. _Not yet re-verified_: needs
+  a real reconnect attempt against this deploy to confirm the picker
+  now stays open through a real Save click, and that `internalId`
+  actually updates to the Page.
 
   **Also surfaced and reverted the same investigation**: tried fixing
   Postiz's own outbound emails (which link to `FRONTEND_URL` +
