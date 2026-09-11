@@ -2376,6 +2376,27 @@ unpinning.
   `clips.fitMode` at all — added, and surfaced as a Crop/Fit column
   in the table so a tenant can tell which format a given rendered
   clip actually used without reopening its video page.
+- **Investigated and fixed (2026-09-12): "Already scheduled" cluttered
+  with old failures — confirmed every one shown was stale, from before
+  tonight's real fixes, not evidence of an ongoing problem.** Tenant
+  flagged the list as full of apparent orphans; checked directly
+  against the database rather than assuming — all but one of the
+  fourteen `"failed"` rows were the `2207076` failures from earlier
+  tonight (all predating the real media-URL fix), the last a genuinely
+  separate, also-stale bug: Instagram's required `post_type` setting
+  (post/story) 400s at Postiz if left on the Scheduler's unselected
+  `"Select…"` placeholder — confirmed that placeholder was never a
+  valid choice for a *required* enum field, only a trap. Fixed at the
+  source: required settings dropdowns now default to their own first
+  real option instead of a blank placeholder. `GET /posts/scheduled`
+  had no way to clear an old failure short of its own 7-day display
+  window, so `DELETE /posts/:id` now accepts `"failed"` posts too
+  (nothing's ever live on Postiz's side for those to cancel — the row
+  just clears), with a Dismiss button next to each failed entry. One-
+  time cleanup: deleted all 14 confirmed-stale failed rows directly
+  from the database (verified each was still `"failed"` at delete time
+  first) — "Already scheduled" starts clean going forward instead of
+  carrying tonight's own debugging history into normal use.
 
 ## How to use this document
 
