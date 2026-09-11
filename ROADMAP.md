@@ -1891,6 +1891,88 @@ unpinning.
   confirmed against a fresh end-to-end publish attempt to Instagram
   (a new render is required — any clip rendered before this deploy
   still carries the old, broken command's output).
+- **Facebook connection stuck on the tenant's personal profile instead
+  of the "SceneStealer App" Page — root-caused across several real
+  attempts (2026-09-11), fix deployed, not yet confirmed working.**
+  Every publish attempt failed with Facebook's own `(#100) No
+  permission to publish the video`; separately, Postiz's own UI showed
+  "We couldn't find any business connected to the selected pages" when
+  configuring the channel. Confirmed directly against Facebook's Graph
+  API (never printing the real OAuth token — read it into memory only,
+  used it in the same request, then discarded): the stored
+  `Integration.internalId` was `4645589632379095`, which resolves to
+  the tenant's own personal profile ("Scarlett Moon Bell"), not Page
+  `1319873654544029` ("SceneStealer App") — despite the Page being
+  correctly set up in Meta Business Manager (tenant confirmed via
+  screenshot: owned by the right Business, tenant has full access) and
+  `/me/accounts`/`/me/businesses` both correctly returning it live.
+
+  Traced the actual mechanism through Postiz's real source, not
+  assumed: Facebook's OAuth callback always creates a placeholder
+  integration from `GET /me` (the personal profile) first — normal,
+  expected — and a required second step,
+  `ContinueIntegration`'s inline "Configure Your Channel" page-picker
+  (`apps/frontend/.../continue.integration.tsx`), is supposed to
+  replace it with the tenant's actual page selection via
+  `saveProviderPage` (only valid while `Integration.inBetweenSteps` is
+  `true`, confirmed still `true` on the live row — the save was never
+  actually reached, not blocked). Tenant reported firsthand what was
+  happening: `apps/postiz-proxy`'s injected self-close script (built
+  2026-09-04) was closing the OAuth popup the instant it saw the
+  `added=` connect-success signal, without checking whether that
+  two-step picker was still on screen waiting for its own Save click —
+  confirmed separately that the integration's `internalId` never
+  changed across the attempt. Fixed in the proxy script itself: never
+  close while "Configure Your Channel" is present in the DOM, latch
+  the `added=` signal and retry via a `MutationObserver` as the DOM
+  changes rather than closing the instant that signal is seen —
+  doesn't depend on pinning down Postiz's exact internal trigger
+  (a `refresh`-param short-circuit in `ContinueIntegration` looked
+  plausible during this investigation but was never confirmed as the
+  actual cause here). _Not yet re-verified_: needs a real reconnect
+  attempt against the deployed fix to confirm `internalId` actually
+  updates to the Page this time.
+
+  **Also surfaced and reverted the same investigation**: tried fixing
+  Postiz's own outbound emails (which link to `FRONTEND_URL` +
+  `/settings`, confirmed real — the tenant's own Postiz account has
+  `sendSuccessEmails: true`) by repointing `FRONTEND_URL` at
+  `scenestealer.app`. Broke every OAuth connect flow outright
+  ("URL Blocked" from Facebook) — confirmed live 2026-09-11 that
+  Postiz also uses that same variable to build the `redirect_uri` it
+  sends to Facebook/Instagram/YouTube, which has to match what's
+  registered in each provider's own app config. Reverted immediately;
+  real fix landed instead as a redirect map in `apps/postiz-proxy`
+  (`EMAIL_LINK_REDIRECTS`) — narrowly redirects only the specific
+  paths confirmed to appear in Postiz's own emails, leaving
+  `FRONTEND_URL` and the OAuth pages it's needed for untouched.
+- **Evaluated Ayrshare as a longer-term Postiz replacement (2026-09-11,
+  tenant's own request), given how much of tonight's session was
+  Postiz-specific operational friction** rather than one-off bugs —
+  the earlier note below (Phase 6) flagged this as worth a "proper
+  eval later" when the friction was still scoped to just the connect
+  popup; it now clearly extends further (this `FRONTEND_URL` conflict,
+  the page-picker/business-linkage confusion, the unauthenticated
+  `/api/public/posts/:id` data exposure noted earlier, the recurring
+  Temporal-orchestrator hang on every Postiz restart). Confirmed via
+  Ayrshare's real docs, not assumed: a genuine embedded-SaaS mode
+  exists — white-labeled linking page (tenant's own branding, never
+  sees Ayrshare's own UI), can use this app's own already-registered
+  Facebook/Google OAuth apps so the consent screen shows "SceneStealer"
+  and the existing Meta App Review submission carries over, and a
+  `scheduled` webhook fires post-publish success/error per-platform in
+  one payload — would replace this session's entire polling-based
+  `queued`/`published`/`failed` reconciliation system with something
+  architecturally simpler. Requires the **Launch plan, $299/month
+  minimum** for multi-tenant "Profiles" (vs. Postiz's actual infra
+  cost of a small Fly app + Temporal machine, well under $50/month) —
+  a real cost increase, not a wash. Would **not** shortcut Meta's own
+  Business-Manager-linkage requirement or App Review — those are
+  platform gates, not Postiz bugs, and apply identically to any
+  third-party tool. **Decision: held as a deliberate decision point,
+  not pursued now** — revisit once the app has real revenue to justify
+  the cost against, and once it's clear whether tonight's Postiz
+  friction was mostly a rough first setup or a recurring tax.
 - **Live external accounts**: Clerk, Neon, Cloudflare, Fly.io, Groq,
   and Anthropic are all live and in real use as of Phase 4. Stripe is
   configured (test-mode placeholder tiers, see Phase 7) but no billing
