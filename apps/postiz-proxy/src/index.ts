@@ -55,9 +55,31 @@ try {
 })();</script>`;
 }
 
+// Paths Postiz's own automated emails link to (its email footer template
+// links to FRONTEND_URL + "/settings" on every email it sends) — redirected
+// straight to our own equivalent page instead of ever rendering Postiz's
+// UI. FRONTEND_URL itself can't just be repointed at our domain to fix
+// this at the source: confirmed for real (2026-09-11) that Postiz uses
+// that same variable to build the OAuth redirect_uri it sends to
+// Facebook/Instagram/YouTube, which then has to match what's registered
+// in each provider's app config — repointing it broke every connect flow
+// outright ("URL Blocked" from Facebook). This redirect map is the
+// narrow, safe alternative: only the specific paths confirmed to appear
+// in Postiz's own outbound emails, nothing that would interfere with the
+// OAuth flow's own pages (/integrations/social/*, /launches) that the
+// injected-script logic below still needs Postiz to actually serve.
+const EMAIL_LINK_REDIRECTS: Record<string, string> = {
+  "/settings": "/settings",
+};
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+
+    const redirectTo = EMAIL_LINK_REDIRECTS[url.pathname];
+    if (request.method === "GET" && redirectTo) {
+      return Response.redirect(`${env.WEB_ORIGIN}${redirectTo}`, 302);
+    }
 
     // Rebuild the request against Postiz's real Fly hostname, not
     // postiz.scenestealer.app itself — fetching that hostname again
