@@ -837,6 +837,22 @@ unpinning.
   account. This is where moving between billing tiers (via the Stripe
   Customer Portal above) is meant to live once both exist. Scope
   beyond billing (org name/settings, user info, etc.) not yet decided.
+- **Admin/tenant-management/reporting interface — requested
+  2026-09-12, not yet built.** Distinct from the tenant-facing profile
+  page above: an operator-facing surface for managing tenants across
+  the whole app (list/search tenants, see their connection/billing
+  status, support actions like disconnecting a stuck integration or
+  resetting a stuck job) and reporting (usage — uploads, renders,
+  publishes, storage — per tenant and in aggregate, plus the real
+  error/failure visibility tonight's session did entirely by hand via
+  direct DB queries and `flyctl`/Postiz API calls). Real prerequisite
+  not yet designed: there's no admin/operator role at all today —
+  every route's auth is `requireTenant` (Clerk org-scoped, see
+  `apps/api/src/auth.ts`), which is the wrong shape for a view that
+  needs to read *across* tenants rather than being scoped to one: needs
+  its own authorization model, not just a page. Scope (what's
+  read-only reporting vs. what takes real support actions against
+  live tenant data) not yet decided.
 
 ## 💡 Future features, not yet scheduled
 
