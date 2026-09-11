@@ -6,6 +6,7 @@ import {
   real,
   jsonb,
   pgEnum,
+  boolean,
 } from "drizzle-orm/pg-core";
 
 // --- Tenancy -----------------------------------------------------------
@@ -16,6 +17,14 @@ export const tenants = pgTable("tenants", {
   // this table is just the billing/domain-object anchor other tables hang off.
   clerkOrgId: text("clerk_org_id").notNull().unique(),
   name: text("name").notNull(),
+  // Where publish-failure notifications go (Settings page) — null means
+  // "no address on file yet", not "notifications off"; notifyOnPublishFailure
+  // is the actual on/off switch, kept separate so toggling it back on
+  // later doesn't require re-entering the address.
+  notificationEmail: text("notification_email"),
+  notifyOnPublishFailure: boolean("notify_on_publish_failure")
+    .notNull()
+    .default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -60,6 +69,14 @@ export const socialConnections = pgTable("social_connections", {
   platform: socialPlatformEnum("platform").notNull(),
   // The Postiz-side integration ID for this tenant's connected account.
   postizIntegrationId: text("postiz_integration_id").notNull(),
+  // "HH:mm" (24h), nullable — prefills the Scheduler's time field when
+  // this connection is selected. Entirely our own convenience feature,
+  // not synced with Postiz's own per-integration postingTimes: that
+  // field lives behind Postiz's session-authenticated app API (not the
+  // API-key-based public one this app otherwise uses), so exposing it
+  // in our own UI isn't possible without a real Postiz user session —
+  // see ROADMAP.md's "Postiz settings in our own UI" entry.
+  defaultPostingTime: text("default_posting_time"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

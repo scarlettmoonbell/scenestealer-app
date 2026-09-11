@@ -10,6 +10,7 @@ import { social } from "./routes/social.js";
 import { templatesRoute } from "./routes/templates.js";
 import { internalRoute } from "./routes/internal.js";
 import { mediaRoute } from "./routes/media.js";
+import { tenantRoute } from "./routes/tenant.js";
 import type { Variables } from "./auth.js";
 
 // The only job type so far — the discriminated `type` field leaves
@@ -100,6 +101,7 @@ app.route("/templates", templatesRoute);
 app.route("/posts", postsRoute);
 app.route("/internal", internalRoute);
 app.route("/media", mediaRoute);
+app.route("/tenant", tenantRoute);
 
 // Phase 2+: publish action, Stripe webhook receiver.
 // See ../../README.md Status section.

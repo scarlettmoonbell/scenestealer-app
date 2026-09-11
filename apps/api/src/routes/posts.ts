@@ -9,6 +9,7 @@ import {
 } from "@scenestealer/db";
 import { requireTenant } from "../auth.js";
 import { cancelPost, getPostStatus } from "../postiz.js";
+import { notifyPublishFailure } from "../notify.js";
 import type { Env } from "../index.js";
 import type { Variables } from "../auth.js";
 
@@ -28,7 +29,11 @@ async function reconcileDuePosts(
   tenantId: string,
 ) {
   const due = await db
-    .select({ id: posts.id, externalPostId: posts.externalPostId })
+    .select({
+      id: posts.id,
+      externalPostId: posts.externalPostId,
+      platform: socialConnections.platform,
+    })
     .from(posts)
     .innerJoin(
       socialConnections,
@@ -52,10 +57,15 @@ async function reconcileDuePosts(
         .set({ status: "published", publishedAt: new Date(), error: null })
         .where(eq(posts.id, row.id));
     } else if (remote?.state === "ERROR") {
+      const error = remote.error ?? "Publish failed";
       await db
         .update(posts)
-        .set({ status: "failed", error: remote.error ?? "Publish failed" })
+        .set({ status: "failed", error })
         .where(eq(posts.id, row.id));
+      await notifyPublishFailure(env, tenantId, {
+        platform: row.platform,
+        error,
+      });
     }
   }
 }
@@ -132,6 +142,7 @@ postsRoute.get("/:id/status", async (c) => {
       status: posts.status,
       error: posts.error,
       externalPostId: posts.externalPostId,
+      platform: socialConnections.platform,
     })
     .from(posts)
     .innerJoin(
@@ -155,11 +166,16 @@ postsRoute.get("/:id/status", async (c) => {
       return c.json({ post: updated });
     }
     if (remote?.state === "ERROR") {
+      const error = remote.error ?? "Publish failed";
       const [updated] = await db
         .update(posts)
-        .set({ status: "failed", error: remote.error ?? "Publish failed" })
+        .set({ status: "failed", error })
         .where(eq(posts.id, postId))
         .returning();
+      await notifyPublishFailure(c.env, tenantId, {
+        platform: row.platform,
+        error,
+      });
       return c.json({ post: updated });
     }
   }

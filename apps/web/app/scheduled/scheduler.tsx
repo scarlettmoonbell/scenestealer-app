@@ -118,6 +118,12 @@ export function Scheduler({
   const [publishing, setPublishing] = useState(false);
   const [scheduleMode, setScheduleMode] = useState<"now" | "later">("now");
   const [scheduledFor, setScheduledFor] = useState("");
+  // "HH:mm", our own per-connection convenience — not Postiz's own
+  // postingTimes (that field lives behind Postiz's session-authenticated
+  // app API, not the API-key-based public one this app otherwise uses;
+  // see schema.ts's socialConnections.defaultPostingTime comment).
+  const [defaultPostingTime, setDefaultPostingTime] = useState("");
+  const [savingDefaultTime, setSavingDefaultTime] = useState(false);
 
   useEffect(() => {
     if (loaded) return;
@@ -141,6 +147,37 @@ export function Scheduler({
         setError(`Failed to load publish options: ${describeFetchError(e)}`),
       );
   }, [loaded, authedFetch]);
+
+  useEffect(() => {
+    const connection = connections.find((c) => c.id === connectionId);
+    setDefaultPostingTime(connection?.defaultPostingTime ?? "");
+  }, [connectionId, connections]);
+
+  async function saveDefaultPostingTime() {
+    if (!connectionId) return;
+    setSavingDefaultTime(true);
+    setError(null);
+    try {
+      const res = await authedFetch(`/social/connections/${connectionId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ defaultPostingTime: defaultPostingTime || null }),
+      });
+      if (!res.ok) {
+        setError("Failed to save default posting time");
+        return;
+      }
+      const { connection } = (await res.json()) as {
+        connection: SocialConnection;
+      };
+      setConnections((prev) =>
+        prev.map((c) => (c.id === connectionId ? connection : c)),
+      );
+    } catch (e) {
+      setError(`Failed to save default posting time: ${describeFetchError(e)}`);
+    } finally {
+      setSavingDefaultTime(false);
+    }
+  }
 
   useEffect(() => {
     if (!connectionId) {
@@ -320,6 +357,28 @@ export function Scheduler({
             </label>
 
             <label>
+              <span style={FIELD_LABEL_STYLE}>
+                Default posting time for this account
+              </span>
+              <div style={{ display: "flex", gap: "0.5rem" }}>
+                <input
+                  type="time"
+                  value={defaultPostingTime}
+                  onChange={(e) => setDefaultPostingTime(e.target.value)}
+                  className="field-input"
+                  style={{ flex: 1 }}
+                />
+                <button
+                  type="button"
+                  disabled={savingDefaultTime}
+                  onClick={() => void saveDefaultPostingTime()}
+                >
+                  {savingDefaultTime ? "Saving…" : "Save"}
+                </button>
+              </div>
+            </label>
+
+            <label>
               <span style={FIELD_LABEL_STYLE}>Template (optional)</span>
               <select
                 value={templateId}
@@ -405,7 +464,22 @@ export function Scheduler({
                   type="radio"
                   name="scheduleMode"
                   checked={scheduleMode === "later"}
-                  onChange={() => setScheduleMode("later")}
+                  onChange={() => {
+                    setScheduleMode("later");
+                    // Prefills the calendar's time field from this
+                    // connection's saved default instead of
+                    // CalendarPicker's own fallback (today at noon) —
+                    // only when nothing's been picked yet, so it never
+                    // overwrites a date/time the tenant already chose.
+                    if (!scheduledFor && defaultPostingTime) {
+                      const today = new Date(
+                        Date.now() - new Date().getTimezoneOffset() * 60000,
+                      )
+                        .toISOString()
+                        .slice(0, 10);
+                      setScheduledFor(`${today}T${defaultPostingTime}`);
+                    }
+                  }}
                 />{" "}
                 Schedule for later
               </label>

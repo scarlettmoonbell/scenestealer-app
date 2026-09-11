@@ -110,6 +110,41 @@ social.get("/connections", async (c) => {
   });
 });
 
+// Our own convenience field only — see socialConnections.defaultPostingTime's
+// schema comment for why this can't be Postiz's own postingTimes setting.
+social.patch("/connections/:id", async (c) => {
+  const tenantId = c.get("tenantId");
+  const connectionId = c.req.param("id");
+  const body = await c.req.json<{ defaultPostingTime?: string | null }>();
+
+  const db = createDb(c.env.DATABASE_URL);
+  const [existing] = await db
+    .select({ id: socialConnections.id })
+    .from(socialConnections)
+    .where(
+      and(
+        eq(socialConnections.id, connectionId),
+        eq(socialConnections.tenantId, tenantId),
+      ),
+    )
+    .limit(1);
+  if (!existing) {
+    return c.json({ error: "Connection not found" }, 404);
+  }
+
+  if (body.defaultPostingTime === undefined) {
+    return c.json({ error: "defaultPostingTime is required" }, 400);
+  }
+
+  const [updated] = await db
+    .update(socialConnections)
+    .set({ defaultPostingTime: body.defaultPostingTime?.trim() || null })
+    .where(eq(socialConnections.id, connectionId))
+    .returning();
+
+  return c.json({ connection: updated });
+});
+
 social.get("/connections/:id/settings", async (c) => {
   const tenantId = c.get("tenantId");
   const db = createDb(c.env.DATABASE_URL);
