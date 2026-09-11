@@ -1,6 +1,6 @@
 import { AwsClient } from "aws4fetch";
 import { Hono } from "hono";
-import { verifyMediaUrl } from "../media-url.js";
+import { decodeMediaKey, verifyMediaUrl } from "../media-url.js";
 import type { Env } from "../index.js";
 
 // No Variables generic (same reason as routes/internal.ts) — this is
@@ -24,8 +24,15 @@ export const mediaRoute = new Hono<{ Bindings: Env }>();
 mediaRoute.on(["GET", "HEAD"], "/:exp/:sig/:key/:filename", async (c) => {
   const exp = c.req.param("exp");
   const sig = c.req.param("sig");
-  const key = c.req.param("key");
-  if (!key || !exp || !sig) {
+  const encodedKey = c.req.param("key");
+  if (!encodedKey || !exp || !sig) {
+    return c.text("Bad request", 400);
+  }
+
+  let key: string;
+  try {
+    key = decodeMediaKey(encodedKey);
+  } catch {
     return c.text("Bad request", 400);
   }
   if (!(await verifyMediaUrl(c.env, key, exp, sig))) {

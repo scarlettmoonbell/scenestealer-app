@@ -11,6 +11,17 @@ import type { Env } from "./index.js";
 // call rather than reusing one static presigned URL, sidestepping the
 // method-binding limitation entirely.
 
+function base64UrlEncode(bytes: string): string {
+  return btoa(bytes).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+// Padding restored (base64's decoder needs it), then the URL-safe swap
+// undone — inverse of base64UrlEncode above.
+function base64UrlDecode(encoded: string): string {
+  const padded = encoded + "=".repeat((4 - (encoded.length % 4)) % 4);
+  return atob(padded.replace(/-/g, "+").replace(/_/g, "/"));
+}
+
 async function hmac(secret: string, message: string): Promise<string> {
   const key = await crypto.subtle.importKey(
     "raw",
@@ -24,10 +35,7 @@ async function hmac(secret: string, message: string): Promise<string> {
     key,
     new TextEncoder().encode(message),
   );
-  return btoa(String.fromCharCode(...new Uint8Array(signature)))
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
+  return base64UrlEncode(String.fromCharCode(...new Uint8Array(signature)));
 }
 
 // 24h, not 1h: confirmed for real (2026-09-11) that a clean, correctly
@@ -74,11 +82,25 @@ export async function signMediaUrl(
   // exact rendered file and a normal JSON body, which worked (container
   // reached FINISHED) every time. A path with no "?" or "&" anywhere is
   // immune to this regardless of what Postiz (or anything else) does to
-  // it. verifyMediaUrl's HMAC target is unchanged (`${key}:${exp}`) —
-  // only how the three values travel changed.
+  // it — key is base64url rather than plain encodeURIComponent for the
+  // same reason taken one step further: encodeURIComponent(key) still
+  // contains %2F for the real "/" in an R2 key, which stays inert only
+  // as long as nothing along the way (Meta's own query-string decoding
+  // included — genuinely unknown, and not worth trusting either way)
+  // ever unescapes it back into a literal "/" before this URL is used,
+  // which would shift every segment after it. base64url has no "/",
+  // "&", "=", "?", or "%" in its whole alphabet, so there's nothing
+  // left for anything to decode. verifyMediaUrl's HMAC target is
+  // unchanged (`${key}:${exp}`) — only how the three values travel did.
   const extMatch = /\.[a-zA-Z0-9]+$/.exec(key);
   const ext = extMatch ? extMatch[0] : ".mp4";
-  return `${env.API_ORIGIN}/media/${exp}/${sig}/${encodeURIComponent(key)}/clip${ext}`;
+  return `${env.API_ORIGIN}/media/${exp}/${sig}/${base64UrlEncode(key)}/clip${ext}`;
+}
+
+// Inverse of the base64UrlEncode(key) above — routes/media.ts calls
+// this on the :key path param before using it as a real R2 object key.
+export function decodeMediaKey(encodedKey: string): string {
+  return base64UrlDecode(encodedKey);
 }
 
 export async function verifyMediaUrl(
