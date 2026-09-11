@@ -2104,6 +2104,88 @@ unpinning.
   re-verified against a real end-to-end publish_ — needs a clip
   rendered after this deploy (any clip rendered before it still
   carries the old moov-last output).
+- **Done (2026-09-11): a play button for the still-being-drawn pending
+  clip selection, and Scheduling moved next to Media in the tab bar.**
+  Every saved clip already had a Play button (`clipList`'s Play
+  column); the pending selection — drawn on the waveform but not yet
+  confirmed as a real clip — had editable start/end fields (shipped
+  earlier the same day) but no way to preview it first. `playClip`
+  generalized to `playRange(startSec, endSec)` so both the saved-clip
+  row and the pending-selection block share one implementation.
+  `dashboard-tabs.tsx`'s `TABS` reordered — no logic change.
+- **Fixed for real (2026-09-11): the 2207076 failure — for a FOURTH
+  time — was never the file. Root-caused to the signed media URL's 1h
+  TTL racing Postiz's own, separately-documented Temporal-orchestrator
+  hangs.** After the faststart fix (previous entry) shipped, a clip
+  rendered well after that deploy still failed with the identical
+  error — ruling out the file's container layout as the (remaining)
+  cause. With the tenant's explicit go-ahead (this reaches into a real
+  production credential and a live Meta API), root-caused for real
+  rather than guessing a fourth time: SSH'd into the Postiz Fly
+  machine, pulled the real Instagram connection's access token
+  directly from Postiz's own Postgres (`Integration.token` — confirmed
+  live it's a `pageToken___userToken` composite, same separator
+  `facebook.provider.ts`'s own `reConnect` splits on; sending the raw
+  field gets Meta's own "Malformed access token" back verbatim), and
+  called Meta's Graph API directly — create a real container, poll its
+  status, **never call `media_publish`** — using the exact same
+  rendered file and signed media URL behind the latest production
+  failure. It reached `FINISHED` ("ready to be published") within
+  minutes. The file was never the problem.
+
+  **Real mistake made during this**: the first probe run, before the
+  token-splitting fix, sent the malformed composite token to Meta, and
+  Meta's own error response echoed it back verbatim into this
+  session's tool output — a real credential exposure, immediately
+  disclosed. The probe script was fixed to split the token correctly
+  *and* to redact it from every logged response regardless of why it
+  might reappear, before being run again.
+
+  Root cause, traced through Postiz's real source: Instagram's
+  container model creates the container immediately
+  (`InstagramProvider.postPending`, embeds `video_url` right there),
+  but the actual async fetch/transcode and the later
+  `checkPostStatus`/`igContainerStatus` poll that can surface `ERROR`
+  are a *separate*, Temporal-orchestrated step — decoupled in time
+  from container creation, not synchronous with it. This exact Postiz
+  instance has a documented, recurring pattern of its Temporal
+  orchestrator hanging (see the `FRONTEND_URL`/orchestrator-hang entry
+  above) — easily long enough to push Meta's real background fetch of
+  `video_url` past `signMediaUrl`'s 1-hour signature window, at which
+  point our `/media` proxy would 403 a request that arrives however
+  much later Temporal actually got around to it — surfacing exactly as
+  this generic, opaque "processing failed" status on Meta's side, with
+  no indication anywhere that it was a stale-URL problem specifically.
+  Confirmed Instagram itself gives an unpublished container 24h before
+  `EXPIRED` (`status_code`), not the mere minutes normal processing
+  actually takes — `media-url.ts`'s `signMediaUrl` TTL bumped from 1h
+  to match that same 24h ceiling, removing the race outright rather
+  than picking an arbitrary "longer" number. Deployed via CI, all jobs
+  green. _Not yet re-verified against a real end-to-end publish_ — the
+  next attempt is the real test; if Temporal is healthy at request
+  time this was always going to work regardless, so the meaningful
+  confirmation is specifically a publish attempt that lands *after* an
+  orchestrator delay.
+
+  **Also surfaced, not chased further**: `posts.created_at` (and other
+  `defaultNow()` columns) showed timestamps up to ~5 hours ahead of
+  Neon's own `now()` and of independently-verified real time (cross-
+  checked against GitHub's server-assigned run timestamps and a live
+  R2 object's `last-modified` header, both authoritative and mutually
+  consistent with each other at the time of checking). `select now()`
+  on the same connection returned a correct, GMT-timezoned value —
+  the DB's clock isn't broken at query time, so this reads as a
+  transient skew on a specific past Neon compute cold-start rather
+  than a persistent bug, but it was never fully explained. _Revisit_
+  if a DB timestamp is ever seen disagreeing with reality again,
+  especially anything that gates logic on elapsed time.
+- **Recommended, not yet done**: reconnect the Facebook/Instagram
+  connection to rotate its access token, since the malformed composite
+  token was exposed in this session's tool output during the
+  investigation above (see that entry). The exposed value was rejected
+  by Meta as malformed as sent, but the real sub-token inside it may
+  still be live — reconnecting invalidates whatever's currently
+  stored regardless.
 
 ## How to use this document
 
