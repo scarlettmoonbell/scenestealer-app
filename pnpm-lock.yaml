@@ -39,7 +39,7 @@ importers:
         version: 3.16.10(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@clerk/hono':
         specifier: ^0.1.53
-        version: 0.1.53(hono@4.12.31)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        version: 0.1.53(hono@4.13.7)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@scenestealer/db':
         specifier: workspace:*
         version: link:../../packages/db
@@ -50,8 +50,8 @@ importers:
         specifier: ^0.45.2
         version: 0.45.2(@cloudflare/workers-types@5.20260820.1)(@neondatabase/serverless@0.10.4)(@types/pg@8.11.6)(gel@2.2.0)
       hono:
-        specifier: ^4.6.14
-        version: 4.12.31
+        specifier: ^4.13.7
+        version: 4.13.7
     devDependencies:
       '@cloudflare/workers-types':
         specifier: ^5.20260804.1
@@ -131,13 +131,13 @@ importers:
         version: 0.10.4
       '@scenestealer/connectors':
         specifier: github:scarlettmoonbell/scenestealer-connectors#5506b0a6ea53dc6f0a7996e90ba8ef3a541c9b1f
-        version: https://codeload.github.com/scarlettmoonbell/scenestealer-connectors/tar.gz/5506b0a6ea53dc6f0a7996e90ba8ef3a541c9b1f
+        version: git+https://git@github.com:scarlettmoonbell/scenestealer-connectors.git#5506b0a6ea53dc6f0a7996e90ba8ef3a541c9b1f
       '@scenestealer/db':
         specifier: workspace:*
         version: link:../../packages/db
       '@scenestealer/pipeline':
         specifier: github:scarlettmoonbell/scenestealer-pipeline#be313288d11ddca4925bea9bead1f887c823a0e9
-        version: https://codeload.github.com/scarlettmoonbell/scenestealer-pipeline/tar.gz/be313288d11ddca4925bea9bead1f887c823a0e9
+        version: git+https://git@github.com:scarlettmoonbell/scenestealer-pipeline.git#be313288d11ddca4925bea9bead1f887c823a0e9
       aws4fetch:
         specifier: ^1.0.20
         version: 1.0.20
@@ -1112,12 +1112,12 @@ packages:
   '@rushstack/eslint-patch@1.16.1':
     resolution: {integrity: sha512-TvZbIpeKqGQQ7X0zSCvPH9riMSFQFSggnfBjFZ1mEoILW+UuXCKwOoPcgjMwiUtRqFZ8jWhPJc4um14vC6I4ag==}
 
-  '@scenestealer/connectors@https://codeload.github.com/scarlettmoonbell/scenestealer-connectors/tar.gz/5506b0a6ea53dc6f0a7996e90ba8ef3a541c9b1f':
-    resolution: {tarball: https://codeload.github.com/scarlettmoonbell/scenestealer-connectors/tar.gz/5506b0a6ea53dc6f0a7996e90ba8ef3a541c9b1f}
+  '@scenestealer/connectors@git+https://git@github.com:scarlettmoonbell/scenestealer-connectors.git#5506b0a6ea53dc6f0a7996e90ba8ef3a541c9b1f':
+    resolution: {commit: 5506b0a6ea53dc6f0a7996e90ba8ef3a541c9b1f, repo: git@github.com:scarlettmoonbell/scenestealer-connectors.git, type: git}
     version: 0.0.1
 
-  '@scenestealer/pipeline@https://codeload.github.com/scarlettmoonbell/scenestealer-pipeline/tar.gz/be313288d11ddca4925bea9bead1f887c823a0e9':
-    resolution: {tarball: https://codeload.github.com/scarlettmoonbell/scenestealer-pipeline/tar.gz/be313288d11ddca4925bea9bead1f887c823a0e9}
+  '@scenestealer/pipeline@git+https://git@github.com:scarlettmoonbell/scenestealer-pipeline.git#be313288d11ddca4925bea9bead1f887c823a0e9':
+    resolution: {commit: be313288d11ddca4925bea9bead1f887c823a0e9, repo: git@github.com:scarlettmoonbell/scenestealer-pipeline.git, type: git}
     version: 0.0.1
 
   '@sindresorhus/is@7.2.0':
@@ -2170,8 +2170,8 @@ packages:
     resolution: {integrity: sha512-T2UbfbBEF32wiepXIsMlTW9+dDYC6wMh/t/vYA4tuOMKqWz/n3vr1NFSxQiyP+zk2mXsoMA/i/7qV6LKut1t1A==}
     engines: {node: '>= 0.4'}
 
-  hono@4.12.31:
-    resolution: {integrity: sha512-zJIHFrl6bq3RDd2YusFNCDlM8qUprxKswyi/OPzPyzKDdyBXDqWx8bZlZ7R+saTdSTatUmb3O7K4SspGPaEOQg==}
+  hono@4.13.7:
+    resolution: {integrity: sha512-c8/gF9ac8Y78/agExVocyLevgR+JlpNB444Py0FSX8pJoPdYUfUzRcXtYEYGwt6l19qIlVZPN5Mfsw9jFShmQQ==}
     engines: {node: '>=16.9.0'}
 
   ignore@5.3.2:
@@ -3016,11 +3016,11 @@ snapshots:
       - react
       - react-dom
 
-  '@clerk/hono@0.1.53(hono@4.12.31)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
+  '@clerk/hono@0.1.53(hono@4.13.7)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
     dependencies:
       '@clerk/backend': 3.16.10(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@clerk/shared': 4.25.5(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
-      hono: 4.12.31
+      hono: 4.13.7
     transitivePeerDependencies:
       - react
       - react-dom
@@ -3641,11 +3641,11 @@ snapshots:
 
   '@rushstack/eslint-patch@1.16.1': {}
 
-  '@scenestealer/connectors@https://codeload.github.com/scarlettmoonbell/scenestealer-connectors/tar.gz/5506b0a6ea53dc6f0a7996e90ba8ef3a541c9b1f': {}
+  '@scenestealer/connectors@git+https://git@github.com:scarlettmoonbell/scenestealer-connectors.git#5506b0a6ea53dc6f0a7996e90ba8ef3a541c9b1f': {}
 
-  '@scenestealer/pipeline@https://codeload.github.com/scarlettmoonbell/scenestealer-pipeline/tar.gz/be313288d11ddca4925bea9bead1f887c823a0e9':
+  '@scenestealer/pipeline@git+https://git@github.com:scarlettmoonbell/scenestealer-pipeline.git#be313288d11ddca4925bea9bead1f887c823a0e9':
     dependencies:
-      '@scenestealer/connectors': https://codeload.github.com/scarlettmoonbell/scenestealer-connectors/tar.gz/5506b0a6ea53dc6f0a7996e90ba8ef3a541c9b1f
+      '@scenestealer/connectors': git+https://git@github.com:scarlettmoonbell/scenestealer-connectors.git#5506b0a6ea53dc6f0a7996e90ba8ef3a541c9b1f
 
   '@sindresorhus/is@7.2.0': {}
 
@@ -4443,8 +4443,8 @@ snapshots:
       '@typescript-eslint/parser': 8.64.0(eslint@9.39.5)(typescript@5.9.3)
       eslint: 9.39.5
       eslint-import-resolver-node: 0.3.10
-      eslint-import-resolver-typescript: 3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.64.0(eslint@9.39.5)(typescript@5.9.3))(eslint@9.39.5))(eslint@9.39.5)
-      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.64.0(eslint@9.39.5)(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.64.0(eslint@9.39.5)(typescript@5.9.3))(eslint@9.39.5))(eslint@9.39.5))(eslint@9.39.5)
+      eslint-import-resolver-typescript: 3.10.1(eslint-plugin-import@2.32.0)(eslint@9.39.5)
+      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.64.0(eslint@9.39.5)(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.5)
       eslint-plugin-jsx-a11y: 6.10.2(eslint@9.39.5)
       eslint-plugin-react: 7.37.5(eslint@9.39.5)
       eslint-plugin-react-hooks: 5.2.0(eslint@9.39.5)
@@ -4463,7 +4463,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.64.0(eslint@9.39.5)(typescript@5.9.3))(eslint@9.39.5))(eslint@9.39.5):
+  eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0)(eslint@9.39.5):
     dependencies:
       '@nolyfill/is-core-module': 1.0.39
       debug: 4.4.3
@@ -4474,22 +4474,22 @@ snapshots:
       tinyglobby: 0.2.17
       unrs-resolver: 1.12.2
     optionalDependencies:
-      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.64.0(eslint@9.39.5)(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.64.0(eslint@9.39.5)(typescript@5.9.3))(eslint@9.39.5))(eslint@9.39.5))(eslint@9.39.5)
+      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.64.0(eslint@9.39.5)(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.5)
     transitivePeerDependencies:
       - supports-color
 
-  eslint-module-utils@2.14.0(@typescript-eslint/parser@8.64.0(eslint@9.39.5)(typescript@5.9.3))(eslint-import-resolver-node@0.3.10)(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.64.0(eslint@9.39.5)(typescript@5.9.3))(eslint@9.39.5))(eslint@9.39.5))(eslint@9.39.5):
+  eslint-module-utils@2.14.0(@typescript-eslint/parser@8.64.0(eslint@9.39.5)(typescript@5.9.3))(eslint-import-resolver-node@0.3.10)(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.5):
     dependencies:
       debug: 3.2.7
     optionalDependencies:
       '@typescript-eslint/parser': 8.64.0(eslint@9.39.5)(typescript@5.9.3)
       eslint: 9.39.5
       eslint-import-resolver-node: 0.3.10
-      eslint-import-resolver-typescript: 3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.64.0(eslint@9.39.5)(typescript@5.9.3))(eslint@9.39.5))(eslint@9.39.5)
+      eslint-import-resolver-typescript: 3.10.1(eslint-plugin-import@2.32.0)(eslint@9.39.5)
     transitivePeerDependencies:
       - supports-color
 
-  eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.64.0(eslint@9.39.5)(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.64.0(eslint@9.39.5)(typescript@5.9.3))(eslint@9.39.5))(eslint@9.39.5))(eslint@9.39.5):
+  eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.64.0(eslint@9.39.5)(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.5):
     dependencies:
       '@rtsao/scc': 1.1.0
       array-includes: 3.1.9
@@ -4500,7 +4500,7 @@ snapshots:
       doctrine: 2.1.0
       eslint: 9.39.5
       eslint-import-resolver-node: 0.3.10
-      eslint-module-utils: 2.14.0(@typescript-eslint/parser@8.64.0(eslint@9.39.5)(typescript@5.9.3))(eslint-import-resolver-node@0.3.10)(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.64.0(eslint@9.39.5)(typescript@5.9.3))(eslint@9.39.5))(eslint@9.39.5))(eslint@9.39.5)
+      eslint-module-utils: 2.14.0(@typescript-eslint/parser@8.64.0(eslint@9.39.5)(typescript@5.9.3))(eslint-import-resolver-node@0.3.10)(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.5)
       hasown: 2.0.4
       is-core-module: 2.16.2
       is-glob: 4.0.3
@@ -4788,7 +4788,7 @@ snapshots:
     dependencies:
       function-bind: 1.1.2
 
-  hono@4.12.31: {}
+  hono@4.13.7: {}
 
   ignore@5.3.2: {}
 
