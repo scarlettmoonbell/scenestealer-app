@@ -832,6 +832,28 @@ unpinning.
   Customer Portal above) is meant to live once both exist. Scope
   beyond billing (org name/settings, user info, etc.) not yet decided.
 
+## 💡 Future features, not yet scheduled
+
+- **Investigate training an AI model to do better scene detection —
+  requested 2026-09-12.** Today's scene detection is PySceneDetect
+  (see `apps/worker`'s scenes step) feeding clip suggestions into the
+  Claude-based highlight scorer (`src/highlight` in
+  `scenestealer-pipeline`). Scope not yet defined — what "better"
+  means for this app's actual content (live theater/show recordings,
+  not the cut-heavy edited footage most scene-detection tooling and
+  datasets target), what data would be available to train or fine-tune
+  on, build-vs-buy vs. prompting-based alternatives. Exploratory, not
+  designed.
+- **Develop a PySceneDetect profile that works better for live video —
+  requested 2026-09-12.** PySceneDetect's default detectors (content-
+  aware cut detection, threshold-based) are tuned for edited footage
+  with real hard cuts — a live, single-take theater/show recording has
+  none of those, so scene boundaries it finds may not line up with
+  what's actually a good highlight-worthy moment in this app's real
+  use case. Narrower and more concrete than the AI-model item above;
+  candidate first step before that larger investigation, not
+  necessarily a prerequisite for it.
+
 ## 📌 Accepted gaps today, named explicitly
 
 - **CI hardened across all four repos (2026-08-08)**: SHA-pinned actions,
