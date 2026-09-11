@@ -106,7 +106,6 @@ export function Scheduler({
   const [templateList, setTemplateList] = useState<Template[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<string | null>(null);
 
   const [connectionId, setConnectionId] = useState("");
   const [templateId, setTemplateId] = useState("");
@@ -160,7 +159,9 @@ export function Scheduler({
     try {
       const res = await authedFetch(`/social/connections/${connectionId}`, {
         method: "PATCH",
-        body: JSON.stringify({ defaultPostingTime: defaultPostingTime || null }),
+        body: JSON.stringify({
+          defaultPostingTime: defaultPostingTime || null,
+        }),
       });
       if (!res.ok) {
         setError("Failed to save default posting time");
@@ -233,6 +234,14 @@ export function Scheduler({
   // (2026-09-07) that skipping this and just showing "Published!"
   // immediately can lie — a stuck orchestrator once left posts
   // permanently un-delivered with our own UI still claiming success.
+  //
+  // Deliberately silent on success/still-pending (2026-09-11, tenant's
+  // own request) — the button's own disabled/label state already says
+  // "Publishing…" while this runs, so a second inline text block
+  // saying the same thing was redundant. Only a genuine failure is
+  // worth interrupting the tenant for; a pending-too-long post still
+  // resolves correctly next time this page (or "Already scheduled")
+  // reconciles it, same as it always did.
   async function pollPostStatus(postId: string) {
     for (let attempt = 0; attempt < 12; attempt++) {
       await new Promise((resolve) => setTimeout(resolve, 3000));
@@ -243,7 +252,6 @@ export function Scheduler({
           post: { status: string; error: string | null };
         };
         if (post.status === "published") {
-          setResult("Published!");
           return;
         }
         if (post.status === "failed") {
@@ -254,9 +262,6 @@ export function Scheduler({
         // Transient — keep polling until attempts run out.
       }
     }
-    setResult(
-      "Still publishing — Postiz is taking longer than usual. Check back shortly.",
-    );
   }
 
   async function handlePublish() {
@@ -267,7 +272,6 @@ export function Scheduler({
     }
     setPublishing(true);
     setError(null);
-    setResult(null);
     try {
       const res = await authedFetch(`/clips/${clipId}/publish`, {
         method: "POST",
@@ -290,11 +294,9 @@ export function Scheduler({
         return;
       }
       if (scheduleMode === "later") {
-        setResult("Scheduled!");
         return;
       }
       const { post } = (await res.json()) as { post: { id: string } };
-      setResult("Publishing…");
       await pollPostStatus(post.id);
     } catch (e) {
       setError(`Failed to publish: ${describeFetchError(e)}`);
@@ -312,8 +314,21 @@ export function Scheduler({
         maxWidth: 900,
       }}
     >
-      {error && <p role="alert">{error}</p>}
-      {result && <p>{result}</p>}
+      {error && (
+        <p
+          role="alert"
+          style={{
+            background: "color-mix(in srgb, #e5484d 12%, transparent)",
+            border: "1px solid #e5484d",
+            borderRadius: 6,
+            padding: "0.6rem 0.85rem",
+            marginBottom: "1rem",
+            color: "#e5484d",
+          }}
+        >
+          {error}
+        </p>
+      )}
 
       {loaded && connections.length === 0 && (
         <p>
