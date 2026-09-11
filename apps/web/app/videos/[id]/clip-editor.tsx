@@ -672,9 +672,9 @@ export function ClipEditor({
           <tr style={{ borderBottom: "2px solid #333" }}>
             <th style={HEADER_CELL_STYLE}>Play</th>
             <th style={HEADER_CELL_STYLE}>Adjust</th>
-            <th style={HEADER_CELL_STYLE}>Format</th>
             <th style={HEADER_CELL_STYLE}>Reasoning</th>
             <th style={HEADER_CELL_STYLE}>Status</th>
+            <th style={HEADER_CELL_STYLE}>Format</th>
             <th style={HEADER_CELL_STYLE}>Manage</th>
           </tr>
         </thead>
@@ -763,6 +763,19 @@ export function ClipEditor({
                     </span>
                   )}
                 </td>
+                <td style={{ ...CELL_STYLE, fontSize: "0.9em", opacity: 0.8 }}>
+                  {clip.aiReason ?? "Manually adjusted clip"}
+                  {clip.aiScore != null &&
+                    ` (score ${clip.aiScore.toFixed(2)})`}
+                </td>
+                <td style={{ ...CELL_STYLE, fontSize: "0.85em", opacity: 0.7 }}>
+                  {clip.status}
+                  {clip.renderError && (
+                    <p role="alert" style={{ margin: "0.25rem 0 0" }}>
+                      {clip.renderError}
+                    </p>
+                  )}
+                </td>
                 <td style={CELL_STYLE}>
                   <div
                     style={{
@@ -808,19 +821,6 @@ export function ClipEditor({
                       Fit
                     </label>
                   </div>
-                </td>
-                <td style={{ ...CELL_STYLE, fontSize: "0.9em", opacity: 0.8 }}>
-                  {clip.aiReason ?? "Manually adjusted clip"}
-                  {clip.aiScore != null &&
-                    ` (score ${clip.aiScore.toFixed(2)})`}
-                </td>
-                <td style={{ ...CELL_STYLE, fontSize: "0.85em", opacity: 0.7 }}>
-                  {clip.status}
-                  {clip.renderError && (
-                    <p role="alert" style={{ margin: "0.25rem 0 0" }}>
-                      {clip.renderError}
-                    </p>
-                  )}
                 </td>
                 <td style={CELL_STYLE}>
                   <div
