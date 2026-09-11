@@ -1862,6 +1862,35 @@ unpinning.
   and confirmed the fix — not a local pass. _Revisit_: if this recurs
   reliably enough to isolate, worth a closer look; not chased further
   here since it's this session's local sandbox, not the app.
+- **Fixed for real (2026-09-11): the Instagram timecode-track fix
+  above (`5478250`, "-map") didn't actually work — a real retry on a
+  clip rendered after it deployed hit the identical 2207076 failure.**
+  Root-caused with a local repro rather than guessing again: built a
+  synthetic source with ffmpeg's own `-timecode` option, confirmed it
+  reproduced the real file's exact stream shape (video, audio, a
+  linked `data` stream), then tested candidate fixes against it one at
+  a time. `-map 0:v:0 -map 0:a:0?` alone left the data stream in the
+  output every time — confirmed the mov demuxer puts the timecode
+  value on the *video stream's own metadata* (a `timecode` tag,
+  visible via `ffprobe -show_entries stream_tags`), and ffmpeg's mov
+  muxer regenerates a fresh `tmcd` track from that tag on output,
+  independent of whether the original standalone timecode stream was
+  ever mapped in — explicit `-map -0:d` didn't help either, since
+  there was never a positive map to cancel. `-map_metadata -1`
+  (strip all metadata) is what actually removes it — verified against
+  the full real command (crop filter + closed GOP together, matching
+  `instagram-reels`' real config): clean video+audio-only output every
+  time. `scenestealer-pipeline` commit `b36fe27`; `apps/worker`'s pin
+  bumped, deployed, and — having been burned once already by
+  confidently declaring an unverified fix — this time confirmed
+  directly against the live deployed image before saying so: spun up
+  a throwaway Fly Machine from the exact deployed image
+  (`flyctl machine run ... --command "sleep 300"`) and grepped its
+  bundled `dist/render/ffmpeg-renderer.js` for `-map_metadata`, found
+  it present. _Still true, not yet re-verified_: the fix hasn't been
+  confirmed against a fresh end-to-end publish attempt to Instagram
+  (a new render is required — any clip rendered before this deploy
+  still carries the old, broken command's output).
 - **Live external accounts**: Clerk, Neon, Cloudflare, Fly.io, Groq,
   and Anthropic are all live and in real use as of Phase 4. Stripe is
   configured (test-mode placeholder tiers, see Phase 7) but no billing
