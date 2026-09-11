@@ -119,7 +119,14 @@ jobs:
           command: deploy
 
   deploy-worker:
-    needs: verify
+    # deploy-api too, not just verify: confirmed for real (2026-09-12)
+    # that this job's own last step (below) publishes a secret onto the
+    # SAME Cloudflare Worker deploy-api deploys — both only depending on
+    # verify let them run in parallel, and losing that race gets
+    # wrangler's "the latest version of your Worker isn't currently
+    # deployed" refusal. deploy-api finishing first removes the race
+    # instead of hoping the timing works out.
+    needs: [verify, deploy-api]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
