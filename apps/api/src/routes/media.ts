@@ -14,15 +14,17 @@ export const mediaRoute = new Hono<{ Bindings: Env }>();
 // instead of reusing one static presigned URL — see media-url.ts's
 // top comment for why a presigned URL alone can't do this.
 //
-// The `:filename` segment is never read — it exists only so the URL's
-// path ends in a real extension, since Postiz's own request validation
-// (confirmed live 2026-09-08) rejects a media URL outright unless the
-// part before its "?" ends in .png/.jpg/.jpeg/.gif/.webp/.mp4. The real
-// object is identified purely by the `key` query param below.
-mediaRoute.on(["GET", "HEAD"], "/:filename", async (c) => {
-  const key = c.req.query("key");
-  const exp = c.req.query("exp");
-  const sig = c.req.query("sig");
+// exp/sig/key live in the path, not the query string — see
+// signMediaUrl's own comment for why a query string here breaks once
+// Postiz splices the whole URL into its own, unescaped one. The
+// trailing `:filename` segment is never read — it exists only so the
+// URL ends in a real extension, since Postiz's own request validation
+// (confirmed live 2026-09-08) rejects a media URL outright unless it
+// does. The real object is identified purely by `:key` below.
+mediaRoute.on(["GET", "HEAD"], "/:exp/:sig/:key/:filename", async (c) => {
+  const exp = c.req.param("exp");
+  const sig = c.req.param("sig");
+  const key = c.req.param("key");
   if (!key || !exp || !sig) {
     return c.text("Bad request", 400);
   }

@@ -57,17 +57,28 @@ export async function signMediaUrl(
   // (libraries/helpers/src/utils/valid.url.path.ts's ValidUrlExtension,
   // confirmed live 2026-09-08 after this exact gap 400'd a real publish
   // attempt): it strips everything from the first "?" onward and checks
-  // *that* ends in .png/.jpg/.jpeg/.gif/.webp/.mp4 — a bare `/media?...`
-  // path fails outright, regardless of the query string. The filename
-  // segment's actual text is otherwise unused; routes/media.ts identifies
-  // the real object purely from the `key` query param below.
+  // *that* ends in .png/.jpg/.jpeg/.gif/.webp/.mp4.
+  //
+  // exp/sig/key live in the PATH, not the query string, for a second,
+  // more serious reason than that check: confirmed for real (2026-09-11)
+  // that Postiz's own InstagramProvider.postPending splices this whole
+  // URL into ITS OWN outbound query string with no encodeURIComponent
+  // (`video_url=${m.path}&media_type=REELS&...`) — a query string of
+  // our own here means our "&exp=...&sig=..." gets read as *Meta's*
+  // top-level params instead, truncating the video_url Meta actually
+  // receives right after "key=...". Meta doesn't validate that
+  // truncated URL synchronously (the container still gets created), so
+  // this surfaced later and looked exactly like a processing failure
+  // ("Media upload has failed with error code 2207076") — not a video
+  // problem at all; confirmed by calling Meta's API directly with this
+  // exact rendered file and a normal JSON body, which worked (container
+  // reached FINISHED) every time. A path with no "?" or "&" anywhere is
+  // immune to this regardless of what Postiz (or anything else) does to
+  // it. verifyMediaUrl's HMAC target is unchanged (`${key}:${exp}`) —
+  // only how the three values travel changed.
   const extMatch = /\.[a-zA-Z0-9]+$/.exec(key);
   const ext = extMatch ? extMatch[0] : ".mp4";
-  const url = new URL(`${env.API_ORIGIN}/media/clip${ext}`);
-  url.searchParams.set("key", key);
-  url.searchParams.set("exp", String(exp));
-  url.searchParams.set("sig", sig);
-  return url.toString();
+  return `${env.API_ORIGIN}/media/${exp}/${sig}/${encodeURIComponent(key)}/clip${ext}`;
 }
 
 export async function verifyMediaUrl(
