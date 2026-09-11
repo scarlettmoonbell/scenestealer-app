@@ -358,7 +358,7 @@ export function ClipEditor({
   const updateClip = useCallback(
     async (
       clipId: string,
-      patch: Partial<Pick<Clip, "startSec" | "endSec" | "status">>,
+      patch: Partial<Pick<Clip, "startSec" | "endSec" | "status" | "fitMode">>,
     ) => {
       try {
         const res = await authedFetch(`/clips/${clipId}`, {
@@ -784,13 +784,29 @@ export function ClipEditor({
                     }}
                   >
                     {clip.status !== "ready" && clip.status !== "rendering" && (
-                      <button
-                        type="button"
-                        disabled={renderingIds.has(clip.id)}
-                        onClick={() => void renderClip(clip.id)}
-                      >
-                        {renderingIds.has(clip.id) ? "Rendering…" : "Accept"}
-                      </button>
+                      <>
+                        <select
+                          value={clip.fitMode}
+                          onChange={(e) =>
+                            void updateClip(clip.id, {
+                              fitMode: e.target.value as Clip["fitMode"],
+                            })
+                          }
+                          disabled={renderingIds.has(clip.id)}
+                          aria-label="How to fit this clip into 9:16"
+                          title="Crop cuts off the sides to fill the frame; Fit keeps the whole picture, adding black bars"
+                        >
+                          <option value="crop">Crop to fill</option>
+                          <option value="pad">Fit (black bars)</option>
+                        </select>
+                        <button
+                          type="button"
+                          disabled={renderingIds.has(clip.id)}
+                          onClick={() => void renderClip(clip.id)}
+                        >
+                          {renderingIds.has(clip.id) ? "Rendering…" : "Accept"}
+                        </button>
+                      </>
                     )}
                     {clip.status !== "rejected" && (
                       <button

@@ -99,6 +99,13 @@
       "when": 1789267800000,
       "tag": "0013_settings_and_posting_defaults",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1789189800000,
+      "tag": "0014_clips_fit_mode",
+      "breakpoints": true
     }
   ]
 }

@@ -195,6 +195,17 @@ export const clips = pgTable("clips", {
   // synchronous HTTP response used to carry the error text directly to
   // the frontend, which no longer exists once rendering isn't awaited.
   renderError: text("render_error"),
+  // How the render fills 9:16 for a source that isn't already that
+  // shape — "crop" (default, matches every clip's behavior before this
+  // column existed) fills the frame by cutting off the sides; "pad"
+  // keeps the whole source frame visible, letterboxed with black bars.
+  // Requested for real (2026-09-11): cropping a widescreen stage shot
+  // cut off most of the actual picture. Read at render-dispatch time
+  // (routes/clips.ts), passed through to scenestealer-pipeline's own
+  // RenderRequest.fitMode unchanged.
+  fitMode: text("fit_mode", { enum: ["crop", "pad"] })
+    .notNull()
+    .default("crop"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

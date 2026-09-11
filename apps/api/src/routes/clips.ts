@@ -130,6 +130,7 @@ clipsRoute.patch("/:id", async (c) => {
     endSec?: number;
     status?: (typeof clips.$inferSelect)["status"];
     title?: string;
+    fitMode?: (typeof clips.$inferSelect)["fitMode"];
   }>();
 
   const db = createDb(c.env.DATABASE_URL);
@@ -157,6 +158,7 @@ clipsRoute.patch("/:id", async (c) => {
       // the source video's own title, or "Untitled recording") rather
       // than storing an empty string as if it were a real title.
       ...(body.title !== undefined ? { title: body.title.trim() || null } : {}),
+      ...(body.fitMode !== undefined ? { fitMode: body.fitMode } : {}),
     })
     .where(eq(clips.id, clipId))
     .returning();

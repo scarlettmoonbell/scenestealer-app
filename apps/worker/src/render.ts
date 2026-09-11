@@ -101,6 +101,7 @@ export async function runRender(
       target: "instagram-reels",
       outputPath,
       smartReframe: false,
+      fitMode: clip.fitMode,
     });
     logStep(clipId, startedAt, "rendered");
 
