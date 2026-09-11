@@ -30,10 +30,26 @@ async function hmac(secret: string, message: string): Promise<string> {
     .replace(/=+$/, "");
 }
 
+// 24h, not 1h: confirmed for real (2026-09-11) that a clean, correctly
+// formatted render (faststart, no timecode track, verified separately
+// against Meta's API directly — container reached FINISHED in minutes)
+// still failed via the real publish flow with the same opaque 2207076
+// "processing failed" status. Root cause isn't the file: Instagram's
+// container model creates the container immediately (postPending) but
+// only fetches/transcodes the video_url asynchronously, later, as a
+// separate Temporal-orchestrated step (checkPostStatus) — and this
+// Postiz instance has a documented, recurring pattern of its Temporal
+// orchestrator hanging for extended periods (see ROADMAP.md), which
+// could easily push that real fetch past a 1h-old signature. Instagram
+// itself expires an unpublished container after 24h (status_code
+// "EXPIRED") — matching our own URL's lifetime to that ceiling removes
+// the race entirely rather than guessing at how long is "long enough".
+const DEFAULT_MEDIA_URL_TTL_SECONDS = 24 * 60 * 60;
+
 export async function signMediaUrl(
   env: Env,
   key: string,
-  expiresInSeconds = 3600,
+  expiresInSeconds = DEFAULT_MEDIA_URL_TTL_SECONDS,
 ): Promise<string> {
   const exp = Math.floor(Date.now() / 1000) + expiresInSeconds;
   const sig = await hmac(env.MEDIA_URL_SECRET, `${key}:${exp}`);
