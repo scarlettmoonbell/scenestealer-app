@@ -2321,6 +2321,39 @@ unpinning.
   investigation — it's unrelated to this specific bug and a standard,
   essentially free practice for any mp4 served over HTTP/API
   regardless of what Instagram specifically required.
+- **Fixed for real (2026-09-12): the green publish-success banner
+  (shipped the same day, earlier) never actually fired, even on a
+  confirmed-real successful Instagram publish.** Root cause wasn't the
+  banner itself — `Scheduler`'s poll after "publish now" only ran for
+  12 attempts at 3s (~36s) before giving up. Every *failure* this
+  session resolved well inside that window (Instagram's own error
+  paths short-circuit fast), which is exactly why the error banner
+  always looked like it worked — but a genuine success apparently
+  takes longer than 36s to reach Postiz's own "PUBLISHED" state, so
+  the poll gave up first every time, silently. Extended to 90
+  attempts/4.5s (~6.75 minutes).
+
+  That alone was still a partial fix: a post outlasting even the
+  extended window was permanently stuck at `"queued"` in our own DB,
+  since nothing except that one poll loop ever reconciled a `"queued"`
+  post — not `GET /posts/scheduled`'s own reconciliation (only ever
+  covered `"scheduled"` posts past their time), and a `"queued"` post
+  isn't even included in that endpoint's returned list, so it was
+  invisible everywhere once the tab moved on. `reconcilePendingPosts`
+  (renamed from `reconcileDuePosts`) now checks `"queued"` posts the
+  same way, every time the Scheduling page loads — an outstanding
+  publish resolves eventually regardless of whether any tab is still
+  watching it, not just within one page load's polling window.
+- **Done (2026-09-12): a rendered-clip preview player on the
+  Scheduling page, and a Format column on its "Rendered clips"
+  table.** The selected clip's own rendered file (what actually gets
+  posted, not the source recording) now plays above the scheduling
+  inputs, under the clip's title — reuses the same
+  `/clips/:id/playback-url` the clip editor's own Download link
+  already resolves. Separately, `GET /clips` wasn't selecting
+  `clips.fitMode` at all — added, and surfaced as a Crop/Fit column
+  in the table so a tenant can tell which format a given rendered
+  clip actually used without reopening its video page.
 
 ## How to use this document
 
