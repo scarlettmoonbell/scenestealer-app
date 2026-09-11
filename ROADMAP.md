@@ -1824,22 +1824,30 @@ unpinning.
     by the signed `key` query param. Verified live again after the
     fix: the URL now passes Postiz's own check, and `HEAD`/ranged
     `GET` still both work correctly.
-  - **Facebook — diagnosed, needs the account holder.** `(#100) No
-    permission to publish the video` is Facebook's own Graph API error
-    (confirmed by reading `facebook.provider.ts`'s own
-    `handleErrors` — Postiz just relabels it), not a bug in this
-    codebase or Postiz's. Most likely cause given this project's own
-    history: Meta App Review for `pages_manage_posts` was never
-    actually submitted (still an open item as of 2026-09-02's entry
-    above), and Facebook has specifically tightened video publishing
-    in ways that sometimes fail even for an app's own Development-mode
-    testers. Needs the account holder to check, in Meta for Developers,
-    the `SceneStealerContent` app (id `1172031222039637`): **App
-    Roles** (is the connected Facebook account actually added as
-    Admin/Developer/Tester?) and **App Review → Permissions and
-    Features** (`pages_manage_posts`'s real status). Submitting App
-    Review for this permission is likely necessary regardless, and is
-    the single longest lead-time item in this whole area (2-4 weeks).
+  - **Facebook — diagnosed at the time as needing the account holder;
+    turned out to be a stale symptom of a completely different bug,
+    not this diagnosis (corrected 2026-09-12).** `(#100) No permission
+    to publish the video` is genuinely Facebook's own Graph API error
+    (confirmed by reading `facebook.provider.ts`'s own `handleErrors`
+    — Postiz just relabels it), and App Roles/App Review were a
+    reasonable hypothesis at the time given this project's history —
+    but the account holder confirmed being listed under **App Roles**
+    already, ruling that out, and Facebook publishing has since been
+    **confirmed working live** without ever submitting App Review. The
+    real cause was the Facebook page-picker race condition documented
+    a few entries down ("Facebook connection stuck on the tenant's
+    personal profile," fixed for real 2026-09-11): every publish
+    attempt up to that point was against the tenant's *personal
+    Facebook profile*, not the linked "SceneStealer App" Page, because
+    `beginPolling` was closing the OAuth popup before Postiz's two-step
+    Page-picker ever got to save the real selection — `(#100)` was
+    Facebook's own response to that, not an Advanced-Access gate. App
+    Review for `pages_manage_posts`/the rest of the permission set is
+    still genuinely needed eventually — not for this account's own
+    testing, which now works fine as a listed Developer/Tester, but for
+    any *other* real tenant's Facebook/Instagram account, which
+    Development mode doesn't cover — see the "Submit Meta App Review"
+    section above for that.
   - **Instagram — root-caused and fixed for real (2026-09-08),
     scenestealer-pipeline commit `5478250`.** A real retry (after the
     two fixes above) reproduced the same `Media upload has failed with
