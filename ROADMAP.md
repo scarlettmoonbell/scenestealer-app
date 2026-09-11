@@ -2247,6 +2247,80 @@ unpinning.
   rendered object) before either was relied on. `typecheck`/`lint`
   green, deployed via CI, all jobs green. _Not yet confirmed against a
   real end-to-end Instagram publish_ — that's the next real test.
+- **Confirmed working (2026-09-12): the media-URL fix above.** A real
+  Instagram publish attempt succeeded for the first time this session
+  — no error, real post landed on the connected account. Surfaced two
+  smaller follow-ups from that same test: no visible confirmation on
+  success (the Publish button just went back to normal — fixed the
+  same day with a green success banner mirroring the existing error
+  one, `scheduler.tsx`), and a widescreen clip's center-crop cutting
+  off most of the actual picture (fixed the same day — see the
+  fit-mode entry below).
+- **Done (2026-09-12): a `crop`/`pad` fit-mode choice for 9:16
+  renders, and a reworked Clips table to go with it.** Center-cropping
+  a widescreen stage shot to 9:16 cut off most of the actual picture —
+  `clips.fitMode` (new column, migration 0014, default `"crop"` so
+  nothing existing changes) lets a tenant choose `"pad"` instead:
+  letterboxed with black bars, keeping the whole source frame visible.
+  Verified the new ffmpeg pad filter locally against both a synthetic
+  widescreen source and an already-portrait one (confirmed the latter
+  passes through unpadded) before shipping.
+
+  Reworked Manage/Format at the same time: "Accept" turned out to
+  already just be "Render" under a different label (both called the
+  same endpoint) — replaced with one persistent Render button, always
+  available regardless of clip status, so changing fit mode or timing
+  after a first render and re-rendering doesn't need a separate path.
+  Reject kept — it still does something distinct (dims/locks a clip as
+  "not interested"). Fit mode itself became two radio buttons in their
+  own Format column, moved next to Manage after tenant feedback that
+  it belonged near the Render button it actually affects.
+- **Fixed for real (2026-09-12): the clip editor could open with an
+  existing clip's region sitting in the pending-new-clip UI, as if the
+  user had just drawn it — and, separately, drawing a new selection
+  while one was already pending required hitting Cancel first.** Root-
+  caused the first bug in wavesurfer.js's own regions-plugin source
+  rather than guessed: `addRegion()` only emits `region-created`
+  synchronously if the plugin already knows the media's duration;
+  when it doesn't yet (routine here, since the seed loop runs the
+  moment video/waveform data resolves), it defers via a one-time
+  `"ready"` listener instead — so every pre-existing clip's own
+  `region-created` fires *later*, in a batch, by which point the
+  "is this a genuinely new drag?" listener (registered "after" the
+  seed loop — looked like it should have been enough, wasn't) is
+  already attached. Fixed by tracking seeded clip ids explicitly
+  rather than relying on event-ordering that never actually held.
+
+  Second bug was a deliberate design decision from earlier in this
+  project (2026-09-05: disable drag-selection the moment a pending
+  region exists, only re-arm after Create/Cancel, so a second drag
+  can't orphan the first with no way back to it) that the tenant
+  explicitly wants inverted: only one pending selection should exist,
+  but redrawing should *replace* it, not be blocked by it. Drag-
+  selection now stays armed continuously; `region-created` removes any
+  still-pending region before adopting the new one (via a functional
+  `setState` updater, since the handler is registered once and would
+  otherwise only ever see the value from when the effect first ran).
+- **Done (2026-09-12): a pending clip selection's boundaries are now
+  draggable/resizable directly on the waveform**, not fixed the
+  instant it's drawn — previously only the numeric start/end fields
+  (added earlier this session) could adjust it. `region-updated` now
+  special-cases the pending region (tracked via a ref, for the same
+  registered-once-closure reason noted above): a drag/resize on it
+  updates the editable fields' state instead of trying to `PATCH` a
+  clip id that doesn't exist yet.
+- **Reverted (2026-09-12), tenant's own call**: the explicit
+  `-map 0:v:0 -map 0:a:0? -map_metadata -1` stream-mapping/metadata-
+  stripping in `FfmpegRenderer` (`scenestealer-pipeline`). It was a
+  real, correct fix for a real problem (an iPhone recording's
+  timecode track leaking into the output as a spurious third stream)
+  — but confirmed for real that it was never actually what fixed
+  2207076 (see the media-URL entry above for the real cause), so kept
+  as unnecessary handling once that was known. `-movflags +faststart`
+  was deliberately kept despite being introduced during the same
+  investigation — it's unrelated to this specific bug and a standard,
+  essentially free practice for any mp4 served over HTTP/API
+  regardless of what Instagram specifically required.
 
 ## How to use this document
 
