@@ -129,15 +129,12 @@ export function ClipEditor({
   >(null);
   const disableDragSelectionRef = useRef<(() => void) | null>(null);
 
-  // Re-arms drag-selection after a pending clip is resolved (created
-  // or canceled) — also used for the initial setup in the wavesurfer
-  // effect below. Only one pending selection is allowed at a time:
-  // disabled the moment region-created fires, not re-enabled until
-  // Create succeeds or Cancel is clicked, otherwise a second drag
-  // while one was already pending would orphan the first region on
-  // the waveform with no way to reach it again (confirmed live
-  // 2026-09-05 — only the most recently drawn one was ever
-  // create-able or cancelable).
+  // Arms drag-selection once, for the life of the wavesurfer instance
+  // (the effect below calls this exactly once, and cleans it up on
+  // unmount) — drawing a new selection while one is already pending
+  // replaces it (see region-created below) rather than being blocked,
+  // so unlike an earlier version of this, there's no disable/re-enable
+  // dance needed around Create/Cancel any more.
   const enablePendingDragSelection = useCallback(() => {
     const regions = regionsPluginRef.current;
     if (!regions) return;
@@ -422,16 +419,13 @@ export function ClipEditor({
           resize: true,
         });
         setPendingNewClip(null);
-        // Frees up the "one pending selection at a time" slot — see
-        // enablePendingDragSelection's own comment.
-        enablePendingDragSelection();
       } catch (e) {
         setError(`Failed to create clip: ${describeFetchError(e)}`);
       } finally {
         setCreatingClip(false);
       }
     },
-    [authedFetch, sourceVideoId, enablePendingDragSelection],
+    [authedFetch, sourceVideoId],
   );
 
   // wavesurfer.js lifecycle — bound to the <video> element so playback
@@ -475,6 +469,22 @@ export function ClipEditor({
       waveSurferRef.current = ws;
       regionsPluginRef.current = regions;
 
+      // Every clip already in clipList gets its own region seeded below
+      // — tracked here so region-created (registered further down) can
+      // tell those apart from a genuinely new, user-drawn one. Registering
+      // the listener only *after* this loop runs does NOT do that on its
+      // own, despite looking like it should: confirmed for real
+      // (2026-09-12) in wavesurfer.js's own regions-plugin source that
+      // addRegion() only emits region-created synchronously when the
+      // plugin already knows the media's duration; if it doesn't yet
+      // (routine here, since this all runs the moment the video/waveform
+      // data resolves), it defers via a one-time "ready" listener instead
+      // — so every seeded region's region-created fires later, in a
+      // batch, once "ready" fires, by which point *any* listener
+      // registered here (regardless of ordering) is already attached.
+      // That's what made the editor open with an existing clip sitting in
+      // the pending-new-clip UI, as if the user had just drawn it.
+      const seededClipIds = new Set(clipList.map((clip) => clip.id));
       for (const clip of clipList) {
         const locked = isLocked(clip.status);
         regions.addRegion({
@@ -499,23 +509,29 @@ export function ClipEditor({
       });
 
       // Drag across empty waveform to define a new clip's bounds — the
-      // regions plugin's own built-in creation mechanism, registered
-      // only after the seed loop above so its region-created events
-      // (identical event, fired for every region including the
-      // pre-seeded ones) only reach this listener for genuinely new,
-      // user-drawn regions. drag/resize off here (the initial
-      // click-and-drag creation gesture itself is a separate mechanism
-      // this doesn't affect) — the pending region has no real clip id
-      // yet, so the region-updated handler below can't safely PATCH it
-      // if the user tried to nudge its handles before confirming.
+      // regions plugin's own built-in creation mechanism. drag/resize off
+      // here (the initial click-and-drag creation gesture itself is a
+      // separate mechanism this doesn't affect) — the pending region has
+      // no real clip id yet, so the region-updated handler above can't
+      // safely PATCH it if the user tried to nudge its handles before
+      // confirming.
       enablePendingDragSelection();
       regions.on("region-created", (region: Region) => {
-        setPendingNewClip(region);
+        if (seededClipIds.has(region.id)) return;
+        // Drawing a new selection while one is already pending replaces
+        // it, rather than being blocked until Create/Cancel — requested
+        // for real (2026-09-12): only one pending selection should ever
+        // exist, but redrawing shouldn't require dismissing the old one
+        // first. The functional updater (not the pendingNewClip variable
+        // directly) reads whatever's actually still pending right now,
+        // since this handler is registered once and would otherwise only
+        // ever see the value from when the effect first ran.
+        setPendingNewClip((prev) => {
+          if (prev && prev !== region) prev.remove();
+          return region;
+        });
         setPendingStart(region.start);
         setPendingEnd(region.end);
-        // Only one pending selection at a time — see
-        // enablePendingDragSelection's own comment for why.
-        disableDragSelectionRef.current?.();
       });
     })();
 
@@ -657,7 +673,6 @@ export function ClipEditor({
             onClick={() => {
               pendingNewClip.remove();
               setPendingNewClip(null);
-              enablePendingDragSelection();
             }}
           >
             Cancel
