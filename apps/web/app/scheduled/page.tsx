@@ -23,6 +23,7 @@ interface ReadyClip {
   endSec: number;
   aiReason: string | null;
   renderedR2Key: string | null;
+  fitMode: "crop" | "pad";
   videoTitle: string | null;
   recordedAt: string | null;
   deviceModel: string | null;
@@ -84,6 +85,9 @@ function SchedulingContent() {
   const [selectedClipId, setSelectedClipId] = useState<string | null>(
     searchParams.get("clip"),
   );
+  const [selectedClipPlaybackUrl, setSelectedClipPlaybackUrl] = useState<
+    string | null
+  >(null);
 
   const loadAll = useCallback(async () => {
     try {
@@ -113,6 +117,27 @@ function SchedulingContent() {
   useEffect(() => {
     void loadAll();
   }, [loadAll]);
+
+  // Preview of the rendered clip itself (what actually gets posted),
+  // not the source video — same /clips/:id/playback-url the clip
+  // editor's own Download link resolves. Cleared immediately on
+  // selection change so a stale clip's video never flashes under a
+  // new one's title while the fetch is in flight.
+  useEffect(() => {
+    setSelectedClipPlaybackUrl(null);
+    if (!selectedClipId) return;
+    authedFetch(`/clips/${selectedClipId}/playback-url`)
+      .then(async (res) => {
+        if (!res.ok) throw new Error("Failed to load clip video");
+        const { playbackUrl } = (await res.json()) as {
+          playbackUrl: string;
+        };
+        setSelectedClipPlaybackUrl(playbackUrl);
+      })
+      .catch((e) =>
+        setError(`Failed to load clip video: ${describeFetchError(e)}`),
+      );
+  }, [selectedClipId, authedFetch]);
 
   async function handleRename(clipId: string, title: string) {
     try {
@@ -207,6 +232,17 @@ function SchedulingContent() {
             {formatTime(selectedClip.startSec)} –{" "}
             {formatTime(selectedClip.endSec)})
           </h2>
+          <video
+            key={selectedClip.id}
+            src={selectedClipPlaybackUrl ?? undefined}
+            controls
+            style={{
+              display: "block",
+              width: "100%",
+              maxWidth: 320,
+              margin: "1rem auto",
+            }}
+          />
           <div style={{ marginTop: "1rem" }}>
             <Scheduler
               clipId={selectedClip.id}
@@ -233,9 +269,10 @@ function SchedulingContent() {
               </p>
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <colgroup>
-                  <col style={{ width: "22%" }} />
-                  <col style={{ width: "12%" }} />
-                  <col style={{ width: "51%" }} />
+                  <col style={{ width: "20%" }} />
+                  <col style={{ width: "10%" }} />
+                  <col style={{ width: "10%" }} />
+                  <col style={{ width: "45%" }} />
                   <col style={{ width: "15%" }} />
                 </colgroup>
                 <thead>
@@ -245,6 +282,9 @@ function SchedulingContent() {
                     </th>
                     <th style={{ ...TABLE_HEADER_STYLE, textAlign: "left" }}>
                       Clip
+                    </th>
+                    <th style={{ ...TABLE_HEADER_STYLE, textAlign: "left" }}>
+                      Format
                     </th>
                     <th style={{ ...TABLE_HEADER_STYLE, textAlign: "left" }}>
                       Reasoning
@@ -309,6 +349,15 @@ function SchedulingContent() {
                         >
                           {formatTime(clip.startSec)} –{" "}
                           {formatTime(clip.endSec)}
+                        </td>
+                        <td
+                          style={{
+                            padding: "0.5rem 0.75rem",
+                            fontSize: "0.9em",
+                            opacity: 0.8,
+                          }}
+                        >
+                          {clip.fitMode === "pad" ? "Fit" : "Crop"}
                         </td>
                         <td
                           style={{

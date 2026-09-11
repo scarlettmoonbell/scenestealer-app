@@ -97,6 +97,7 @@ clipsRoute.get("/", async (c) => {
       endSec: clips.endSec,
       aiReason: clips.aiReason,
       renderedR2Key: clips.renderedR2Key,
+      fitMode: clips.fitMode,
       videoTitle: sourceVideos.title,
       recordedAt: sourceVideos.recordedAt,
       deviceModel: sourceVideos.deviceModel,
