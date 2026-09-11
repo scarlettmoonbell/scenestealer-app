@@ -115,6 +115,7 @@ export function Scheduler({
     {},
   );
   const [publishing, setPublishing] = useState(false);
+  const [success, setSuccess] = useState<string | null>(null);
   const [scheduleMode, setScheduleMode] = useState<"now" | "later">("now");
   const [scheduledFor, setScheduledFor] = useState("");
   // "HH:mm", our own per-connection convenience — not Postiz's own
@@ -235,13 +236,17 @@ export function Scheduler({
   // immediately can lie — a stuck orchestrator once left posts
   // permanently un-delivered with our own UI still claiming success.
   //
-  // Deliberately silent on success/still-pending (2026-09-11, tenant's
-  // own request) — the button's own disabled/label state already says
-  // "Publishing…" while this runs, so a second inline text block
-  // saying the same thing was redundant. Only a genuine failure is
-  // worth interrupting the tenant for; a pending-too-long post still
-  // resolves correctly next time this page (or "Already scheduled")
-  // reconciles it, same as it always did.
+  // Silent while still pending (2026-09-11, tenant's own request) — the
+  // button's own disabled/label state already says "Publishing…" while
+  // this runs, so a second inline text block saying the same thing was
+  // redundant. A genuine failure interrupts the tenant via the error
+  // banner below; reaching "published" surfaces its own confirmation
+  // (2026-09-11, tenant's own follow-up request — the button simply
+  // going back to normal read as "did anything happen?"). A pending-
+  // too-long post (attempts exhausted, neither terminal status reached)
+  // still resolves correctly next time this page — or "Already
+  // scheduled" — reconciles it, same as it always did; nothing is shown
+  // for that case since it isn't actually known yet either way.
   async function pollPostStatus(postId: string) {
     for (let attempt = 0; attempt < 12; attempt++) {
       await new Promise((resolve) => setTimeout(resolve, 3000));
@@ -252,6 +257,7 @@ export function Scheduler({
           post: { status: string; error: string | null };
         };
         if (post.status === "published") {
+          setSuccess("Published!");
           return;
         }
         if (post.status === "failed") {
@@ -272,6 +278,7 @@ export function Scheduler({
     }
     setPublishing(true);
     setError(null);
+    setSuccess(null);
     try {
       const res = await authedFetch(`/clips/${clipId}/publish`, {
         method: "POST",
@@ -294,6 +301,7 @@ export function Scheduler({
         return;
       }
       if (scheduleMode === "later") {
+        setSuccess("Scheduled!");
         return;
       }
       const { post } = (await res.json()) as { post: { id: string } };
@@ -327,6 +335,22 @@ export function Scheduler({
           }}
         >
           {error}
+        </p>
+      )}
+
+      {success && (
+        <p
+          role="status"
+          style={{
+            background: "color-mix(in srgb, #30a46c 12%, transparent)",
+            border: "1px solid #30a46c",
+            borderRadius: 6,
+            padding: "0.6rem 0.85rem",
+            marginBottom: "1rem",
+            color: "#30a46c",
+          }}
+        >
+          {success}
         </p>
       )}
 
