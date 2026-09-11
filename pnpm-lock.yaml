@@ -136,8 +136,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/db
       '@scenestealer/pipeline':
-        specifier: github:scarlettmoonbell/scenestealer-pipeline#f0856488f0cea8e31747c19219c2553bb340f7dd
-        version: https://codeload.github.com/scarlettmoonbell/scenestealer-pipeline/tar.gz/f0856488f0cea8e31747c19219c2553bb340f7dd
+        specifier: github:scarlettmoonbell/scenestealer-pipeline#be313288d11ddca4925bea9bead1f887c823a0e9
+        version: https://codeload.github.com/scarlettmoonbell/scenestealer-pipeline/tar.gz/be313288d11ddca4925bea9bead1f887c823a0e9
       aws4fetch:
         specifier: ^1.0.20
         version: 1.0.20
@@ -1116,8 +1116,8 @@ packages:
     resolution: {tarball: https://codeload.github.com/scarlettmoonbell/scenestealer-connectors/tar.gz/5506b0a6ea53dc6f0a7996e90ba8ef3a541c9b1f}
     version: 0.0.1
 
-  '@scenestealer/pipeline@https://codeload.github.com/scarlettmoonbell/scenestealer-pipeline/tar.gz/f0856488f0cea8e31747c19219c2553bb340f7dd':
-    resolution: {tarball: https://codeload.github.com/scarlettmoonbell/scenestealer-pipeline/tar.gz/f0856488f0cea8e31747c19219c2553bb340f7dd}
+  '@scenestealer/pipeline@https://codeload.github.com/scarlettmoonbell/scenestealer-pipeline/tar.gz/be313288d11ddca4925bea9bead1f887c823a0e9':
+    resolution: {tarball: https://codeload.github.com/scarlettmoonbell/scenestealer-pipeline/tar.gz/be313288d11ddca4925bea9bead1f887c823a0e9}
     version: 0.0.1
 
   '@sindresorhus/is@7.2.0':
@@ -3643,7 +3643,7 @@ snapshots:
 
   '@scenestealer/connectors@https://codeload.github.com/scarlettmoonbell/scenestealer-connectors/tar.gz/5506b0a6ea53dc6f0a7996e90ba8ef3a541c9b1f': {}
 
-  '@scenestealer/pipeline@https://codeload.github.com/scarlettmoonbell/scenestealer-pipeline/tar.gz/f0856488f0cea8e31747c19219c2553bb340f7dd':
+  '@scenestealer/pipeline@https://codeload.github.com/scarlettmoonbell/scenestealer-pipeline/tar.gz/be313288d11ddca4925bea9bead1f887c823a0e9':
     dependencies:
       '@scenestealer/connectors': https://codeload.github.com/scarlettmoonbell/scenestealer-connectors/tar.gz/5506b0a6ea53dc6f0a7996e90ba8ef3a541c9b1f
 
