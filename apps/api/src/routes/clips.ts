@@ -40,6 +40,20 @@ const PLATFORM_DURATION_LIMITS_SEC: Partial<
   instagram: { min: 5, max: 90 },
 };
 
+// M:SS.S — same convention as apps/web/app/videos/[id]/clip-editor.tsx's
+// own formatTime, which exists for exactly this reason (its own comment:
+// a tenant read a raw seconds value as a frame count, since nothing else
+// in this app shows time that way). The duration-limit error below hit
+// the same confusion server-side: min/max stay plain "Ns" since Reels'
+// limits are always small (single/double-digit seconds), but a real
+// clip's own duration can run into the hundreds of seconds, where a bare
+// decimal ("657.0s") doesn't read as a duration at all.
+function formatDurationLabel(totalSec: number): string {
+  const m = Math.floor(totalSec / 60);
+  const s = (totalSec % 60).toFixed(1);
+  return `${m}:${s.padStart(4, "0")}`;
+}
+
 clipsRoute.use("*", requireTenant);
 
 // clips.tenantId (not a join through sourceVideoId) is the real source
@@ -320,7 +334,7 @@ clipsRoute.post("/:id/publish", async (c) => {
     if (duration < durationLimit.min || duration > durationLimit.max) {
       return c.json(
         {
-          error: `${connection.platform} requires a ${durationLimit.min}-${durationLimit.max}s clip, this one is ${duration.toFixed(1)}s`,
+          error: `${connection.platform} requires a ${durationLimit.min}-${durationLimit.max}s clip, this one is ${formatDurationLabel(duration)}`,
         },
         400,
       );

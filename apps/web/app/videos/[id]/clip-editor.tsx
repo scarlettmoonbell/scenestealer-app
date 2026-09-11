@@ -107,6 +107,18 @@ export function ClipEditor({
   // retarget the same visual region to the new clip's real id/color
   // instead of destroying and recreating it.
   const [pendingNewClip, setPendingNewClip] = useState<Region | null>(null);
+  // Plain numbers driving the pending clip's editable start/end fields
+  // below — pendingNewClip itself is a mutable wavesurfer Region, and
+  // React won't re-render on mutating it (e.g. via setOptions), so
+  // these are what the inputs actually read from; setOptions on the
+  // region is still called alongside, purely to keep the visual region
+  // on the waveform in sync with what's typed. Added 2026-09-11: the
+  // pending region has drag/resize deliberately off (see
+  // enablePendingDragSelection's own comment), so before this, typing
+  // a more precise boundary wasn't possible at all — only re-dragging
+  // the whole selection from scratch was.
+  const [pendingStart, setPendingStart] = useState(0);
+  const [pendingEnd, setPendingEnd] = useState(0);
   const [creatingClip, setCreatingClip] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -496,6 +508,8 @@ export function ClipEditor({
       enablePendingDragSelection();
       regions.on("region-created", (region: Region) => {
         setPendingNewClip(region);
+        setPendingStart(region.start);
+        setPendingEnd(region.end);
         // Only one pending selection at a time — see
         // enablePendingDragSelection's own comment for why.
         disableDragSelectionRef.current?.();
@@ -559,19 +573,67 @@ export function ClipEditor({
             background: "var(--surface-raised)",
           }}
         >
-          <span style={{ flex: 1, fontVariantNumeric: "tabular-nums" }}>
-            New clip: {formatTime(pendingNewClip.start)} –{" "}
-            {formatTime(pendingNewClip.end)}
+          <span
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.25rem",
+              fontVariantNumeric: "tabular-nums",
+            }}
+          >
+            New clip:{" "}
+            <input
+              key={`pending-start-${pendingStart}`}
+              type="text"
+              inputMode="numeric"
+              defaultValue={formatTime(pendingStart)}
+              onBlur={(e) => {
+                const value = parseTimecode(e.target.value);
+                if (
+                  value == null ||
+                  !Number.isFinite(value) ||
+                  value < 0 ||
+                  value >= pendingEnd
+                ) {
+                  e.target.value = formatTime(pendingStart);
+                  return;
+                }
+                pendingNewClip.setOptions({ start: value });
+                setPendingStart(value);
+              }}
+              style={{ width: "5.5em" }}
+              aria-label="New clip start time (minutes:seconds)"
+            />
+            <span>–</span>
+            <input
+              key={`pending-end-${pendingEnd}`}
+              type="text"
+              inputMode="numeric"
+              defaultValue={formatTime(pendingEnd)}
+              onBlur={(e) => {
+                const value = parseTimecode(e.target.value);
+                const duration = videoRef.current?.duration;
+                if (
+                  value == null ||
+                  !Number.isFinite(value) ||
+                  value <= pendingStart ||
+                  (duration != null && value > duration)
+                ) {
+                  e.target.value = formatTime(pendingEnd);
+                  return;
+                }
+                pendingNewClip.setOptions({ end: value });
+                setPendingEnd(value);
+              }}
+              style={{ width: "5.5em" }}
+              aria-label="New clip end time (minutes:seconds)"
+            />
           </span>
           <button
             type="button"
             disabled={creatingClip}
             onClick={() =>
-              void createClip(
-                pendingNewClip.start,
-                pendingNewClip.end,
-                pendingNewClip,
-              )
+              void createClip(pendingStart, pendingEnd, pendingNewClip)
             }
           >
             {creatingClip ? "Creating…" : "Create clip"}
