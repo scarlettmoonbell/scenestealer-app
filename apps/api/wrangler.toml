@@ -63,3 +63,26 @@ WEB_ORIGIN = "https://scenestealer.app"
 # This Worker's own public origin — see index.ts's Env.API_ORIGIN.
 API_ORIGIN = "https://api.scenestealer.app"
 
+# Dev/staging environment for the paused account-management/billing work
+# (see scenestealer-infra's neon.tf `scenestealer_dev` resources) — a
+# genuinely separate Worker (`scenestealer-api-dev`), not a copy of
+# production. Deliberately has no [[queues.producers/consumers]] block:
+# billing work never touches the analyze/render pipeline, so this
+# environment has no queue binding at all rather than a placeholder one.
+# No custom domain either — reached at its own workers.dev subdomain.
+# Its own secrets: `wrangler secret put --env dev <NAME>`.
+[env.dev]
+name = "scenestealer-api-dev"
+
+[env.dev.vars]
+# Pages' own predictable branch-alias URL for a non-production
+# `--branch=dev` deploy of the scenestealer-web project.
+WEB_ORIGIN = "https://dev.scenestealer-web.pages.dev"
+# This env's own workers.dev subdomain (account subdomain confirmed as
+# "scenestealer" this session).
+API_ORIGIN = "https://scenestealer-api-dev.scenestealer.workers.dev"
+
+[env.dev.observability]
+enabled = true
+head_sampling_rate = 1
+
