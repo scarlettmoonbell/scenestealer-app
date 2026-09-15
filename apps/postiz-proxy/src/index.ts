@@ -147,11 +147,23 @@ const EMAIL_LINK_REDIRECTS: Record<string, string> = {
   "/settings": "/settings",
 };
 
+// Escape hatch for us (the operator), not tenants: Postiz's own settings
+// UI (e.g. generating a Public API key) is otherwise unreachable, since
+// every plain /settings request above gets redirected into our app.
+// Appending ?postizAdmin=1 skips that redirect for this one request;
+// nothing in the product UI or Postiz's emails ever generates that
+// query param, so tenants never see it. Not an auth boundary — it just
+// gets you to Postiz's real login page, same as before this redirect
+// map existed.
+const ADMIN_BYPASS_PARAM = "postizAdmin";
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
 
-    const redirectTo = EMAIL_LINK_REDIRECTS[url.pathname];
+    const redirectTo = url.searchParams.has(ADMIN_BYPASS_PARAM)
+      ? undefined
+      : EMAIL_LINK_REDIRECTS[url.pathname];
     if (request.method === "GET" && redirectTo) {
       return Response.redirect(`${env.WEB_ORIGIN}${redirectTo}`, 302);
     }
