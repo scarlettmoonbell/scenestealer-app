@@ -68,7 +68,13 @@ export default function AdminDashboardPage() {
 
   return (
     <main>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
         <h1>SceneStealer Admin</h1>
         <div style={{ display: "flex", gap: "1rem" }}>
           <Link href="/admin/register-passkey">Add a passkey</Link>
@@ -87,23 +93,45 @@ export default function AdminDashboardPage() {
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr>
-              <th align="left" style={cellStyle}>Name</th>
-              <th align="right" style={cellStyle}>Videos</th>
-              <th align="right" style={cellStyle}>Clips</th>
-              <th align="right" style={cellStyle}>Connections</th>
-              <th align="right" style={cellStyle}>Published</th>
-              <th align="left" style={cellStyle}>Created</th>
+              <th align="left" style={cellStyle}>
+                Name
+              </th>
+              <th align="right" style={cellStyle}>
+                Videos
+              </th>
+              <th align="right" style={cellStyle}>
+                Clips
+              </th>
+              <th align="right" style={cellStyle}>
+                Connections
+              </th>
+              <th align="right" style={cellStyle}>
+                Published
+              </th>
+              <th align="left" style={cellStyle}>
+                Created
+              </th>
             </tr>
           </thead>
           <tbody>
             {tenants.map((t) => (
               <tr key={t.id}>
                 <td style={cellStyle}>{t.name}</td>
-                <td align="right" style={cellStyle}>{t.sourceVideoCount}</td>
-                <td align="right" style={cellStyle}>{t.clipCount}</td>
-                <td align="right" style={cellStyle}>{t.connectionCount}</td>
-                <td align="right" style={cellStyle}>{t.publishedPostCount}</td>
-                <td style={cellStyle}>{new Date(t.createdAt).toLocaleDateString()}</td>
+                <td align="right" style={cellStyle}>
+                  {t.sourceVideoCount}
+                </td>
+                <td align="right" style={cellStyle}>
+                  {t.clipCount}
+                </td>
+                <td align="right" style={cellStyle}>
+                  {t.connectionCount}
+                </td>
+                <td align="right" style={cellStyle}>
+                  {t.publishedPostCount}
+                </td>
+                <td style={cellStyle}>
+                  {new Date(t.createdAt).toLocaleDateString()}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -119,10 +147,18 @@ export default function AdminDashboardPage() {
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr>
-              <th align="left" style={cellStyle}>Kind</th>
-              <th align="left" style={cellStyle}>Tenant</th>
-              <th align="left" style={cellStyle}>Error</th>
-              <th align="left" style={cellStyle}>When</th>
+              <th align="left" style={cellStyle}>
+                Kind
+              </th>
+              <th align="left" style={cellStyle}>
+                Tenant
+              </th>
+              <th align="left" style={cellStyle}>
+                Error
+              </th>
+              <th align="left" style={cellStyle}>
+                When
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -131,7 +167,9 @@ export default function AdminDashboardPage() {
                 <td style={cellStyle}>{f.kind}</td>
                 <td style={cellStyle}>{f.tenantId}</td>
                 <td style={cellStyle}>{f.error}</td>
-                <td style={cellStyle}>{new Date(f.occurredAt).toLocaleString()}</td>
+                <td style={cellStyle}>
+                  {new Date(f.occurredAt).toLocaleString()}
+                </td>
               </tr>
             ))}
           </tbody>

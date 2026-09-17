@@ -48,22 +48,28 @@ jobs:
         run: git config --global url."https://github.com/".insteadOf "git@github.com:"
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @scenestealer/db build
-      - run: pnpm --filter @scenestealer/web run pages:build
-      # --branch=dev (not main) publishes to this same Pages project's
-      # separate `preview` deployment target — its own URL
-      # (dev.scenestealer-web.pages.dev) and its own isolated env vars,
-      # never the `production` config that's actually serving live
-      # traffic. See apps/web/.env.production's own comment for why
-      # NEXT_PUBLIC_API_URL still needs to resolve correctly at build
-      # time regardless of environment.
-      - name: Deploy to Cloudflare Pages (preview)
+      # NEXT_PUBLIC_* is inlined into the client bundle at build time, so
+      # unlike the API deploy below (where --env dev alone is enough),
+      # the dev web build needs its own build-time override to actually
+      # talk to the dev API Worker instead of production — apps/web's
+      # own wrangler.toml [env.dev] only controls runtime bindings, not
+      # this. Same NEXT_PUBLIC_API_URL override used for the one-off
+      # manual dev deploy during the OpenNext migration (2026-09-17).
+      - run: pnpm --filter @scenestealer/web run cf:build
+        env:
+          NEXT_PUBLIC_API_URL: https://scenestealer-api-dev.scenestealer.workers.dev
+      # --env dev deploys wrangler.toml's [env.dev] block — a genuinely
+      # separate Worker (scenestealer-web-dev), same account/token,
+      # reached at its own workers.dev subdomain, never the production
+      # config that's actually serving live traffic.
+      - name: Deploy to Cloudflare Workers (dev env)
         uses: cloudflare/wrangler-action@da0e0dfe58b7a431659754fdf3f186c529afbe65 # v3.14.1
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: apps/web
           packageManager: pnpm
-          command: pages deploy .vercel/output/static --project-name=scenestealer-web --branch=dev
+          command: deploy --env dev
 
   deploy-api:
     needs: verify

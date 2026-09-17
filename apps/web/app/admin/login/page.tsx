@@ -86,7 +86,12 @@ export default function AdminLoginPage() {
             <button
               type="button"
               onClick={() => setUseRecoveryCode(true)}
-              style={{ background: "none", border: "none", textDecoration: "underline", cursor: "pointer" }}
+              style={{
+                background: "none",
+                border: "none",
+                textDecoration: "underline",
+                cursor: "pointer",
+              }}
             >
               Use a recovery code instead
             </button>
@@ -104,7 +109,9 @@ export default function AdminLoginPage() {
               autoFocus
             />
           </label>
-          <div style={{ display: "flex", gap: "0.75rem", marginTop: "0.75rem" }}>
+          <div
+            style={{ display: "flex", gap: "0.75rem", marginTop: "0.75rem" }}
+          >
             <button
               type="button"
               disabled={loading || !recoveryCode.trim()}

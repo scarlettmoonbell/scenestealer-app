@@ -64,13 +64,16 @@ export default function AdminSetupPage() {
           Shown exactly once. Store them in a password manager immediately —
           each is single-use, for the rare case every passkey is lost at once.
         </p>
-        <pre style={{ padding: "1rem", border: "1px solid var(--border, #ccc)" }}>
+        <pre
+          style={{ padding: "1rem", border: "1px solid var(--border, #ccc)" }}
+        >
           {recoveryCodes.join("\n")}
         </pre>
         <p>
-          Setup is complete. <strong>Rotate or delete the ADMIN_SETUP_TOKEN
-          secret now</strong> so this page can never register a second
-          identity. Then go to <a href="/admin">/admin</a>.
+          Setup is complete.{" "}
+          <strong>Rotate or delete the ADMIN_SETUP_TOKEN secret now</strong> so
+          this page can never register a second identity. Then go to{" "}
+          <a href="/admin">/admin</a>.
         </p>
       </main>
     );

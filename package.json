@@ -29,9 +29,10 @@
       "@scenestealer/pipeline"
     ],
     "overrides": {
-      "sharp": "^0.35.0",
+      "sharp": "^0.35.4",
       "postcss": "^8.5.18",
-      "drizzle-orm": "^0.45.2"
+      "drizzle-orm": "^0.45.2",
+      "brace-expansion": "^5.0.9"
     }
   }
 }

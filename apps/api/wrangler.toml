@@ -100,12 +100,11 @@ API_ORIGIN = "https://api.scenestealer.app"
 name = "scenestealer-api-dev"
 
 [env.dev.vars]
-# Pages' own branch-alias URL for a non-production `--branch=dev`
-# deploy — confirmed via the Pages API's own `aliases` field on a real
-# preview deployment (not the plain `<project>.pages.dev` guessed at
-# first; this project's actual pages.dev domain carries a random
-# suffix, `-31p`, same as the CNAME target apex/www already point at).
-WEB_ORIGIN = "https://dev.scenestealer-web-31p.pages.dev"
+# apps/web's own dev Worker (scenestealer-web-dev), not the old Pages
+# preview URL — updated 2026-09-17 when apps/web migrated off
+# Cloudflare Pages (@cloudflare/next-on-pages) to Workers
+# (@opennextjs/cloudflare); see apps/web/wrangler.toml's own [env.dev].
+WEB_ORIGIN = "https://scenestealer-web-dev.scenestealer.workers.dev"
 # This env's own workers.dev subdomain (account subdomain confirmed as
 # "scenestealer" this session).
 API_ORIGIN = "https://scenestealer-api-dev.scenestealer.workers.dev"

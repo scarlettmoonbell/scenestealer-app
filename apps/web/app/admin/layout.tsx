@@ -6,7 +6,6 @@ import type { ReactNode } from "react";
 // session/provider. That's the actual point of this auth boundary: a
 // bug or compromise in Clerk's side can't reach this one, and vice versa.
 export const dynamic = "force-dynamic";
-export const runtime = "edge";
 
 export const metadata = {
   title: "SceneStealer Admin",

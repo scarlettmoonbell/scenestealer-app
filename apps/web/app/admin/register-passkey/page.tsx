@@ -19,7 +19,8 @@ function RegisterPasskeyForm() {
       const optionsRes = await adminFetch("/admin-auth/register/options", {
         method: "POST",
       });
-      if (!optionsRes.ok) throw new Error("Failed to start passkey registration");
+      if (!optionsRes.ok)
+        throw new Error("Failed to start passkey registration");
       const optionsJSON = await optionsRes.json();
 
       const response = await startRegistration({ optionsJSON });

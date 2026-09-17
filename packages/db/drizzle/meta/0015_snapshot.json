@@ -97,26 +97,18 @@
         "clips_source_video_id_source_videos_id_fk": {
           "name": "clips_source_video_id_source_videos_id_fk",
           "tableFrom": "clips",
-          "columnsFrom": [
-            "source_video_id"
-          ],
+          "columnsFrom": ["source_video_id"],
           "tableTo": "source_videos",
-          "columnsTo": [
-            "id"
-          ],
+          "columnsTo": ["id"],
           "onUpdate": "no action",
           "onDelete": "no action"
         },
         "clips_tenant_id_tenants_id_fk": {
           "name": "clips_tenant_id_tenants_id_fk",
           "tableFrom": "clips",
-          "columnsFrom": [
-            "tenant_id"
-          ],
+          "columnsFrom": ["tenant_id"],
           "tableTo": "tenants",
-          "columnsTo": [
-            "id"
-          ],
+          "columnsTo": ["id"],
           "onUpdate": "no action",
           "onDelete": "no action"
         }
@@ -190,13 +182,9 @@
         "jobs_tenant_id_tenants_id_fk": {
           "name": "jobs_tenant_id_tenants_id_fk",
           "tableFrom": "jobs",
-          "columnsFrom": [
-            "tenant_id"
-          ],
+          "columnsFrom": ["tenant_id"],
           "tableTo": "tenants",
-          "columnsTo": [
-            "id"
-          ],
+          "columnsTo": ["id"],
           "onUpdate": "no action",
           "onDelete": "no action"
         }
@@ -287,52 +275,36 @@
         "posts_clip_id_clips_id_fk": {
           "name": "posts_clip_id_clips_id_fk",
           "tableFrom": "posts",
-          "columnsFrom": [
-            "clip_id"
-          ],
+          "columnsFrom": ["clip_id"],
           "tableTo": "clips",
-          "columnsTo": [
-            "id"
-          ],
+          "columnsTo": ["id"],
           "onUpdate": "no action",
           "onDelete": "no action"
         },
         "posts_source_video_id_source_videos_id_fk": {
           "name": "posts_source_video_id_source_videos_id_fk",
           "tableFrom": "posts",
-          "columnsFrom": [
-            "source_video_id"
-          ],
+          "columnsFrom": ["source_video_id"],
           "tableTo": "source_videos",
-          "columnsTo": [
-            "id"
-          ],
+          "columnsTo": ["id"],
           "onUpdate": "no action",
           "onDelete": "no action"
         },
         "posts_social_connection_id_social_connections_id_fk": {
           "name": "posts_social_connection_id_social_connections_id_fk",
           "tableFrom": "posts",
-          "columnsFrom": [
-            "social_connection_id"
-          ],
+          "columnsFrom": ["social_connection_id"],
           "tableTo": "social_connections",
-          "columnsTo": [
-            "id"
-          ],
+          "columnsTo": ["id"],
           "onUpdate": "no action",
           "onDelete": "no action"
         },
         "posts_template_id_templates_id_fk": {
           "name": "posts_template_id_templates_id_fk",
           "tableFrom": "posts",
-          "columnsFrom": [
-            "template_id"
-          ],
+          "columnsFrom": ["template_id"],
           "tableTo": "templates",
-          "columnsTo": [
-            "id"
-          ],
+          "columnsTo": ["id"],
           "onUpdate": "no action",
           "onDelete": "no action"
         }
@@ -392,13 +364,9 @@
         "social_connections_tenant_id_tenants_id_fk": {
           "name": "social_connections_tenant_id_tenants_id_fk",
           "tableFrom": "social_connections",
-          "columnsFrom": [
-            "tenant_id"
-          ],
+          "columnsFrom": ["tenant_id"],
           "tableTo": "tenants",
-          "columnsTo": [
-            "id"
-          ],
+          "columnsTo": ["id"],
           "onUpdate": "no action",
           "onDelete": "no action"
         }
@@ -525,26 +493,18 @@
         "source_videos_tenant_id_tenants_id_fk": {
           "name": "source_videos_tenant_id_tenants_id_fk",
           "tableFrom": "source_videos",
-          "columnsFrom": [
-            "tenant_id"
-          ],
+          "columnsFrom": ["tenant_id"],
           "tableTo": "tenants",
-          "columnsTo": [
-            "id"
-          ],
+          "columnsTo": ["id"],
           "onUpdate": "no action",
           "onDelete": "no action"
         },
         "source_videos_storage_connection_id_storage_connections_id_fk": {
           "name": "source_videos_storage_connection_id_storage_connections_id_fk",
           "tableFrom": "source_videos",
-          "columnsFrom": [
-            "storage_connection_id"
-          ],
+          "columnsFrom": ["storage_connection_id"],
           "tableTo": "storage_connections",
-          "columnsTo": [
-            "id"
-          ],
+          "columnsTo": ["id"],
           "onUpdate": "no action",
           "onDelete": "no action"
         }
@@ -598,13 +558,9 @@
         "storage_connections_tenant_id_tenants_id_fk": {
           "name": "storage_connections_tenant_id_tenants_id_fk",
           "tableFrom": "storage_connections",
-          "columnsFrom": [
-            "tenant_id"
-          ],
+          "columnsFrom": ["tenant_id"],
           "tableTo": "tenants",
-          "columnsTo": [
-            "id"
-          ],
+          "columnsTo": ["id"],
           "onUpdate": "no action",
           "onDelete": "no action"
         }
@@ -663,13 +619,9 @@
         "subscriptions_tenant_id_tenants_id_fk": {
           "name": "subscriptions_tenant_id_tenants_id_fk",
           "tableFrom": "subscriptions",
-          "columnsFrom": [
-            "tenant_id"
-          ],
+          "columnsFrom": ["tenant_id"],
           "tableTo": "tenants",
-          "columnsTo": [
-            "id"
-          ],
+          "columnsTo": ["id"],
           "onUpdate": "no action",
           "onDelete": "no action"
         }
@@ -678,9 +630,7 @@
       "uniqueConstraints": {
         "subscriptions_tenant_id_unique": {
           "name": "subscriptions_tenant_id_unique",
-          "columns": [
-            "tenant_id"
-          ],
+          "columns": ["tenant_id"],
           "nullsNotDistinct": false
         }
       },
@@ -737,13 +687,9 @@
         "templates_tenant_id_tenants_id_fk": {
           "name": "templates_tenant_id_tenants_id_fk",
           "tableFrom": "templates",
-          "columnsFrom": [
-            "tenant_id"
-          ],
+          "columnsFrom": ["tenant_id"],
           "tableTo": "tenants",
-          "columnsTo": [
-            "id"
-          ],
+          "columnsTo": ["id"],
           "onUpdate": "no action",
           "onDelete": "no action"
         }
@@ -804,9 +750,7 @@
       "uniqueConstraints": {
         "tenants_clerk_org_id_unique": {
           "name": "tenants_clerk_org_id_unique",
-          "columns": [
-            "clerk_org_id"
-          ],
+          "columns": ["clerk_org_id"],
           "nullsNotDistinct": false
         }
       },
@@ -870,9 +814,7 @@
       "uniqueConstraints": {
         "admin_credentials_credential_id_unique": {
           "name": "admin_credentials_credential_id_unique",
-          "columns": [
-            "credential_id"
-          ],
+          "columns": ["credential_id"],
           "nullsNotDistinct": false
         }
       },
@@ -923,9 +865,7 @@
       "uniqueConstraints": {
         "admin_sessions_token_hash_unique": {
           "name": "admin_sessions_token_hash_unique",
-          "columns": [
-            "token_hash"
-          ],
+          "columns": ["token_hash"],
           "nullsNotDistinct": false
         }
       },
@@ -970,9 +910,7 @@
       "uniqueConstraints": {
         "admin_recovery_codes_code_hash_unique": {
           "name": "admin_recovery_codes_code_hash_unique",
-          "columns": [
-            "code_hash"
-          ],
+          "columns": ["code_hash"],
           "nullsNotDistinct": false
         }
       },
@@ -985,63 +923,32 @@
     "public.analysis_status": {
       "name": "analysis_status",
       "schema": "public",
-      "values": [
-        "pending",
-        "analyzing",
-        "analyzed",
-        "failed"
-      ]
+      "values": ["pending", "analyzing", "analyzed", "failed"]
     },
     "public.clip_status": {
       "name": "clip_status",
       "schema": "public",
-      "values": [
-        "suggested",
-        "accepted",
-        "rendering",
-        "ready",
-        "rejected"
-      ]
+      "values": ["suggested", "accepted", "rendering", "ready", "rejected"]
     },
     "public.job_status": {
       "name": "job_status",
       "schema": "public",
-      "values": [
-        "pending",
-        "running",
-        "succeeded",
-        "failed"
-      ]
+      "values": ["pending", "running", "succeeded", "failed"]
     },
     "public.job_type": {
       "name": "job_type",
       "schema": "public",
-      "values": [
-        "ingest",
-        "transcribe",
-        "analyze",
-        "render",
-        "publish"
-      ]
+      "values": ["ingest", "transcribe", "analyze", "render", "publish"]
     },
     "public.post_status": {
       "name": "post_status",
       "schema": "public",
-      "values": [
-        "scheduled",
-        "published",
-        "failed",
-        "cancelled"
-      ]
+      "values": ["scheduled", "published", "failed", "cancelled"]
     },
     "public.social_platform": {
       "name": "social_platform",
       "schema": "public",
-      "values": [
-        "youtube",
-        "instagram",
-        "facebook"
-      ]
+      "values": ["youtube", "instagram", "facebook"]
     },
     "public.storage_provider": {
       "name": "storage_provider",

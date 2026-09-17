@@ -1,0 +1,42 @@
+name = "scenestealer-web"
+main = ".open-next/worker.js"
+compatibility_date = "2026-08-27"
+# nodejs_compat_populate_process_env (implied by compatibility_date >=
+# 2025-04-01, but listed explicitly rather than relying on the implicit
+# default) is what lets Server Components read `process.env.DATABASE_URL`
+# etc. directly — this app does that in app/page.tsx, app/video-list.tsx,
+# and app/videos/[id]/page.tsx, so it's load-bearing, not incidental.
+compatibility_flags = ["nodejs_compat", "nodejs_compat_populate_process_env"]
+
+# Pinned explicitly — this login has access to two Cloudflare accounts
+# (the personal one and this dedicated "SceneStealer" one). Without this,
+# `wrangler deploy` can silently default to the wrong one — a real
+# incident hit tonight on apps/api, not hypothetical.
+account_id = "98ccbdecb3c59d57acf9d24956abf2fc"
+
+[assets]
+directory = ".open-next/assets"
+binding = "ASSETS"
+
+[observability]
+enabled = true
+head_sampling_rate = 1
+
+[vars]
+# NEXT_PUBLIC_* values are baked into the client bundle at build time via
+# apps/web/.env.production, same as before this migration — nothing
+# Cloudflare-specific needed for those here. Secrets (DATABASE_URL,
+# CLERK_SECRET_KEY, STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET) are set via
+# `wrangler secret put`, never committed — see apps/api/wrangler.toml's
+# comment for the same convention.
+
+# Dev environment for the paused account-management/billing work — see
+# scenestealer-infra's neon.tf `scenestealer_dev` resources and
+# apps/api/wrangler.toml's own [env.dev] block, same pattern. Reached at
+# its own workers.dev subdomain; no custom domain.
+[env.dev]
+name = "scenestealer-web-dev"
+
+[env.dev.observability]
+enabled = true
+head_sampling_rate = 1

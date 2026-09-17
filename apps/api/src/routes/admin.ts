@@ -17,7 +17,10 @@ import type { Env } from "../index.js";
 // audit table when they're actually built). Every route here is gated by
 // requireAdmin at mount time below, not per-route — this whole sub-app
 // has no legitimate unauthenticated route, unlike admin-auth.ts.
-export const adminRoute = new Hono<{ Bindings: Env; Variables: AdminVariables }>();
+export const adminRoute = new Hono<{
+  Bindings: Env;
+  Variables: AdminVariables;
+}>();
 adminRoute.use("*", requireAdmin);
 
 // Tenant list with summary stats — the cross-tenant view requireTenant

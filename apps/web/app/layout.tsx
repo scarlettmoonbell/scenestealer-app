@@ -15,11 +15,14 @@ import { SocialLinks } from "./social-links";
 // needing a live Clerk publishableKey just to prerender a static shell.
 export const dynamic = "force-dynamic";
 
-// Deployed via @cloudflare/next-on-pages, which requires every
-// server-rendered route to explicitly opt into the Edge Runtime (Workers
-// has no Node.js runtime for SSR) — set once here so it cascades to every
-// route under this layout instead of repeating it per page.
-export const runtime = "edge";
+// Deployed via @opennextjs/cloudflare (migrated 2026-09-17 off the
+// deprecated @cloudflare/next-on-pages, which required every route to
+// opt into the Edge Runtime explicitly). OpenNext runs on Workers'
+// Node.js compat layer by default and does NOT support `runtime =
+// "edge"` cascading from a layout onto regular pages — confirmed for
+// real: the build fails outright ("OpenNext requires edge runtime
+// function to be defined in a separate function") with this left in.
+// Not needed anyway — Workers are edge-native regardless of this flag.
 
 export const metadata = {
   title: "SceneStealer",

@@ -49,19 +49,21 @@ jobs:
       # "main" points there) — a workspace package, not something
       # `pnpm install` builds on its own.
       - run: pnpm --filter @scenestealer/db build
-      # next-on-pages's own build (not part of turbo's `build` task) —
-      # runs a second, independent `next build` internally. See
-      # ROADMAP.md for the NEXT_PUBLIC_API_URL bug this once caused;
-      # apps/web/.env.production is the fix, nothing to pass here.
-      - run: pnpm --filter @scenestealer/web run pages:build
-      - name: Deploy to Cloudflare Pages
+      # @opennextjs/cloudflare's own build (not part of turbo's `build`
+      # task) — runs a second, independent `next build` internally,
+      # same reason deploy-api-style deploys need their own build step.
+      # See ROADMAP.md for the NEXT_PUBLIC_API_URL bug this once caused
+      # under the old next-on-pages pipeline; apps/web/.env.production is
+      # the fix, nothing to pass here.
+      - run: pnpm --filter @scenestealer/web run cf:build
+      - name: Deploy to Cloudflare Workers
         uses: cloudflare/wrangler-action@da0e0dfe58b7a431659754fdf3f186c529afbe65 # v3.14.1
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: apps/web
           packageManager: pnpm
-          command: pages deploy .vercel/output/static --project-name=scenestealer-web --branch=main
+          command: deploy
 
   deploy-api:
     needs: verify

@@ -26,7 +26,9 @@ export function bytesToBase64url(bytes: Uint8Array): string {
 
 export function base64urlToBytes(value: string): Uint8Array<ArrayBuffer> {
   const padded = value.replace(/-/g, "+").replace(/_/g, "/");
-  const binary = atob(padded.padEnd(padded.length + ((4 - (padded.length % 4)) % 4), "="));
+  const binary = atob(
+    padded.padEnd(padded.length + ((4 - (padded.length % 4)) % 4), "="),
+  );
   // Uint8Array.from(...) types as Uint8Array<ArrayBufferLike> — too loose
   // for @simplewebauthn/server's stricter Uint8Array<ArrayBuffer> param.
   // Allocating explicitly and copying in guarantees a real ArrayBuffer.

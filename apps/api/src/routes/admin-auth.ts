@@ -30,7 +30,10 @@ import {
 } from "../admin-crypto.js";
 import type { Env } from "../index.js";
 
-export const adminAuth = new Hono<{ Bindings: Env; Variables: AdminVariables }>();
+export const adminAuth = new Hono<{
+  Bindings: Env;
+  Variables: AdminVariables;
+}>();
 
 // Must match the origin this is actually served from (apps/web, same
 // origin as WEB_ORIGIN) — WebAuthn ties credentials to this domain and
@@ -50,7 +53,13 @@ function getChallengeStore(env: Env) {
 }
 
 async function issueSession(
-  c: { header: (name: string, value: string, options?: { append?: boolean }) => void },
+  c: {
+    header: (
+      name: string,
+      value: string,
+      options?: { append?: boolean },
+    ) => void;
+  },
   env: Env,
   db: Database,
 ): Promise<void> {
@@ -104,7 +113,10 @@ adminAuth.post("/setup/options", async (c) => {
     .from(adminCredentials)
     .limit(1);
   if (existing) {
-    return c.json({ error: "Admin already set up — use /register instead" }, 409);
+    return c.json(
+      { error: "Admin already set up — use /register instead" },
+      409,
+    );
   }
 
   const options = await generateRegistrationOptions({
@@ -118,7 +130,10 @@ adminAuth.post("/setup/options", async (c) => {
       userVerification: "preferred",
     },
   });
-  await getChallengeStore(c.env).setChallenge(options.challenge, CHALLENGE_TTL_MS);
+  await getChallengeStore(c.env).setChallenge(
+    options.challenge,
+    CHALLENGE_TTL_MS,
+  );
   return c.json(options);
 });
 
@@ -187,7 +202,10 @@ adminAuth.post("/register/options", requireAdmin, async (c) => {
       userVerification: "preferred",
     },
   });
-  await getChallengeStore(c.env).setChallenge(options.challenge, CHALLENGE_TTL_MS);
+  await getChallengeStore(c.env).setChallenge(
+    options.challenge,
+    CHALLENGE_TTL_MS,
+  );
   return c.json(options);
 });
 
@@ -229,7 +247,10 @@ adminAuth.post("/login/options", async (c) => {
     rpID: RP_ID,
     userVerification: "preferred",
   });
-  await getChallengeStore(c.env).setChallenge(options.challenge, CHALLENGE_TTL_MS);
+  await getChallengeStore(c.env).setChallenge(
+    options.challenge,
+    CHALLENGE_TTL_MS,
+  );
   return c.json(options);
 });
 
@@ -267,8 +288,17 @@ adminAuth.post("/login/verify", async (c) => {
   }
 
   // Reject a counter that didn't advance — the classic signal of a
-  // cloned authenticator replaying a previous response.
-  if (verification.authenticationInfo.newCounter <= stored.counter) {
+  // cloned authenticator replaying a previous response. But a counter
+  // stuck at 0 on both sides isn't a replay: real-world bug hit
+  // 2026-09-16 — iCloud-synced (Apple platform) passkeys never
+  // implement a signature counter at all and always report 0, so
+  // `0 <= 0` locked the account out of every single login.
+  // @simplewebauthn's own guidance is that an authenticator reporting
+  // 0 has opted out of counter-based replay detection, not that every
+  // subsequent auth is a replay — only enforce the check once a
+  // counter has actually been seen advancing.
+  const counterInUse = stored.counter !== 0 || verification.authenticationInfo.newCounter !== 0;
+  if (counterInUse && verification.authenticationInfo.newCounter <= stored.counter) {
     return c.json({ error: "Replay detected" }, 401);
   }
   await db

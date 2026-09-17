@@ -9,6 +9,7 @@ export default tseslint.config(
     ignores: [
       "**/dist/**",
       "**/.next/**",
+      "**/.open-next/**",
       "**/.vercel/**",
       "**/.turbo/**",
       "**/.wrangler/**",

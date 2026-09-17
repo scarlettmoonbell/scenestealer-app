@@ -6,7 +6,7 @@ import type { NextConfig } from "next";
 // setting (see package.json). Derive it from import.meta.url instead.
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// Deployed to Cloudflare Pages via @cloudflare/next-on-pages — see
+// Deployed to Cloudflare Workers via @opennextjs/cloudflare — see
 // ../../README.md's Dependencies section.
 const nextConfig: NextConfig = {
   // Without this, Next.js infers the workspace root by walking up looking
@@ -21,14 +21,13 @@ const nextConfig: NextConfig = {
   // repo (two levels up from apps/web) stops the inference from leaving
   // it.
   outputFileTracingRoot: path.join(__dirname, "../.."),
-  // next build's own type-check step fails with "Duplicate identifier
-  // 'unstable_cache'" — a known @cloudflare/next-on-pages + edge-runtime
-  // type-generation collision in Next's auto-generated .next/types files
-  // (no file/line reported, since it's not in our source), not a real
-  // type error in this codebase. `tsc --noEmit` (run separately via `npm
-  // run typecheck`, and in CI) already validates types cleanly, so this
-  // just turns off next build's redundant, currently-broken duplicate of
-  // that check rather than papering over an actual bug.
+  // next build's own type-check step crashes outright (SIGSEGV in the
+  // build worker) rather than reporting a real error — re-confirmed
+  // after the next-on-pages migration (2026-09-17), not just carried
+  // forward blindly: removing this reproduced the crash immediately.
+  // `tsc --noEmit` (run separately via `npm run typecheck`, and in CI)
+  // already validates types cleanly, so this just turns off next
+  // build's redundant, broken duplicate of that check.
   typescript: { ignoreBuildErrors: true },
 };
 
