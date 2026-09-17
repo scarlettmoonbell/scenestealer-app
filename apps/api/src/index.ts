@@ -11,7 +11,12 @@ import { templatesRoute } from "./routes/templates.js";
 import { internalRoute } from "./routes/internal.js";
 import { mediaRoute } from "./routes/media.js";
 import { tenantRoute } from "./routes/tenant.js";
+import { adminAuth } from "./routes/admin-auth.js";
+import { adminRoute } from "./routes/admin.js";
 import type { Variables } from "./auth.js";
+import { AdminChallengeStore } from "./admin-challenge-store.js";
+
+export { AdminChallengeStore };
 
 // The only job type so far — the discriminated `type` field leaves
 // room for the other jobTypeEnum values (packages/db's schema.ts:
@@ -68,6 +73,13 @@ export interface Env {
   // verified sending domain). routes/internal.ts skips the completion
   // email quietly when unset rather than erroring. See ROADMAP.md.
   RESEND_API_KEY?: string;
+  // One-time bootstrap for the admin passkey flow (routes/admin-auth.ts'
+  // POST /setup) — rotate/delete this secret after real first use so the
+  // route can't register a second, unauthorized identity later.
+  ADMIN_SETUP_TOKEN: string;
+  // Holds the in-flight WebAuthn challenge between the two legs of a
+  // registration/login ceremony — see admin-challenge-store.ts.
+  ADMIN_CHALLENGE_STORE: DurableObjectNamespace<AdminChallengeStore>;
 }
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -82,8 +94,15 @@ app.use(
   "*",
   cors({
     origin: (_origin, c) => c.env.WEB_ORIGIN,
-    allowHeaders: ["Content-Type", "Authorization"],
+    allowHeaders: ["Content-Type", "Authorization", "X-Setup-Token"],
     allowMethods: ["GET", "POST", "PATCH", "DELETE"],
+    // Needed for the admin routes' cookie-based session (routes/admin-
+    // auth.ts) to flow on a cross-subdomain fetch from apps/web —
+    // scenestealer.app and api.scenestealer.app are same-site but not
+    // same-origin, so both this header and the frontend's own
+    // `credentials: "include"` are required for the cookie to travel.
+    // Harmless for the tenant routes, which don't use cookies at all.
+    credentials: true,
   }),
 );
 
@@ -102,6 +121,8 @@ app.route("/posts", postsRoute);
 app.route("/internal", internalRoute);
 app.route("/media", mediaRoute);
 app.route("/tenant", tenantRoute);
+app.route("/admin-auth", adminAuth);
+app.route("/admin", adminRoute);
 
 // Phase 2+: publish action, Stripe webhook receiver.
 // See ../../README.md Status section.
