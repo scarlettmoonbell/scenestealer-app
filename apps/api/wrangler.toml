@@ -2,6 +2,14 @@ name = "scenestealer-api"
 main = "src/index.ts"
 compatibility_date = "2025-01-01"
 compatibility_flags = ["nodejs_compat"]
+# Pinned explicitly (2026-09-16) — this Cloudflare login has access to two
+# accounts (the personal one and this dedicated "SceneStealer" one, per
+# the Phase A account-migration plan). Without this, `wrangler deploy`
+# silently defaults to the wrong one when none is specified: a real
+# incident, not hypothetical — an hour was lost deploying successfully to
+# the WRONG account while api.scenestealer.app kept serving stale code,
+# because nothing here forced the right target.
+account_id = "98ccbdecb3c59d57acf9d24956abf2fc"
 
 # Provisioned by scenestealer-infra — see that repo's opentofu/README.md.
 # Consumer runs analyze jobs outside this Worker's own HTTP request/
@@ -23,6 +31,18 @@ binding = "JOBS_QUEUE"
 queue = "scenestealer-jobs"
 max_batch_size = 1
 
+# Top-level (shared between prod and any future dev use, unlike queues/R2
+# which [env.dev] deliberately omits) — holds no tenant data at all, just
+# one short-lived WebAuthn challenge for the admin passkey flow. See
+# admin-challenge-store.ts.
+[[durable_objects.bindings]]
+name = "ADMIN_CHALLENGE_STORE"
+class_name = "AdminChallengeStore"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["AdminChallengeStore"]
+
 # 100% sampling deliberately, not the platform default — real traffic is
 # still low enough (alpha phase, one tenant testing) that full log
 # retention costs nothing meaningful, and it's the only way this gap
@@ -43,6 +63,11 @@ head_sampling_rate = 1
 # here. CLERK_PUBLISHABLE_KEY, R2_ACCOUNT_ID, and R2_BUCKET_NAME aren't
 # sensitive, but are set the same way for now rather than split across
 # two mechanisms.
+#
+# ADMIN_SETUP_TOKEN (`wrangler secret put`) gates the one-time admin
+# passkey bootstrap (routes/admin-auth.ts's POST /setup/*) — rotate or
+# delete it right after real first use so that route can't register a
+# second, unauthorized identity later. Nothing else reads this secret.
 #
 # RESEND_API_KEY (also set via `wrangler secret put`, when ready) is
 # optional — routes/internal.ts's completion-email step skips quietly

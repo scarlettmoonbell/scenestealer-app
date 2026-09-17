@@ -1,13 +1,21 @@
-import { eq } from "drizzle-orm";
+import { eq, isNull, and, gt } from "drizzle-orm";
 import { getAuth } from "@clerk/hono";
-import { createDb, tenants } from "@scenestealer/db";
+import { getCookie } from "hono/cookie";
+import { createDb, tenants, adminSessions } from "@scenestealer/db";
 import type { Context, MiddlewareHandler } from "hono";
 import type { Env } from "./index.js";
+import { sha256Hex } from "./admin-crypto.js";
 
 export type Variables = {
   tenantId: string;
   userId: string;
 };
+
+export type AdminVariables = {
+  adminSessionId: string;
+};
+
+export const ADMIN_SESSION_COOKIE = "admin_session";
 
 /**
  * Verifies the Clerk session (via clerkMiddleware(), applied globally in
@@ -54,5 +62,46 @@ export const requireTenant: MiddlewareHandler<{
   // POST /:id/analyze can record who triggered a run, to know who to
   // email once it finishes (see routes/videos.ts).
   c.set("userId", auth.userId);
+  await next();
+};
+
+/**
+ * Gates the operator-only admin surface (routes/admin.ts,
+ * routes/admin-auth.ts' own register/recovery-regenerate endpoints).
+ * Deliberately shares no code path with requireTenant/Clerk above — the
+ * whole point of standalone WebAuthn here is an auth boundary a Clerk-
+ * side bug or compromise can't cross. Reads an opaque session token from
+ * a cookie (never a header — see routes/admin-auth.ts for why HttpOnly/
+ * Secure/SameSite=Strict matters here), hashes it, and checks
+ * admin_sessions for a live, unexpired, unrevoked row.
+ */
+export const requireAdmin: MiddlewareHandler<{
+  Bindings: Env;
+  Variables: AdminVariables;
+}> = async (c: Context<{ Bindings: Env; Variables: AdminVariables }>, next) => {
+  const token = getCookie(c, ADMIN_SESSION_COOKIE);
+  if (!token) {
+    return c.json({ error: "Admin sign-in required" }, 401);
+  }
+
+  const tokenHash = await sha256Hex(token);
+  const db = createDb(c.env.DATABASE_URL);
+  const [session] = await db
+    .select({ id: adminSessions.id })
+    .from(adminSessions)
+    .where(
+      and(
+        eq(adminSessions.tokenHash, tokenHash),
+        isNull(adminSessions.revokedAt),
+        gt(adminSessions.expiresAt, new Date()),
+      ),
+    )
+    .limit(1);
+
+  if (!session) {
+    return c.json({ error: "Admin session expired or revoked" }, 401);
+  }
+
+  c.set("adminSessionId", session.id);
   await next();
 };

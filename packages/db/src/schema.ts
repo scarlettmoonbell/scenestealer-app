@@ -7,6 +7,7 @@ import {
   jsonb,
   pgEnum,
   boolean,
+  integer,
 } from "drizzle-orm/pg-core";
 
 // --- Tenancy -----------------------------------------------------------
@@ -305,4 +306,53 @@ export const subscriptions = pgTable("subscriptions", {
   stripeSubscriptionId: text("stripe_subscription_id"),
   plan: text("plan").notNull().default("trial"),
   currentPeriodEnd: timestamp("current_period_end"),
+});
+
+// --- Admin (operator-only, cross-tenant) ----------------------------------
+//
+// Deliberately not FK'd to tenants — this gates the operator, not a tenant
+// user. Auth is standalone WebAuthn, not Clerk: see apps/api/src/auth.ts's
+// requireAdmin and ROADMAP.md for why (no per-tenant role model exists,
+// and a second Clerk Application for one admin would cost $20-25/mo just
+// for passkey support on the Pro tier — this achieves the same "passkey,
+// only me" property for $0 recurring, with the side benefit of a
+// credential system that shares no code path with tenant auth at all).
+
+export const adminCredentials = pgTable("admin_credentials", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  // Base64url WebAuthn credential ID — unique per registered device/passkey.
+  credentialId: text("credential_id").notNull().unique(),
+  publicKey: text("public_key").notNull(),
+  // Signature counter from the authenticator; @simplewebauthn/server
+  // rejects a verification whose counter doesn't increase, guarding
+  // against cloned-credential replay.
+  counter: integer("counter").notNull().default(0),
+  transports: jsonb("transports").$type<string[]>(),
+  // Human label set at registration time (e.g. "MacBook Touch ID") so a
+  // multi-device admin can tell credentials apart when reviewing them.
+  label: text("label").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const adminSessions = pgTable("admin_sessions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  // SHA-256 of the opaque session token in the cookie — the raw token
+  // itself is never stored, same reasoning as a password hash. Stateful
+  // by design, not a JWT: a lost device needs to be revocable with one
+  // UPDATE, not wait out a token's own expiry.
+  tokenHash: text("token_hash").notNull().unique(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  expiresAt: timestamp("expires_at").notNull(),
+  revokedAt: timestamp("revoked_at"),
+});
+
+export const adminRecoveryCodes = pgTable("admin_recovery_codes", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  // SHA-256 of the code. Codes are high-entropy random strings, not
+  // user-chosen, so a fast hash is sufficient — no need for bcrypt/
+  // argon2's slow-hashing property, which exists to resist guessing
+  // low-entropy user-chosen secrets, not the case here.
+  codeHash: text("code_hash").notNull().unique(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  usedAt: timestamp("used_at"),
 });
