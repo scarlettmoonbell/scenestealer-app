@@ -297,8 +297,12 @@ adminAuth.post("/login/verify", async (c) => {
   // 0 has opted out of counter-based replay detection, not that every
   // subsequent auth is a replay — only enforce the check once a
   // counter has actually been seen advancing.
-  const counterInUse = stored.counter !== 0 || verification.authenticationInfo.newCounter !== 0;
-  if (counterInUse && verification.authenticationInfo.newCounter <= stored.counter) {
+  const counterInUse =
+    stored.counter !== 0 || verification.authenticationInfo.newCounter !== 0;
+  if (
+    counterInUse &&
+    verification.authenticationInfo.newCounter <= stored.counter
+  ) {
     return c.json({ error: "Replay detected" }, 401);
   }
   await db

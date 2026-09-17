@@ -13,4 +13,12 @@ useDefault = true
 # rather than by commit fingerprint so it stays suppressed across future
 # commits/rebases, not just the one that first hit it.
 [allowlist]
-regexes = ['''clips\.renderedR2Key''']
+regexes = [
+  '''clips\.renderedR2Key''',
+  # Also not a real secret: Clerk's *publishable* key (apps/web/.env.production)
+  # — the `pk_` prefix distinguishes it from a secret key (`sk_`) exactly the
+  # same way Stripe's publishable/secret split works. It's meant to ship in
+  # the client bundle; the `generic-api-key` rule's entropy heuristic can't
+  # tell public keys from secret ones, only high vs. low entropy.
+  '''pk_(test|live)_[A-Za-z0-9]+''',
+]
