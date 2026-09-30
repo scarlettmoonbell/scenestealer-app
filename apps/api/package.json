@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@clerk/backend": "^3.11.7",
-    "@clerk/hono": "^0.1.53",
+    "@clerk/hono": "^0.1.82",
     "@neondatabase/serverless": "^0.10.4",
     "@scenestealer/db": "workspace:*",
     "@simplewebauthn/server": "^14.0.2",
