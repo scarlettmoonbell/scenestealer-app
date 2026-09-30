@@ -27,7 +27,12 @@ interface Usage {
 const TIER_CARDS = [
   { slug: "free" as const, name: "Free", price: "$0", storage: "4 GB" },
   { slug: "small" as const, name: "Small", price: "$9/mo", storage: "25 GB" },
-  { slug: "medium" as const, name: "Medium", price: "$29/mo", storage: "100 GB" },
+  {
+    slug: "medium" as const,
+    name: "Medium",
+    price: "$29/mo",
+    storage: "100 GB",
+  },
   { slug: "large" as const, name: "Large", price: "$49/mo", storage: "300 GB" },
 ];
 
@@ -55,9 +60,9 @@ export default function AccountPage() {
   const [checkoutResult, setCheckoutResult] = useState<string | null>(null);
 
   useEffect(() => {
-    setCheckoutResult(new URLSearchParams(window.location.search).get(
-      "checkout",
-    ));
+    setCheckoutResult(
+      new URLSearchParams(window.location.search).get("checkout"),
+    );
   }, []);
 
   const loadUsage = useCallback(async () => {
@@ -182,9 +187,12 @@ export default function AccountPage() {
     setRedirecting(cancel ? "free" : "resume");
     setError(null);
     try {
-      const res = await authedFetch(cancel ? "/stripe/cancel" : "/stripe/resume", {
-        method: "POST",
-      });
+      const res = await authedFetch(
+        cancel ? "/stripe/cancel" : "/stripe/resume",
+        {
+          method: "POST",
+        },
+      );
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as {
           error?: string;
@@ -219,226 +227,245 @@ export default function AccountPage() {
           settings/page.tsx's matching comment for why. */}
       <main style={{ maxWidth: 1160, margin: "0 auto", padding: "24px" }}>
         <div style={{ maxWidth: 720 }}>
-        <h1>Account</h1>
-      <p style={{ marginTop: "1rem", color: "var(--muted)" }}>
-        Your plan and storage usage. Notification preferences live on the{" "}
-        <a href="/settings">Settings</a> page.
-      </p>
+          <h1>Account</h1>
+          <p style={{ marginTop: "1rem", color: "var(--muted)" }}>
+            Your plan and storage usage. Notification preferences live on the{" "}
+            <a href="/settings">Settings</a> page.
+          </p>
 
-      {checkoutResult === "success" && (
-        <p style={{ marginTop: "1rem", color: "var(--accent-text)" }}>
-          Subscription started — it may take a few seconds to appear below.
-        </p>
-      )}
-      {error && (
-        <p role="alert" style={{ marginTop: "1rem" }}>
-          {error}
-        </p>
-      )}
+          {checkoutResult === "success" && (
+            <p style={{ marginTop: "1rem", color: "var(--accent-text)" }}>
+              Subscription started — it may take a few seconds to appear below.
+            </p>
+          )}
+          {error && (
+            <p role="alert" style={{ marginTop: "1rem" }}>
+              {error}
+            </p>
+          )}
 
-      {!loading && usage && (
-        <>
-          <div
-            style={{
-              marginTop: "2rem",
-              border: "1px solid var(--border)",
-              borderRadius: 8,
-              padding: "1.5rem",
-              display: "flex",
-              flexDirection: "column",
-              gap: "1rem",
-            }}
-          >
-            <h2 style={{ marginTop: 0 }}>
-              Current plan: {usage.tierName}
-              {usage.storageAddonUnits > 0 &&
-                ` + ${usage.storageAddonUnits} storage add-on${usage.storageAddonUnits > 1 ? "s" : ""}`}
-            </h2>
-
-            <div>
-              <span style={TABLE_HEADER_STYLE}>
-                Storage: {formatGb(usage.usedBytes)} of {formatGb(usage.capBytes)}{" "}
-                used
-              </span>
+          {!loading && usage && (
+            <>
               <div
                 style={{
-                  marginTop: "0.4rem",
-                  height: 10,
-                  borderRadius: 999,
-                  background: "var(--surface-raised)",
-                  overflow: "hidden",
+                  marginTop: "2rem",
+                  border: "1px solid var(--border)",
+                  borderRadius: 8,
+                  padding: "1.5rem",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "1rem",
                 }}
               >
-                <div
-                  style={{
-                    height: "100%",
-                    width: `${Math.min(100, usedFraction * 100)}%`,
-                    background: nearCap ? "var(--warm)" : "var(--accent)",
-                    borderRadius: 999,
-                  }}
-                />
-              </div>
-              {nearCap && (
-                <p style={{ marginTop: "0.5rem", color: "var(--warm)" }}>
-                  You're close to your storage limit. Upgrade your plan or add
-                  more storage below.
-                </p>
-              )}
-            </div>
+                <h2 style={{ marginTop: 0 }}>
+                  Current plan: {usage.tierName}
+                  {usage.storageAddonUnits > 0 &&
+                    ` + ${usage.storageAddonUnits} storage add-on${usage.storageAddonUnits > 1 ? "s" : ""}`}
+                </h2>
 
-            {subscribed && usage.cancelAtPeriodEnd && (
-              <div
-                style={{
-                  border: "1px solid var(--warm)",
-                  borderRadius: 6,
-                  padding: "0.75rem 1rem",
-                }}
-              >
-                <p style={{ margin: 0 }}>
-                  Your {usage.tierName} plan ends on {periodEndLabel}, then
-                  you'll move to Free ({formatGb(usage.freeCapBytes)}).
-                </p>
-                {overFreeCap && (
-                  <p style={{ margin: "0.5rem 0 0", color: "var(--warm)" }}>
-                    You're storing {formatGb(usage.usedBytes)}. Nothing will be
-                    deleted, but new uploads will pause until you're under{" "}
-                    {formatGb(usage.freeCapBytes)}.
-                  </p>
-                )}
-                <button
-                  type="button"
-                  style={{ marginTop: "0.75rem" }}
-                  disabled={redirecting === "resume"}
-                  onClick={() => void setCancellation(false)}
-                >
-                  {redirecting === "resume"
-                    ? "Keeping plan…"
-                    : `Keep ${usage.tierName}`}
-                </button>
-              </div>
-            )}
-
-            {subscribed && (
-              <button
-                type="button"
-                disabled={redirecting === "portal"}
-                onClick={() => void openPortal()}
-              >
-                {redirecting === "portal"
-                  ? "Opening billing portal…"
-                  : "Manage billing (switch plan, add storage, payment method)"}
-              </button>
-            )}
-          </div>
-
-          <div
-            style={{
-              marginTop: "1.5rem",
-              border: "1px solid var(--border)",
-              borderRadius: 8,
-              padding: "1.5rem",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: "1rem",
-              flexWrap: "wrap",
-            }}
-          >
-            <div>
-              <h2 style={{ marginTop: 0, marginBottom: "0.35rem" }}>
-                Burst processing
-              </h2>
-              <p style={{ margin: 0, color: "var(--muted)" }}>
-                {usage.burstSecondsRemaining > 0
-                  ? `${formatMinutes(usage.burstSecondsRemaining)} of fast processing remaining.`
-                  : "Process your next uploads on our fastest machines."}
-              </p>
-            </div>
-            <button
-              type="button"
-              disabled={redirecting === "burst"}
-              onClick={() => void buyBurst()}
-            >
-              {redirecting === "burst"
-                ? "Starting…"
-                : "Buy 2 hours — $4.99"}
-            </button>
-          </div>
-
-          <div
-            style={{
-              marginTop: "1.5rem",
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-              gap: "1rem",
-            }}
-          >
-            {TIER_CARDS.map((tier) => {
-              const isCurrent = usage.plan === tier.slug;
-              return (
-                <div
-                  key={tier.slug}
-                  style={{
-                    border: isCurrent
-                      ? "1.5px solid var(--accent-text)"
-                      : "1px solid var(--border)",
-                    borderRadius: 8,
-                    padding: "1rem",
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "0.5rem",
-                  }}
-                >
-                  <strong>{tier.name}</strong>
-                  <span style={{ color: "var(--muted)" }}>{tier.price}</span>
-                  <span style={{ color: "var(--muted)", fontSize: "0.9em" }}>
-                    {tier.storage} storage
+                <div>
+                  <span style={TABLE_HEADER_STYLE}>
+                    Storage: {formatGb(usage.usedBytes)} of{" "}
+                    {formatGb(usage.capBytes)} used
                   </span>
-                  {isCurrent ? (
-                    <span style={{ fontSize: "0.9em" }}>Current plan</span>
-                  ) : tier.slug === "free" ? (
-                    !subscribed || usage.plan === "tester" ? null : usage.cancelAtPeriodEnd ? (
-                      <span style={{ fontSize: "0.85em", color: "var(--muted)" }}>
-                        Starts {periodEndLabel}
-                      </span>
-                    ) : (
-                      <button
-                        type="button"
-                        disabled={redirecting === "free"}
-                        onClick={() => void setCancellation(true)}
-                      >
-                        {redirecting === "free" ? "Switching…" : "Switch to Free"}
-                      </button>
-                    )
-                  ) : subscribed ? (
-                    <button
-                      type="button"
-                      disabled={redirecting === tier.slug}
-                      onClick={() =>
-                        void switchTier(tier.slug as "small" | "medium" | "large")
-                      }
-                    >
-                      {redirecting === tier.slug
-                        ? "Switching…"
-                        : `Switch to ${tier.name}`}
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      disabled={redirecting === tier.slug}
-                      onClick={() =>
-                        void chooseTier(tier.slug as "small" | "medium" | "large")
-                      }
-                    >
-                      {redirecting === tier.slug ? "Starting…" : "Choose plan"}
-                    </button>
+                  <div
+                    style={{
+                      marginTop: "0.4rem",
+                      height: 10,
+                      borderRadius: 999,
+                      background: "var(--surface-raised)",
+                      overflow: "hidden",
+                    }}
+                  >
+                    <div
+                      style={{
+                        height: "100%",
+                        width: `${Math.min(100, usedFraction * 100)}%`,
+                        background: nearCap ? "var(--warm)" : "var(--accent)",
+                        borderRadius: 999,
+                      }}
+                    />
+                  </div>
+                  {nearCap && (
+                    <p style={{ marginTop: "0.5rem", color: "var(--warm)" }}>
+                      You're close to your storage limit. Upgrade your plan or
+                      add more storage below.
+                    </p>
                   )}
                 </div>
-              );
-            })}
-          </div>
-        </>
-      )}
+
+                {subscribed && usage.cancelAtPeriodEnd && (
+                  <div
+                    style={{
+                      border: "1px solid var(--warm)",
+                      borderRadius: 6,
+                      padding: "0.75rem 1rem",
+                    }}
+                  >
+                    <p style={{ margin: 0 }}>
+                      Your {usage.tierName} plan ends on {periodEndLabel}, then
+                      you'll move to Free ({formatGb(usage.freeCapBytes)}).
+                    </p>
+                    {overFreeCap && (
+                      <p style={{ margin: "0.5rem 0 0", color: "var(--warm)" }}>
+                        You're storing {formatGb(usage.usedBytes)}. Nothing will
+                        be deleted, but new uploads will pause until you're
+                        under {formatGb(usage.freeCapBytes)}.
+                      </p>
+                    )}
+                    <button
+                      type="button"
+                      style={{ marginTop: "0.75rem" }}
+                      disabled={redirecting === "resume"}
+                      onClick={() => void setCancellation(false)}
+                    >
+                      {redirecting === "resume"
+                        ? "Keeping plan…"
+                        : `Keep ${usage.tierName}`}
+                    </button>
+                  </div>
+                )}
+
+                {subscribed && (
+                  <button
+                    type="button"
+                    disabled={redirecting === "portal"}
+                    onClick={() => void openPortal()}
+                  >
+                    {redirecting === "portal"
+                      ? "Opening billing portal…"
+                      : "Manage billing (switch plan, add storage, payment method)"}
+                  </button>
+                )}
+              </div>
+
+              <div
+                style={{
+                  marginTop: "1.5rem",
+                  border: "1px solid var(--border)",
+                  borderRadius: 8,
+                  padding: "1.5rem",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: "1rem",
+                  flexWrap: "wrap",
+                }}
+              >
+                <div>
+                  <h2 style={{ marginTop: 0, marginBottom: "0.35rem" }}>
+                    Burst processing
+                  </h2>
+                  <p style={{ margin: 0, color: "var(--muted)" }}>
+                    {usage.burstSecondsRemaining > 0
+                      ? `${formatMinutes(usage.burstSecondsRemaining)} of fast processing remaining.`
+                      : "Process your next uploads on our fastest machines."}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  disabled={redirecting === "burst"}
+                  onClick={() => void buyBurst()}
+                >
+                  {redirecting === "burst"
+                    ? "Starting…"
+                    : "Buy 2 hours — $4.99"}
+                </button>
+              </div>
+
+              <div
+                style={{
+                  marginTop: "1.5rem",
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+                  gap: "1rem",
+                }}
+              >
+                {TIER_CARDS.map((tier) => {
+                  const isCurrent = usage.plan === tier.slug;
+                  return (
+                    <div
+                      key={tier.slug}
+                      style={{
+                        border: isCurrent
+                          ? "1.5px solid var(--accent-text)"
+                          : "1px solid var(--border)",
+                        borderRadius: 8,
+                        padding: "1rem",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "0.5rem",
+                      }}
+                    >
+                      <strong>{tier.name}</strong>
+                      <span style={{ color: "var(--muted)" }}>
+                        {tier.price}
+                      </span>
+                      <span
+                        style={{ color: "var(--muted)", fontSize: "0.9em" }}
+                      >
+                        {tier.storage} storage
+                      </span>
+                      {isCurrent ? (
+                        <span style={{ fontSize: "0.9em" }}>Current plan</span>
+                      ) : tier.slug === "free" ? (
+                        !subscribed ||
+                        usage.plan ===
+                          "tester" ? null : usage.cancelAtPeriodEnd ? (
+                          <span
+                            style={{
+                              fontSize: "0.85em",
+                              color: "var(--muted)",
+                            }}
+                          >
+                            Starts {periodEndLabel}
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled={redirecting === "free"}
+                            onClick={() => void setCancellation(true)}
+                          >
+                            {redirecting === "free"
+                              ? "Switching…"
+                              : "Switch to Free"}
+                          </button>
+                        )
+                      ) : subscribed ? (
+                        <button
+                          type="button"
+                          disabled={redirecting === tier.slug}
+                          onClick={() =>
+                            void switchTier(
+                              tier.slug as "small" | "medium" | "large",
+                            )
+                          }
+                        >
+                          {redirecting === tier.slug
+                            ? "Switching…"
+                            : `Switch to ${tier.name}`}
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={redirecting === tier.slug}
+                          onClick={() =>
+                            void chooseTier(
+                              tier.slug as "small" | "medium" | "large",
+                            )
+                          }
+                        >
+                          {redirecting === tier.slug
+                            ? "Starting…"
+                            : "Choose plan"}
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
         </div>
       </main>
     </>

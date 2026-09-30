@@ -230,11 +230,7 @@ clipsRoute.post("/:id/render", async (c) => {
     return c.json({ error: "Clip not found" }, 404);
   }
 
-  const { guest, burstUsed } = await resolveDispatchGuest(
-    db,
-    c.env,
-    tenantId,
-  );
+  const { guest, burstUsed } = await resolveDispatchGuest(db, c.env, tenantId);
 
   // Set immediately (not left to the spawned Machine) so the frontend's
   // own optimistic "Rendering…" state is backed by the real row the

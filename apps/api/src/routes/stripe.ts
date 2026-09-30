@@ -50,7 +50,9 @@ stripeRoute.post("/checkout", async (c) => {
     .limit(1);
   if (existing?.stripeSubscriptionId) {
     return c.json(
-      { error: "Already subscribed — manage your plan from the billing portal" },
+      {
+        error: "Already subscribed — manage your plan from the billing portal",
+      },
       409,
     );
   }
@@ -134,7 +136,10 @@ stripeRoute.post("/portal", async (c) => {
     .where(eq(subscriptions.tenantId, tenantId))
     .limit(1);
   if (!existing?.stripeCustomerId) {
-    return c.json({ error: "No billing account yet — choose a plan first" }, 404);
+    return c.json(
+      { error: "No billing account yet — choose a plan first" },
+      404,
+    );
   }
 
   const stripe = createStripeClient(c.env);
@@ -197,7 +202,10 @@ stripeRoute.post("/change-plan", async (c) => {
     .where(eq(subscriptions.tenantId, tenantId))
     .limit(1);
   if (!existing?.stripeSubscriptionId) {
-    return c.json({ error: "No active subscription — choose a plan first" }, 409);
+    return c.json(
+      { error: "No active subscription — choose a plan first" },
+      409,
+    );
   }
   if (existing.plan === target.slug) {
     return c.json({ error: "Already on that plan" }, 400);
@@ -245,7 +253,12 @@ stripeRoute.post("/change-plan", async (c) => {
     planFromSubscriptionItems(c.env, updated.items.data);
   await db
     .update(subscriptions)
-    .set({ plan, storageAddonUnits, currentPeriodEnd, cancelAtPeriodEnd: false })
+    .set({
+      plan,
+      storageAddonUnits,
+      currentPeriodEnd,
+      cancelAtPeriodEnd: false,
+    })
     .where(eq(subscriptions.tenantId, tenantId));
 
   return c.json({ plan });

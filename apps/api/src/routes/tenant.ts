@@ -2,7 +2,12 @@ import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { createDb, tenants } from "@scenestealer/db";
 import { requireTenant } from "../auth.js";
-import { getCapBytes, getTiers, getTenantPlan, getUsedBytes } from "../billing-tiers.js";
+import {
+  getCapBytes,
+  getTiers,
+  getTenantPlan,
+  getUsedBytes,
+} from "../billing-tiers.js";
 import type { Env } from "../index.js";
 import type { Variables } from "../auth.js";
 

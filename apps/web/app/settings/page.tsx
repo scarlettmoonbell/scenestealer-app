@@ -101,69 +101,71 @@ export default function SettingsPage() {
           (which used to leave tabs and content visibly misaligned). */}
       <main style={{ maxWidth: 1160, margin: "0 auto", padding: "24px" }}>
         <div style={{ maxWidth: 720 }}>
-        <h1>Settings</h1>
-      <p style={{ marginTop: "1rem", color: "var(--muted)" }}>
-        Notification preferences for this organization.
-      </p>
+          <h1>Settings</h1>
+          <p style={{ marginTop: "1rem", color: "var(--muted)" }}>
+            Notification preferences for this organization.
+          </p>
 
-      {error && (
-        <p role="alert" style={{ marginTop: "1rem" }}>
-          {error}
-        </p>
-      )}
+          {error && (
+            <p role="alert" style={{ marginTop: "1rem" }}>
+              {error}
+            </p>
+          )}
 
-      {!loading && (
-        <div
-          style={{
-            marginTop: "2rem",
-            border: "1px solid var(--border)",
-            borderRadius: 8,
-            padding: "1.5rem",
-            display: "flex",
-            flexDirection: "column",
-            gap: "1rem",
-            maxWidth: 480,
-          }}
-        >
-          <h2 style={{ marginTop: 0 }}>Publish failures</h2>
-
-          <label>
-            <input
-              type="checkbox"
-              checked={notifyOnFailure}
-              onChange={(e) => setNotifyOnFailure(e.target.checked)}
-            />{" "}
-            Email me when a post fails to publish
-          </label>
-
-          <label>
-            <span style={FIELD_LABEL_STYLE}>Notification email</span>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
-              className="field-input"
-              disabled={!notifyOnFailure}
-            />
-          </label>
-
-          <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
-            <button
-              type="button"
-              disabled={saving || !dirty}
-              onClick={() => void handleSave()}
+          {!loading && (
+            <div
+              style={{
+                marginTop: "2rem",
+                border: "1px solid var(--border)",
+                borderRadius: 8,
+                padding: "1.5rem",
+                display: "flex",
+                flexDirection: "column",
+                gap: "1rem",
+                maxWidth: 480,
+              }}
             >
-              {saving ? "Saving…" : "Save"}
-            </button>
-            {saved && !dirty && (
-              <span style={{ color: "var(--muted)", fontSize: "0.9em" }}>
-                Saved.
-              </span>
-            )}
-          </div>
-        </div>
-      )}
+              <h2 style={{ marginTop: 0 }}>Publish failures</h2>
+
+              <label>
+                <input
+                  type="checkbox"
+                  checked={notifyOnFailure}
+                  onChange={(e) => setNotifyOnFailure(e.target.checked)}
+                />{" "}
+                Email me when a post fails to publish
+              </label>
+
+              <label>
+                <span style={FIELD_LABEL_STYLE}>Notification email</span>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  className="field-input"
+                  disabled={!notifyOnFailure}
+                />
+              </label>
+
+              <div
+                style={{ display: "flex", alignItems: "center", gap: "1rem" }}
+              >
+                <button
+                  type="button"
+                  disabled={saving || !dirty}
+                  onClick={() => void handleSave()}
+                >
+                  {saving ? "Saving…" : "Save"}
+                </button>
+                {saved && !dirty && (
+                  <span style={{ color: "var(--muted)", fontSize: "0.9em" }}>
+                    Saved.
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </main>
     </>

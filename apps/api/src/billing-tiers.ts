@@ -1,5 +1,10 @@
 import { eq, sql } from "drizzle-orm";
-import { subscriptions, sourceVideos, clips, type Database } from "@scenestealer/db";
+import {
+  subscriptions,
+  sourceVideos,
+  clips,
+  type Database,
+} from "@scenestealer/db";
 import type { Env } from "./index.js";
 
 // Tier definitions for the storage-gated billing model — see the
