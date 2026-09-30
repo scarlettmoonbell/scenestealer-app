@@ -2,6 +2,15 @@ name = "scenestealer-postiz-proxy"
 main = "src/index.ts"
 compatibility_date = "2025-01-01"
 
+# Pinned explicitly — this login has access to two Cloudflare accounts
+# (the personal one and this dedicated "SceneStealer" one). Without
+# this, `wrangler deploy` prompts an account-selection dialog and can
+# silently deploy to the wrong one — apps/web and apps/api learned this
+# the hard way earlier tonight; this file was the one that got missed,
+# confirmed for real 2026-09-19 when a real deploy landed on the wrong
+# account and the live script never updated.
+account_id = "98ccbdecb3c59d57acf9d24956abf2fc"
+
 # Reverse-proxies postiz.scenestealer.app so we can inject a self-close
 # script into the connect-success page — see ROADMAP.md's "Done
 # (2026-09-04)" entry and the plan this was built from. Postiz's own

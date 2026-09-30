@@ -36,6 +36,11 @@ export interface Env {
   STRIPE_WEBHOOK_SECRET: string;
   POSTIZ_API_URL: string;
   POSTIZ_API_KEY: string;
+  // Read-only direct connection to Postiz's own Neon database — see
+  // postiz-db.ts for why. Optional: only set where a real Facebook Page
+  // is actually connected (production today; dev has no Postiz wiring
+  // at all, see wrangler.toml's [env.dev] comment).
+  POSTIZ_DATABASE_URL?: string;
   R2_ACCOUNT_ID: string;
   R2_ACCESS_KEY_ID: string;
   R2_SECRET_ACCESS_KEY: string;

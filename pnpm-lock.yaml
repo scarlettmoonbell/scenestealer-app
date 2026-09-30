@@ -41,6 +41,9 @@ importers:
       "@clerk/hono":
         specifier: ^0.1.53
         version: 0.1.53(hono@4.12.31)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      "@neondatabase/serverless":
+        specifier: ^0.10.4
+        version: 0.10.4
       "@scenestealer/db":
         specifier: workspace:*
         version: link:../../packages/db

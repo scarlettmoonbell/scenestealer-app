@@ -1,13 +1,21 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { Hono } from "hono";
-import { createDb, posts, socialConnections } from "@scenestealer/db";
+import {
+  clips,
+  createDb,
+  posts,
+  socialConnections,
+  sourceVideos,
+} from "@scenestealer/db";
 import { requireTenant } from "../auth.js";
+import { getPagePosts } from "../facebook-graph.js";
 import {
   deleteIntegration,
   getConnectUrl,
   getIntegrations,
   getIntegrationSettings,
 } from "../postiz.js";
+import { getPostizFacebookToken } from "../postiz-db.js";
 import type { Env } from "../index.js";
 import type { Variables } from "../auth.js";
 
@@ -168,6 +176,82 @@ social.get("/connections/:id/settings", async (c) => {
     connection.postizIntegrationId,
   );
   return c.json(settings);
+});
+
+// Facebook reads real content back from the connected Page itself — see
+// postiz-db.ts and facebook-graph.ts for why: it's what genuinely
+// exercises pages_read_engagement for Meta App Review, not just claims
+// it. That proof only needs to exist once, on Facebook; Instagram/
+// YouTube have no equivalent review requirement, so for them this
+// serves from our own already-stored publish history instead of a
+// second live Graph API integration — cheaper to build, and the data
+// (our own confirmed-published posts, see posts.ts's releaseUrl) is
+// already sitting right there.
+social.get("/connections/:id/recent-posts", async (c) => {
+  const tenantId = c.get("tenantId");
+  const db = createDb(c.env.DATABASE_URL);
+
+  const [connection] = await db
+    .select()
+    .from(socialConnections)
+    .where(
+      and(
+        eq(socialConnections.id, c.req.param("id")),
+        eq(socialConnections.tenantId, tenantId),
+      ),
+    )
+    .limit(1);
+  if (!connection) {
+    return c.json({ error: "Connection not found" }, 404);
+  }
+
+  if (connection.platform !== "facebook") {
+    const rows = await db
+      .select({
+        id: posts.id,
+        videoTitle: sourceVideos.title,
+        publishedAt: posts.publishedAt,
+        releaseUrl: posts.releaseUrl,
+      })
+      .from(posts)
+      .innerJoin(clips, eq(posts.clipId, clips.id))
+      .leftJoin(sourceVideos, eq(clips.sourceVideoId, sourceVideos.id))
+      .where(
+        and(
+          eq(posts.socialConnectionId, connection.id),
+          eq(posts.status, "published"),
+        ),
+      )
+      .orderBy(desc(posts.publishedAt))
+      .limit(5);
+
+    return c.json({
+      posts: rows.map((row) => ({
+        id: row.id,
+        message: row.videoTitle ?? undefined,
+        createdTime: (row.publishedAt ?? new Date()).toISOString(),
+        permalinkUrl: row.releaseUrl ?? undefined,
+      })),
+    });
+  }
+
+  const token = await getPostizFacebookToken(
+    c.env,
+    connection.postizIntegrationId,
+  );
+  if (!token) {
+    return c.json({ error: "No Facebook Page token available" }, 503);
+  }
+
+  try {
+    const recentPosts = await getPagePosts(token.pageId, token.accessToken);
+    return c.json({ posts: recentPosts });
+  } catch (err) {
+    return c.json(
+      { error: err instanceof Error ? err.message : "Unknown error" },
+      502,
+    );
+  }
 });
 
 // The published Data Deletion Instructions page promises disconnecting
