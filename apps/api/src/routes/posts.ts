@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, isNotNull, lte, or } from "drizzle-orm";
+import { and, asc, desc, eq, gte, isNotNull, lte, or } from "drizzle-orm";
 import { Hono } from "hono";
 import {
   clips,
@@ -71,7 +71,12 @@ async function reconcilePendingPosts(
     if (remote?.state === "PUBLISHED") {
       await db
         .update(posts)
-        .set({ status: "published", publishedAt: new Date(), error: null })
+        .set({
+          status: "published",
+          publishedAt: new Date(),
+          error: null,
+          releaseUrl: remote.releaseURL,
+        })
         .where(eq(posts.id, row.id));
     } else if (remote?.state === "ERROR") {
       const error = remote.error ?? "Publish failed";
@@ -143,6 +148,42 @@ postsRoute.get("/scheduled", async (c) => {
   return c.json({ posts: rows });
 });
 
+// Lets a tenant manage a post directly on the platform it was published
+// to — releaseUrl is captured once, when reconcilePendingPosts/GET
+// /:id/status above first confirms "published", not fetched live here.
+// Most-recent-first, capped at 50: this is a browse/reference list, not
+// something that needs full pagination yet.
+postsRoute.get("/published", async (c) => {
+  const tenantId = c.get("tenantId");
+  const db = createDb(c.env.DATABASE_URL);
+
+  const rows = await db
+    .select({
+      id: posts.id,
+      platform: socialConnections.platform,
+      videoTitle: sourceVideos.title,
+      publishedAt: posts.publishedAt,
+      releaseUrl: posts.releaseUrl,
+    })
+    .from(posts)
+    .innerJoin(
+      socialConnections,
+      eq(posts.socialConnectionId, socialConnections.id),
+    )
+    .innerJoin(clips, eq(posts.clipId, clips.id))
+    .leftJoin(sourceVideos, eq(clips.sourceVideoId, sourceVideos.id))
+    .where(
+      and(
+        eq(socialConnections.tenantId, tenantId),
+        eq(posts.status, "published"),
+      ),
+    )
+    .orderBy(desc(posts.publishedAt))
+    .limit(50);
+
+  return c.json({ posts: rows });
+});
+
 // Polled by the Scheduler right after a "publish now" request — that
 // request only means Postiz *accepted* the post, not that it actually
 // reached the platform (see clips.ts's /:id/publish). Reconciles this
@@ -177,7 +218,12 @@ postsRoute.get("/:id/status", async (c) => {
     if (remote?.state === "PUBLISHED") {
       const [updated] = await db
         .update(posts)
-        .set({ status: "published", publishedAt: new Date(), error: null })
+        .set({
+          status: "published",
+          publishedAt: new Date(),
+          error: null,
+          releaseUrl: remote.releaseURL,
+        })
         .where(eq(posts.id, postId))
         .returning();
       return c.json({ post: updated });

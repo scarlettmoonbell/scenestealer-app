@@ -8,6 +8,7 @@ import {
   pgEnum,
   boolean,
   integer,
+  bigint,
 } from "drizzle-orm/pg-core";
 
 // --- Tenancy -----------------------------------------------------------
@@ -142,6 +143,20 @@ export const sourceVideos = pgTable("source_videos", {
   cityName: text("city_name"),
   gpsLat: real("gps_lat"),
   gpsLon: real("gps_lon"),
+  // Size of the uploaded object in R2, in bytes — client-reported at
+  // upload completion (uploads.ts's POST /complete). Nullable: videos
+  // uploaded before this column existed have no retroactive value.
+  // Counted toward the tenant's storage quota (tenant.ts's GET
+  // /tenant/usage) alongside clips.fileSizeBytes below — see the
+  // billing plan's "Data model" section.
+  fileSizeBytes: bigint("file_size_bytes", { mode: "number" }),
+  // Set at analyze-dispatch time (videos.ts's runAnalyzeJob) when the
+  // tenant had a positive burst-processing balance — read back by
+  // apps/worker/src/analyze.ts once the job finishes to decide
+  // whether to charge real elapsed time against
+  // subscriptions.burstSecondsRemaining. See billing-tiers.ts's
+  // resolveDispatchGuest/chargeBurstSeconds.
+  burstModeUsed: boolean("burst_mode_used").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -207,6 +222,17 @@ export const clips = pgTable("clips", {
   fitMode: text("fit_mode", { enum: ["crop", "pad"] })
     .notNull()
     .default("crop"),
+  // Size of the rendered output in R2, in bytes — set by
+  // apps/worker/src/render.ts once the upload finishes, alongside
+  // renderedR2Key. Nullable: unrendered clips and clips rendered
+  // before this column existed have no value. Counted toward the
+  // tenant's storage quota together with sourceVideos.fileSizeBytes.
+  fileSizeBytes: bigint("file_size_bytes", { mode: "number" }),
+  // Set at render-dispatch time (clips.ts's POST /:id/render) when the
+  // tenant had a positive burst-processing balance — same mechanism as
+  // sourceVideos.burstModeUsed above, read back by
+  // apps/worker/src/render.ts.
+  burstModeUsed: boolean("burst_mode_used").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -262,6 +288,13 @@ export const posts = pgTable("posts", {
   scheduledAt: timestamp("scheduled_at"),
   publishedAt: timestamp("published_at"),
   externalPostId: text("external_post_id"),
+  // Postiz's real, live URL for the published post on the platform
+  // itself — captured once, when the post is first confirmed
+  // "published" (reconcilePendingPosts/GET /:id/status in
+  // routes/posts.ts), not fetched live on every read. Lets a tenant
+  // manage a post directly on Facebook/Instagram/YouTube from
+  // SceneStealer's own UI — see GET /posts/published.
+  releaseUrl: text("release_url"),
   error: text("error"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
@@ -302,10 +335,32 @@ export const subscriptions = pgTable("subscriptions", {
     .notNull()
     .references(() => tenants.id)
     .unique(),
-  stripeCustomerId: text("stripe_customer_id").notNull(),
+  // Nullable: a "tester" row (see plan below) is granted directly by
+  // an admin and never has a real Stripe customer behind it.
+  stripeCustomerId: text("stripe_customer_id"),
   stripeSubscriptionId: text("stripe_subscription_id"),
-  plan: text("plan").notNull().default("trial"),
+  // Tier slug — "free" | "small" | "medium" | "large" | "tester" (see
+  // apps/api/src/billing-tiers.ts). Free tenants have no Stripe
+  // subscription at all, so this stays the default until a real
+  // Checkout completes. "tester" is a secret, unbilled tier with
+  // Medium's limits, assignable only via the admin interface.
+  plan: text("plan").notNull().default("free"),
   currentPeriodEnd: timestamp("current_period_end"),
+  // Number of 200GB storage add-on blocks currently active — kept in
+  // sync from Stripe's subscription-item quantity via the
+  // customer.subscription.updated webhook (webhooks.ts), so quota
+  // checks (uploads.ts, GET /tenant/usage) are a local DB read rather
+  // than a live Stripe API call on every upload.
+  storageAddonUnits: integer("storage_addon_units").notNull().default(0),
+  // Seconds of guaranteed performance-8x processing remaining from
+  // one-time "Burst Processing" pack purchases (2h/$4.99 each) —
+  // credited by the checkout.session.completed webhook, spent by the
+  // workers themselves as jobs actually run (billing-tiers.ts's
+  // chargeBurstSeconds), metered by real elapsed time rather than a
+  // flat per-job estimate.
+  burstSecondsRemaining: integer("burst_seconds_remaining")
+    .notNull()
+    .default(0),
 });
 
 // --- Admin (operator-only, cross-tenant) ----------------------------------
