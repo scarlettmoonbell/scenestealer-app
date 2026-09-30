@@ -13,11 +13,13 @@
   "dependencies": {
     "@clerk/backend": "^3.11.7",
     "@clerk/hono": "^0.1.53",
+    "@neondatabase/serverless": "^0.10.4",
     "@scenestealer/db": "workspace:*",
     "@simplewebauthn/server": "^14.0.2",
     "aws4fetch": "^1.0.20",
     "drizzle-orm": "^0.38.2",
-    "hono": "^4.6.14"
+    "hono": "^4.6.14",
+    "stripe": "^22.5.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260804.1",

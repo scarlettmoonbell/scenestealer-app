@@ -13,6 +13,7 @@ import { signMediaUrl } from "../media-url.js";
 import { requireTenant } from "../auth.js";
 import { createPost } from "../postiz.js";
 import { spawnWorkerMachine } from "../fly-machines.js";
+import { resolveDispatchGuest } from "../billing-tiers.js";
 import type { Env } from "../index.js";
 import type { Variables } from "../auth.js";
 
@@ -229,13 +230,21 @@ clipsRoute.post("/:id/render", async (c) => {
     return c.json({ error: "Clip not found" }, 404);
   }
 
+  const { guest, burstUsed } = await resolveDispatchGuest(
+    db,
+    c.env,
+    tenantId,
+  );
+
   // Set immediately (not left to the spawned Machine) so the frontend's
   // own optimistic "Rendering…" state is backed by the real row the
   // moment this call returns, matching POST /:id/analyze's
-  // status: "analyzing" write.
+  // status: "analyzing" write. burstModeUsed is read back by
+  // apps/worker/src/render.ts once the job finishes, to decide whether
+  // to charge real elapsed time against the tenant's burst balance.
   await db
     .update(clips)
-    .set({ status: "rendering", renderError: null })
+    .set({ status: "rendering", renderError: null, burstModeUsed: burstUsed })
     .where(eq(clips.id, clipId));
 
   // clipId doubles as the correlation key tying this dispatch to
@@ -245,10 +254,14 @@ clipsRoute.post("/:id/render", async (c) => {
   // path (previously silent end-to-end; see claude-docs-conventions'
   // Logging & observability section, 2026-09-07).
   console.log(`[render] dispatching clipId=${clipId}`);
-  const result = await spawnWorkerMachine(c.env, {
-    JOB_TYPE: "render",
-    CLIP_ID: clipId,
-  });
+  const result = await spawnWorkerMachine(
+    c.env,
+    {
+      JOB_TYPE: "render",
+      CLIP_ID: clipId,
+    },
+    guest,
+  );
 
   if (!result.ok) {
     console.log(

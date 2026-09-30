@@ -50,6 +50,20 @@ interface ScheduledPost {
   videoTitle: string | null;
 }
 
+interface PublishedPost {
+  id: string;
+  platform: string;
+  videoTitle: string | null;
+  publishedAt: string;
+  releaseUrl: string | null;
+}
+
+const PLATFORM_LABEL: Record<string, string> = {
+  facebook: "Facebook",
+  instagram: "Instagram",
+  youtube: "YouTube",
+};
+
 function formatTime(sec: number): string {
   const m = Math.floor(sec / 60);
   const s = (sec % 60).toFixed(1);
@@ -74,6 +88,7 @@ function SchedulingContent() {
   const [readyClips, setReadyClips] = useState<ReadyClip[]>([]);
   const [organizationName, setOrganizationName] = useState("");
   const [postList, setPostList] = useState<ScheduledPost[]>([]);
+  const [publishedList, setPublishedList] = useState<PublishedPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
@@ -91,11 +106,12 @@ function SchedulingContent() {
 
   const loadAll = useCallback(async () => {
     try {
-      const [clipsRes, postsRes] = await Promise.all([
+      const [clipsRes, postsRes, publishedRes] = await Promise.all([
         authedFetch("/clips"),
         authedFetch("/posts/scheduled"),
+        authedFetch("/posts/published"),
       ]);
-      if (!clipsRes.ok || !postsRes.ok) {
+      if (!clipsRes.ok || !postsRes.ok || !publishedRes.ok) {
         setError("Failed to load scheduling data");
         return;
       }
@@ -104,9 +120,13 @@ function SchedulingContent() {
         clips: ReadyClip[];
       };
       const { posts } = (await postsRes.json()) as { posts: ScheduledPost[] };
+      const { posts: published } = (await publishedRes.json()) as {
+        posts: PublishedPost[];
+      };
       setOrganizationName(orgName);
       setReadyClips(clips);
       setPostList(posts);
+      setPublishedList(published);
     } catch (e) {
       setError(`Failed to load scheduling data: ${describeFetchError(e)}`);
     } finally {
@@ -473,6 +493,57 @@ function SchedulingContent() {
                         {cancellingId === post.id ? "Cancelling…" : "Cancel"}
                       </button>
                     </>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {!loading && (
+        <div style={{ marginTop: "2rem" }}>
+          <h2>Recently published</h2>
+          {publishedList.length === 0 ? (
+            <p style={{ color: "var(--muted)" }}>Nothing published yet.</p>
+          ) : (
+            <ul style={{ listStyle: "none", padding: 0 }}>
+              {publishedList.map((post) => (
+                <li
+                  key={post.id}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.75rem",
+                    padding: "0.75rem 0",
+                    borderBottom: "1px solid #333",
+                  }}
+                >
+                  <span style={{ flex: 1 }}>
+                    <strong>{post.videoTitle ?? "Untitled video"}</strong>
+                    <span
+                      style={{
+                        marginLeft: "0.5rem",
+                        fontSize: "0.85em",
+                        opacity: 0.7,
+                      }}
+                    >
+                      {PLATFORM_LABEL[post.platform] ?? post.platform}
+                    </span>
+                  </span>
+                  <span style={{ fontSize: "0.85em", color: "var(--muted)" }}>
+                    {new Date(post.publishedAt).toLocaleString()}
+                  </span>
+                  {post.releaseUrl && (
+                    <a
+                      href={post.releaseUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{ fontSize: "0.85em" }}
+                    >
+                      Manage on {PLATFORM_LABEL[post.platform] ?? post.platform}{" "}
+                      &rarr;
+                    </a>
                   )}
                 </li>
               ))}

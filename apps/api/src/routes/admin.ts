@@ -8,6 +8,7 @@ import {
   clips,
   posts,
   socialConnections,
+  subscriptions,
 } from "@scenestealer/db";
 import { requireAdmin, type AdminVariables } from "../auth.js";
 import type { Env } from "../index.js";
@@ -141,4 +142,51 @@ adminRoute.get("/failures", async (c) => {
   );
 
   return c.json({ failures: combined });
+});
+
+// Secret, unbilled "tester" tier — Medium's limits, granted only from
+// here, never self-serve and never reachable through /stripe/checkout
+// (that route rejects any tier without a real stripePriceId, and
+// "tester" deliberately has none — see billing-tiers.ts). Upserts
+// rather than requiring an existing subscriptions row, since a tenant
+// granted tester status may never have touched billing before.
+adminRoute.post("/tenants/:id/tester", async (c) => {
+  const tenantId = c.req.param("id");
+  const db = createDb(c.env.DATABASE_URL);
+
+  const [tenant] = await db
+    .select({ id: tenants.id })
+    .from(tenants)
+    .where(eq(tenants.id, tenantId))
+    .limit(1);
+  if (!tenant) {
+    return c.json({ error: "Tenant not found" }, 404);
+  }
+
+  await db
+    .insert(subscriptions)
+    .values({ tenantId, plan: "tester" })
+    .onConflictDoUpdate({
+      target: subscriptions.tenantId,
+      set: { plan: "tester" },
+    });
+
+  return c.json({ ok: true });
+});
+
+// Revokes tester status — resets to Free. Leaves stripeCustomerId and
+// burstSecondsRemaining untouched, same reasoning as the
+// customer.subscription.deleted webhook handler (webhooks.ts): a
+// tenant's own unrelated burst-pack purchases shouldn't be wiped out
+// by an admin toggling their tier.
+adminRoute.delete("/tenants/:id/tester", async (c) => {
+  const tenantId = c.req.param("id");
+  const db = createDb(c.env.DATABASE_URL);
+
+  await db
+    .update(subscriptions)
+    .set({ plan: "free" })
+    .where(eq(subscriptions.tenantId, tenantId));
+
+  return c.json({ ok: true });
 });

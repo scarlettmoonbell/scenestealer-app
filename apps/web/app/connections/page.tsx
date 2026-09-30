@@ -5,6 +5,7 @@ import type { socialConnections } from "@scenestealer/db";
 import { DashboardTabs } from "../dashboard-tabs";
 import { describeFetchError } from "../fetch-error";
 import { useAuthedFetch } from "../use-authed-fetch";
+import { RecentPosts } from "./recent-posts";
 
 // Extends the raw row with the real account/page name and picture,
 // read live from Postiz — a tenant can have more than one connection
@@ -268,72 +269,83 @@ export default function ConnectionsPage() {
                   key={connection.id}
                   style={{
                     display: "flex",
-                    alignItems: "center",
-                    gap: "0.75rem",
+                    flexDirection: "column",
+                    alignItems: "flex-start",
+                    gap: "0.5rem",
                     padding: "0.5rem 0.75rem",
                     borderBottom: "1px solid #333",
                     background:
                       index % 2 === 1 ? "var(--surface-raised)" : "none",
                   }}
                 >
-                  <span style={{ flex: 1 }}>
-                    <span style={{ textTransform: "capitalize" }}>
-                      {connection.platform}
-                    </span>
-                    {connection.name && (
-                      <span style={{ color: "var(--muted)" }}>
-                        {" "}
-                        &mdash; {connection.name}
-                      </span>
-                    )}
-                  </span>
-                  <span style={{ fontSize: "0.85em", opacity: 0.7 }}>
-                    Connected{" "}
-                    {new Date(connection.createdAt).toLocaleDateString()}
-                  </span>
-                  <button
-                    type="button"
-                    aria-label="Disconnect"
-                    title="Disconnect"
-                    onClick={() => void handleDisconnect(connection.id)}
+                  <div
                     style={{
                       display: "flex",
                       alignItems: "center",
-                      justifyContent: "center",
-                      width: 32,
-                      height: 32,
-                      padding: 0,
-                      border: "none",
-                      borderRadius: "30%",
-                      background: "var(--accent)",
-                      cursor: "pointer",
-                      flexShrink: 0,
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = "var(--accent-hover)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = "var(--accent)";
+                      gap: "0.75rem",
+                      width: "100%",
                     }}
                   >
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="#fff"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      aria-hidden="true"
+                    <span style={{ flex: 1 }}>
+                      <span style={{ textTransform: "capitalize" }}>
+                        {connection.platform}
+                      </span>
+                      {connection.name && (
+                        <span style={{ color: "var(--muted)" }}>
+                          {" "}
+                          &mdash; {connection.name}
+                        </span>
+                      )}
+                    </span>
+                    <span style={{ fontSize: "0.85em", opacity: 0.7 }}>
+                      Connected{" "}
+                      {new Date(connection.createdAt).toLocaleDateString()}
+                    </span>
+                    <button
+                      type="button"
+                      aria-label="Disconnect"
+                      title="Disconnect"
+                      onClick={() => void handleDisconnect(connection.id)}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        width: 32,
+                        height: 32,
+                        padding: 0,
+                        border: "none",
+                        borderRadius: "30%",
+                        background: "var(--accent)",
+                        cursor: "pointer",
+                        flexShrink: 0,
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = "var(--accent-hover)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = "var(--accent)";
+                      }}
                     >
-                      <path d="M3 6h18" />
-                      <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                      <path d="M10 11v6" />
-                      <path d="M14 11v6" />
-                    </svg>
-                  </button>
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="#fff"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                      >
+                        <path d="M3 6h18" />
+                        <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                        <path d="M10 11v6" />
+                        <path d="M14 11v6" />
+                      </svg>
+                    </button>
+                  </div>
+                  <RecentPosts connectionId={connection.id} />
                 </li>
               ))}
             </ul>

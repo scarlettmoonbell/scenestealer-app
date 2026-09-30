@@ -795,6 +795,89 @@ unpinning.
     schedule work this phase just built around Postiz's specific API
     shape. Worth a proper eval later, not a snap decision now.
 
+- **Tried and reverted (2026-09-18): "Sign in with Facebook" as a Clerk
+  social connection, using SceneStealerContent's real app credentials
+  instead of Clerk's shared dev ones.** Motivation: make the app easier
+  for Meta reviewers to log into during App Review. Confirmed dead end
+  for Clerk's built-in Facebook connector specifically: SceneStealerContent
+  is a **Business type** app, so it authenticates through **Facebook
+  Login for Business** (permissions bundled into a named Login
+  Configuration, requested via a `config_id` parameter), not plain
+  consumer Facebook Login (App ID/Secret + classic `scope=` params,
+  which is all Clerk's preset Facebook connector speaks). Reproduced
+  live: swapping in the real App ID/Secret and attempting sign-in
+  produced Facebook's own `Invalid Scopes: email` error — a Business
+  app's OAuth endpoint doesn't accept classic scope params at all
+  outside a Login Configuration.
+  - Clerk does support a generic **custom OAuth provider**, but only for
+    OIDC-compliant providers (discovery endpoint or manually-specified
+    authorization/token/userinfo endpoints returning OIDC-shaped
+    claims). Facebook isn't OIDC-compliant — no discovery endpoint,
+    non-standard token exchange, Graph API returns its own JSON shape
+    rather than OIDC claims. Making this work would need manually
+    pointing Clerk's custom-provider config at Facebook's
+    `/dialog/oauth?config_id=...` (untested whether Clerk's generic
+    OAuth2 exchange logic tolerates Facebook's specifics) plus a small
+    proxy Worker translating Graph API's `/me` response into
+    Clerk-mappable claims (Clerk's own docs show this exact pattern
+    with a Hono/Cloudflare Workers example) — a real, open-ended build,
+    not a config toggle.
+  - **Also worth remembering**: even a working custom Facebook Login
+    wouldn't have solved the original motivation on its own —
+    SceneStealerContent is still in Meta Development Mode until App
+    Review is approved, and Development Mode's tester-only restriction
+    applies to every OAuth entry point on the app equally, sign-in
+    included. The actual reviewer-access answer stays what's documented
+    in `META_APP_REVIEW_SUBMISSION.md`: the screencast is the primary
+    verification mechanism; live tester access only gets added if Meta
+    explicitly asks for it.
+  - **Reverted**: Clerk's Facebook connection is back to shared/dev
+    credentials (Clerk's own generic Facebook app), matching Apple's
+    connection, which was never touched and still uses shared
+    credentials too. **Then both disabled outright (2026-09-18)**, since
+    neither is functional enough to expose as a real option — the
+    `<SignIn/>` card now shows only Google + email. Toggled off in the
+    Clerk Dashboard (SSO connections), not deleted, so re-enabling in
+    beta is a toggle, not a rebuild.
+  - **Revisit in beta**: real Facebook Login (via a custom-provider
+    build, once justified) and real Apple Sign In credentials (Apple
+    has its own per-app setup — Services ID, Sign in with Apple key,
+    private key JWT client-secret generation — not yet done either,
+    also still on Clerk's shared dev credentials) are both candidates
+    to properly wire up once there's a concrete beta-user need, not
+    before.
+
+- **In progress (2026-09-19): Meta App Review submission actively being
+  assembled in the Meta dashboard.** `pages_manage_posts`'s own
+  allowed-usage submission is fully filled in and saved — usage
+  description ("Publishing a rendered clip to the tenant's connected
+  Facebook Page"), screencast uploaded, required API test calls marked
+  Completed, and the "data will be used per allowed usage" agreement
+  checked. One item on that permission's checklist is still pending,
+  not stuck: "Your submission must include `pages_show_list` and
+  `pages_read_engagement` to use `pages_manage_posts`" only flips to
+  satisfied once Meta's own backend finishes processing the just-
+  uploaded screencast against those dependency permissions — the
+  submission modal's own note says this can take up to 24 hours.
+  Nothing left to do on this step but wait for that to clear, then
+  confirm the dependency checklist item goes green before moving to
+  the next permission's submission (see the dependency chains recorded
+  earlier in this phase, and `META_APP_REVIEW_SUBMISSION.md` for the
+  full reviewer-instructions text prepared for each permission).
+- **Round 1 reviewed (2026-09-30): partly approved.** Approved:
+  `pages_show_list`, `pages_read_engagement`, `business_management`.
+  Rejected: `pages_manage_posts` and `instagram_content_publish` (use
+  case accepted; screencast must show the full Meta login and the
+  published post on Facebook/Instagram itself), and `instagram_basic`
+  and `pages_read_user_content` (no genuine use shown; both are hard
+  dependencies of Instagram publishing, so they can't be dropped).
+  Also found: Postiz fails a connection unless every scope it requests
+  is granted, including `pages_manage_engagement`, `read_insights`,
+  `instagram_manage_comments` and `instagram_manage_insights`, none of
+  which were submitted — so real tenants couldn't connect even with
+  round 1 fully approved. Round 2 plan, rewritten screencast script and
+  the pending build decision are in `META_APP_REVIEW_SUBMISSION.md`.
+
 ## 🗓 Phase 7 — Next: Scheduling, billing, polish
 
 - Post scheduling, onboarding polish for a non-technical audience.
@@ -853,6 +936,33 @@ unpinning.
   its own authorization model, not just a page. Scope (what's
   read-only reporting vs. what takes real support actions against
   live tenant data) not yet decided.
+- **Built on dev (2026-09-25): graceful downgrade to Free.** "Switch to
+  Free" on `/account` schedules the subscription to end at the close of
+  the period already paid for (`cancel_at_period_end`), with a "Keep
+  <plan>" undo until then; `customer.subscription.deleted` moves the
+  tenant to Free when it actually ends. Payment lapse is handled the
+  same way: `customer.subscription.updated` keeps the paid tier while
+  the subscription is `past_due` (Smart Retries still trying — a grace
+  period) and drops to Free limits once it's `unpaid`/`paused`/
+  `incomplete*`, restoring the tier automatically if the tenant later
+  pays the outstanding invoice. A downgrade never deletes files: a
+  tenant over Free's 4 GB cap keeps everything already stored, and new
+  uploads are refused until they're back under it. Still to confirm:
+  which "after all retries fail" action (cancel vs. mark unpaid) is set
+  in the Stripe Dashboard (Billing > Revenue recovery) — both paths are
+  handled, but it decides which one tenants actually hit.
+- **Alpha-phase follow-up: legal review of payment interruptions.**
+  Before real paying tenants, get a proper legal read on what the Terms
+  of Service must say (and what we're obligated to do) when payment
+  lapses or a plan is downgraded or cancelled: grace-period length and
+  notice before service is reduced, how long over-cap data is retained
+  (and whether/when it may ever be deleted, with what notice),
+  refund/proration policy on mid-period changes, auto-renewal and
+  cancellation disclosure rules (e.g. state automatic-renewal laws,
+  EU/UK consumer cancellation rights), failed-payment/dunning email
+  requirements, and chargeback handling. Same "needs a real legal read"
+  status as the Privacy Policy/Terms noted in Phase 6 — the current
+  `/terms` page says nothing specific about any of this yet.
 
 ## 💡 Future features, not yet scheduled
 

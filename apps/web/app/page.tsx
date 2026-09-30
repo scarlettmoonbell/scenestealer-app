@@ -159,7 +159,18 @@ export default async function HomePage() {
           ) : (
             <>
               <p>Create an organization to start uploading show recordings.</p>
-              <CreateOrganization />
+              {/* routing="hash" + afterCreateOrganizationUrl are explicit
+                  for the same reason as ThemedSignIn's matching props —
+                  without them this component's `routing` prop defaults to
+                  'path' in Next.js apps, which (mounted bare here, not at
+                  a dedicated .../[[...create-organization]] catch-all
+                  route) combined with an unconfigured fresh Clerk
+                  Application's Dashboard Paths sent a real user to
+                  Clerk's own hosted Account Portal instead of back here. */}
+              <CreateOrganization
+                routing="hash"
+                afterCreateOrganizationUrl="/"
+              />
             </>
           )}
         </div>

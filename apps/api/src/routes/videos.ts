@@ -4,6 +4,7 @@ import { clips, createDb, jobs, posts, sourceVideos } from "@scenestealer/db";
 import { createPresignedGetUrl, deleteR2Object } from "../r2.js";
 import { requireTenant } from "../auth.js";
 import { spawnWorkerMachine } from "../fly-machines.js";
+import { resolveDispatchGuest } from "../billing-tiers.js";
 import type { Env } from "../index.js";
 import type { Variables } from "../auth.js";
 
@@ -158,10 +159,30 @@ export async function runAnalyzeJob(
   console.log(`[runAnalyzeJob] dispatching sourceVideoId=${sourceVideoId}`);
   const db = createDb(env.DATABASE_URL);
   try {
-    const result = await spawnWorkerMachine(env, {
-      JOB_TYPE: "analyze",
-      SOURCE_VIDEO_ID: sourceVideoId,
-    });
+    const [video] = await db
+      .select({ tenantId: sourceVideos.tenantId })
+      .from(sourceVideos)
+      .where(eq(sourceVideos.id, sourceVideoId))
+      .limit(1);
+    let guest;
+    if (video) {
+      const resolved = await resolveDispatchGuest(db, env, video.tenantId);
+      guest = resolved.guest;
+      if (resolved.burstUsed) {
+        await db
+          .update(sourceVideos)
+          .set({ burstModeUsed: true })
+          .where(eq(sourceVideos.id, sourceVideoId));
+      }
+    }
+    const result = await spawnWorkerMachine(
+      env,
+      {
+        JOB_TYPE: "analyze",
+        SOURCE_VIDEO_ID: sourceVideoId,
+      },
+      guest,
+    );
 
     if (!result.ok) {
       console.log(

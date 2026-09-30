@@ -13,6 +13,7 @@ import {
 } from "@scenestealer/pipeline";
 import { extractVideoMetadata, reverseGeocode } from "./metadata.js";
 import { downloadFromR2ToFile, uploadToR2, type R2Config } from "./r2.js";
+import { chargeBurstSeconds } from "./burst.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -534,6 +535,15 @@ export async function runAnalyze(
           .update(sourceVideos)
           .set({ status: "analyzed", analysisError: null })
           .where(eq(sourceVideos.id, sourceVideoId));
+        if (video.burstModeUsed) {
+          await chargeBurstSeconds(
+            db,
+            video.tenantId,
+            (Date.now() - startedAt) / 1000,
+          ).catch((e) =>
+            console.error("Burst-seconds charge failed (non-fatal):", e),
+          );
+        }
         if (jobId) {
           await db
             .update(jobs)
@@ -566,6 +576,17 @@ export async function runAnalyze(
           .catch((e) =>
             console.error("Job telemetry failure update failed:", e),
           );
+      }
+      // Charged even on failure — the fast Machine was still spent
+      // regardless of outcome.
+      if (video?.burstModeUsed) {
+        await chargeBurstSeconds(
+          db,
+          video.tenantId,
+          (Date.now() - startedAt) / 1000,
+        ).catch((e) =>
+          console.error("Burst-seconds charge failed (non-fatal):", e),
+        );
       }
       void notifyApiOfCompletion(sourceVideoId, "failed", message);
       throw err;

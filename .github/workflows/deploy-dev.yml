@@ -58,6 +58,25 @@ jobs:
       - run: pnpm --filter @scenestealer/web run cf:build
         env:
           NEXT_PUBLIC_API_URL: https://scenestealer-api-dev.scenestealer.workers.dev
+          # Drives the "Development Site" banner (app/dev-banner.tsx) —
+          # deploy.yml's production build never sets this, so the banner
+          # compiles away to null there.
+          NEXT_PUBLIC_ENVIRONMENT: dev
+          # dev's own, separate Clerk Application (added 2026-09-18) —
+          # not a secret (publishable keys are meant to be public/
+          # client-side), just kept out of .env.production so dev and
+          # prod stop sharing one Organization/user directory. See
+          # apps/api/wrangler.toml's [env.dev] CLERK_SECRET_KEY/
+          # CLERK_WEBHOOK_SIGNING_SECRET comments for the matching half.
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_bW92ZWQtd2FscnVzLTg1MC5jbGVyay5hY2NvdW50cy5kZXYk
+          # Clerk's own docs recommend these over the component-level
+          # fallbackRedirectUrl/signUpFallbackRedirectUrl props (already
+          # set on ThemedSignIn) for exactly this case — a fresh
+          # Application's Google OAuth round-trip landed users on
+          # Clerk's own Account Portal default-redirect page instead of
+          # back on dev.scenestealer.app, confirmed live 2026-09-18.
+          NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL: /
+          NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL: /
       # --env dev deploys wrangler.toml's [env.dev] block — a genuinely
       # separate Worker (scenestealer-web-dev), same account/token,
       # reached at its own workers.dev subdomain, never the production

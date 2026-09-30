@@ -35,7 +35,14 @@ const MAX_PART_RETRIES = 3;
 
 async function readError(res: Response, fallback: string): Promise<string> {
   try {
-    const body = (await res.json()) as { error?: string };
+    const body = (await res.json()) as {
+      error?: string;
+      availableBytes?: number;
+    };
+    if (res.status === 402) {
+      const availableGb = ((body.availableBytes ?? 0) / 1024 ** 3).toFixed(1);
+      return `Not enough storage left on your plan (${availableGb} GB available) — free up space or upgrade from the Account page.`;
+    }
     return body.error ?? fallback;
   } catch {
     return fallback;
@@ -157,7 +164,11 @@ async function uploadFileMultipart(
   const createRes = await fetch(`${API_URL}/uploads/multipart/create`, {
     method: "POST",
     headers: await getAuthHeaders(),
-    body: JSON.stringify({ filename: file.name, contentType: file.type }),
+    body: JSON.stringify({
+      filename: file.name,
+      contentType: file.type,
+      fileSizeBytes: file.size,
+    }),
   });
   if (!createRes.ok) {
     throw new Error(
@@ -327,6 +338,7 @@ export function UploadPanel() {
             body: JSON.stringify({
               filename: file.name,
               contentType: file.type,
+              fileSizeBytes: file.size,
             }),
           });
           if (!presignRes.ok) {
@@ -365,7 +377,11 @@ export function UploadPanel() {
         const completeRes = await fetch(`${API_URL}/uploads/complete`, {
           method: "POST",
           headers: await getAuthHeaders(),
-          body: JSON.stringify({ r2Key, title: file.name }),
+          body: JSON.stringify({
+            r2Key,
+            title: file.name,
+            fileSizeBytes: file.size,
+          }),
         });
         if (!completeRes.ok) {
           throw new Error(

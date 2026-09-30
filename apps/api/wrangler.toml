@@ -94,17 +94,35 @@ API_ORIGIN = "https://api.scenestealer.app"
 # production. Deliberately has no [[queues.producers/consumers]] block:
 # billing work never touches the analyze/render pipeline, so this
 # environment has no queue binding at all rather than a placeholder one.
-# No custom domain either — reached at its own workers.dev subdomain.
-# Its own secrets: `wrangler secret put --env dev <NAME>`.
+# This Worker itself has no custom domain — reached at its own
+# workers.dev subdomain. apps/web's dev Worker does get one
+# (dev.scenestealer.app, see scenestealer-infra's cloudflare-dns.tf
+# `web_dev` resource) purely for convenience typing the URL; WEB_ORIGIN
+# below has to match whatever hostname the browser actually sends as
+# Origin, since cors() here checks against this exact string, not a
+# wildcard/reflection.
+# Its own secrets: `wrangler secret put --env dev <NAME>`. As of
+# 2026-09-18, CLERK_SECRET_KEY/CLERK_PUBLISHABLE_KEY/
+# CLERK_WEBHOOK_SIGNING_SECRET point at a genuinely separate Clerk
+# Application from production's — dev used to share production's
+# Application, which meant a dev-created Organization showed up in
+# production's own org switcher too (Clerk orgs are per-Application,
+# not per-hostname). Both Applications stay on Clerk's Development
+# tier for now; promoting either to a real pk_live_ production
+# instance is a deliberately separate, later project — Clerk has no
+# supported user-migration path between its own Dev and Production
+# instances, so that's real work to plan, not a quick follow-up.
 [env.dev]
 name = "scenestealer-api-dev"
 
 [env.dev.vars]
-# apps/web's own dev Worker (scenestealer-web-dev), not the old Pages
-# preview URL — updated 2026-09-17 when apps/web migrated off
-# Cloudflare Pages (@cloudflare/next-on-pages) to Workers
-# (@opennextjs/cloudflare); see apps/web/wrangler.toml's own [env.dev].
-WEB_ORIGIN = "https://scenestealer-web-dev.scenestealer.workers.dev"
+# apps/web's dev Worker, reached via its custom domain — updated
+# 2026-09-18 when dev.scenestealer.app was added (see
+# scenestealer-infra's cloudflare-dns.tf `web_dev` resource). Was
+# previously the bare scenestealer-web-dev.scenestealer.workers.dev
+# subdomain; that URL still serves the same Worker but is no longer
+# accepted here, since cors() matches this value exactly.
+WEB_ORIGIN = "https://dev.scenestealer.app"
 # This env's own workers.dev subdomain (account subdomain confirmed as
 # "scenestealer" this session).
 API_ORIGIN = "https://scenestealer-api-dev.scenestealer.workers.dev"

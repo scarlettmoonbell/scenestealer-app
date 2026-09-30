@@ -44,6 +44,16 @@ export interface Env {
 // than deciding once — so a picker that hasn't rendered *yet* gets
 // time to, and one that's genuinely there keeps deferring the close
 // until it's actually gone (Save succeeded).
+//
+// A second completion signal, entirely independent of the above: a
+// *reconnect* of an already-known channel (confirmed live 2026-09-19)
+// renders a terminal "Channel Connected! / Channel Added" screen
+// directly on /integrations/social/[provider] and never calls
+// router.push with an added= param at all — the first-connect flow's
+// whole detection mechanism above never fires, so the tab sat there
+// forever. channelConnectedShowing() below is a second, independent
+// trigger for doClose(), same settle-delay/re-check treatment as the
+// picker check, so either signal alone is enough to close the tab.
 function buildInjectedScript(webOrigin: string): string {
   return `<script>(function(){
 try {
@@ -52,10 +62,19 @@ try {
   var settleDelayMs = 600;
   var pollMs = 400;
   var addedAt = null;
+  var connectedAt = null;
 
   function pickerShowing() {
     try {
       return !!document.body && document.body.innerText.indexOf("Configure Your Channel") !== -1;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function channelConnectedShowing() {
+    try {
+      return !!document.body && document.body.innerText.indexOf("Channel Connected") !== -1;
     } catch (e) {
       return false;
     }
@@ -70,14 +89,19 @@ try {
   }
 
   function maybeClose() {
-    if (closed || !hasAdded) return;
-    // Give the page real time to render before the very first
-    // evaluation — an unrendered page and a genuinely picker-free one
-    // both read as "no picker text found," so this window is what
-    // tells them apart.
-    if (Date.now() - addedAt < settleDelayMs) return;
-    if (pickerShowing()) return;
-    doClose();
+    if (closed) return;
+    if (hasAdded && Date.now() - addedAt >= settleDelayMs && !pickerShowing()) {
+      doClose();
+      return;
+    }
+    // Independent of the added= signal above — a reconnect never
+    // fires it at all, so this checks on its own timeline.
+    if (connectedAt === null && channelConnectedShowing()) {
+      connectedAt = Date.now();
+    }
+    if (connectedAt !== null && Date.now() - connectedAt >= settleDelayMs) {
+      doClose();
+    }
   }
 
   function maybeCloseFor(urlStr) {
@@ -109,11 +133,12 @@ try {
   });
 
   // Two independent re-check mechanisms, since either alone has a
-  // gap: MutationObserver catches the picker's own removal (Save
-  // succeeded) quickly, but only fires on a DOM change — nothing
-  // re-evaluates purely because settleDelayMs has now elapsed if the
-  // DOM happens to stay static across that boundary. The interval
-  // covers exactly that case; both are cheap and both stop once closed.
+  // gap: MutationObserver catches DOM changes (the picker's removal,
+  // or the "Channel Connected" screen appearing) quickly, but only
+  // fires on a DOM change — nothing re-evaluates purely because a
+  // settle delay has now elapsed if the DOM happens to stay static
+  // across that boundary. The interval covers exactly that case; both
+  // are cheap and both stop once closed.
   var observer = new MutationObserver(function () {
     maybeClose();
   });

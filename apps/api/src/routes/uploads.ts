@@ -9,12 +9,35 @@ import {
   presignUploadPart,
 } from "../r2.js";
 import { requireTenant } from "../auth.js";
+import { getCapBytes, getTenantPlan, getUsedBytes } from "../billing-tiers.js";
 import type { Env } from "../index.js";
 import type { Variables } from "../auth.js";
 
 export const uploads = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 uploads.use("*", requireTenant);
+
+// Real server-side quota enforcement — the frontend may also warn
+// proactively, but this is what actually blocks an over-cap upload.
+// Both entry points into an upload (single-PUT presign and multipart
+// create) need the client's declared file size upfront, since the
+// object doesn't exist in R2 (and so isn't counted) until the upload
+// finishes.
+async function assertWithinQuota(
+  env: Env,
+  tenantId: string,
+  incomingBytes: number,
+): Promise<{ ok: true } | { ok: false; availableBytes: number }> {
+  const db = createDb(env.DATABASE_URL);
+  const { plan, storageAddonUnits } = await getTenantPlan(db, tenantId);
+  const usedBytes = await getUsedBytes(db, tenantId);
+  const capBytes = getCapBytes(env, plan, storageAddonUnits);
+  const availableBytes = Math.max(0, capBytes - usedBytes);
+  if (incomingBytes > availableBytes) {
+    return { ok: false, availableBytes };
+  }
+  return { ok: true };
+}
 
 function r2ConfigFrom(env: Env) {
   return {
@@ -70,9 +93,24 @@ uploads.post("/presign", async (c) => {
   const body = await c.req.json<{
     filename: string;
     contentType?: string;
+    fileSizeBytes?: number;
   }>();
   if (!body.filename) {
     return c.json({ error: "filename is required" }, 400);
+  }
+  if (!body.fileSizeBytes) {
+    return c.json({ error: "fileSizeBytes is required" }, 400);
+  }
+
+  const quota = await assertWithinQuota(c.env, tenantId, body.fileSizeBytes);
+  if (!quota.ok) {
+    return c.json(
+      {
+        error: "Storage quota exceeded",
+        availableBytes: quota.availableBytes,
+      },
+      402,
+    );
   }
 
   const r2Key = r2KeyFor(tenantId, body.filename);
@@ -93,9 +131,24 @@ uploads.post("/multipart/create", async (c) => {
   const body = await c.req.json<{
     filename: string;
     contentType?: string;
+    fileSizeBytes?: number;
   }>();
   if (!body.filename) {
     return c.json({ error: "filename is required" }, 400);
+  }
+  if (!body.fileSizeBytes) {
+    return c.json({ error: "fileSizeBytes is required" }, 400);
+  }
+
+  const quota = await assertWithinQuota(c.env, tenantId, body.fileSizeBytes);
+  if (!quota.ok) {
+    return c.json(
+      {
+        error: "Storage quota exceeded",
+        availableBytes: quota.availableBytes,
+      },
+      402,
+    );
   }
 
   const r2Key = r2KeyFor(tenantId, body.filename);
@@ -176,6 +229,7 @@ uploads.post("/complete", async (c) => {
   const body = await c.req.json<{
     r2Key: string;
     title?: string;
+    fileSizeBytes?: number;
   }>();
   if (!body.r2Key) {
     return c.json({ error: "r2Key is required" }, 400);
@@ -188,6 +242,7 @@ uploads.post("/complete", async (c) => {
       tenantId,
       r2Key: body.r2Key,
       title: body.title,
+      fileSizeBytes: body.fileSizeBytes,
     })
     .returning();
 

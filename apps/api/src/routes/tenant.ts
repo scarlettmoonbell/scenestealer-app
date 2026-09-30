@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { createDb, tenants } from "@scenestealer/db";
 import { requireTenant } from "../auth.js";
+import { getCapBytes, getTiers, getTenantPlan, getUsedBytes } from "../billing-tiers.js";
 import type { Env } from "../index.js";
 import type { Variables } from "../auth.js";
 
@@ -62,4 +63,36 @@ tenantRoute.patch("/settings", async (c) => {
   }
 
   return c.json({ settings: updated });
+});
+
+// Storage usage against the tenant's tier cap — see billing-tiers.ts.
+// usedBytes is a live total (source videos + rendered clips currently
+// in R2), not a period-scoped count: storage persists until deleted,
+// unlike the old show-count-per-month model this replaced.
+tenantRoute.get("/usage", async (c) => {
+  const tenantId = c.get("tenantId");
+  const db = createDb(c.env.DATABASE_URL);
+
+  const {
+    plan,
+    storageAddonUnits,
+    burstSecondsRemaining,
+    currentPeriodEnd,
+    cancelAtPeriodEnd,
+  } = await getTenantPlan(db, tenantId);
+  const usedBytes = await getUsedBytes(db, tenantId);
+  const capBytes = getCapBytes(c.env, plan, storageAddonUnits);
+
+  return c.json({
+    plan,
+    tierName: getTiers(c.env)[plan].name,
+    capBytes,
+    storageAddonUnits,
+    usedBytes,
+    availableBytes: Math.max(0, capBytes - usedBytes),
+    burstSecondsRemaining,
+    currentPeriodEnd,
+    cancelAtPeriodEnd,
+    freeCapBytes: getCapBytes(c.env, "free", 0),
+  });
 });

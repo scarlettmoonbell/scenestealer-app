@@ -23,9 +23,19 @@
  * `auto_destroy`, `init.exec`, `guest.cpu_kind`/`cpus`/`memory_mb`
  * (mutually exclusive with a `size` shorthand).
  */
+// `guest` sizing is tier-driven as of the billing plan's "Tier-based
+// compute" section — callers look up the dispatching tenant's plan
+// (billing-tiers.ts's getMachineGuest) and pass the result through
+// here. Defaults to the original 2 cpu/4096mb baseline when omitted,
+// so any future caller that doesn't care about tiering still works.
 export async function spawnWorkerMachine(
   env: { FLY_API_TOKEN: string; WORKER_IMAGE_REF: string },
   jobEnv: Record<string, string>,
+  guest: {
+    cpu_kind: "performance";
+    cpus: number;
+    memory_mb: number;
+  } = { cpu_kind: "performance", cpus: 2, memory_mb: 4096 },
 ): Promise<{ ok: true } | { ok: false; status: number; body: string }> {
   const res = await fetch(
     "https://api.machines.dev/v1/apps/scenestealer-worker/machines",
@@ -50,7 +60,7 @@ export async function spawnWorkerMachine(
           image: env.WORKER_IMAGE_REF,
           init: { exec: ["node", "dist/index.js"] },
           env: jobEnv,
-          guest: { cpu_kind: "performance", cpus: 2, memory_mb: 4096 },
+          guest,
           auto_destroy: true,
           restart: { policy: "no" },
         },

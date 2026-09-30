@@ -13,6 +13,7 @@ import { mediaRoute } from "./routes/media.js";
 import { tenantRoute } from "./routes/tenant.js";
 import { adminAuth } from "./routes/admin-auth.js";
 import { adminRoute } from "./routes/admin.js";
+import { stripeRoute } from "./routes/stripe.js";
 import type { Variables } from "./auth.js";
 import { AdminChallengeStore } from "./admin-challenge-store.js";
 
@@ -34,8 +35,25 @@ export interface Env {
   CLERK_WEBHOOK_SIGNING_SECRET: string;
   STRIPE_SECRET_KEY: string;
   STRIPE_WEBHOOK_SECRET: string;
+  // Price IDs for the 3 paid tiers + the recurring storage add-on
+  // block (see billing-tiers.ts) — not secrets, but environment-
+  // specific (test-mode on dev, live on prod), so set via
+  // `wrangler secret put` alongside the keys above rather than
+  // hardcoded. Free has no Price at all (see billing-tiers.ts).
+  STRIPE_PRICE_SMALL: string;
+  STRIPE_PRICE_MEDIUM: string;
+  STRIPE_PRICE_LARGE: string;
+  STRIPE_PRICE_STORAGE_ADDON: string;
+  // One-time (not recurring) Price for the "Burst Processing (2h)"
+  // pack — see billing-tiers.ts's getBurstAddon.
+  STRIPE_PRICE_BURST: string;
   POSTIZ_API_URL: string;
   POSTIZ_API_KEY: string;
+  // Read-only direct connection to Postiz's own Neon database — see
+  // postiz-db.ts for why. Optional: only set where a real Facebook Page
+  // is actually connected (production today; dev has no Postiz wiring
+  // at all, see wrangler.toml's [env.dev] comment).
+  POSTIZ_DATABASE_URL?: string;
   R2_ACCOUNT_ID: string;
   R2_ACCESS_KEY_ID: string;
   R2_SECRET_ACCESS_KEY: string;
@@ -123,9 +141,7 @@ app.route("/media", mediaRoute);
 app.route("/tenant", tenantRoute);
 app.route("/admin-auth", adminAuth);
 app.route("/admin", adminRoute);
-
-// Phase 2+: publish action, Stripe webhook receiver.
-// See ../../README.md Status section.
+app.route("/stripe", stripeRoute);
 
 export default {
   fetch: app.fetch,

@@ -16,7 +16,7 @@ Name: **SceneStealer** (theater term for a performer who steals the show — als
 literally what the AI highlight-picker does). Placeholder pending your
 confirmation; trivial to rename before any repo is created.
 
-Local working directory for this project: `/Users/scarlettb/Documents/Claude/SceneStealer`.
+Local working directory for this project: `/Users/scarlettb/Projects/SceneStealer`.
 
 ## Repo layout
 

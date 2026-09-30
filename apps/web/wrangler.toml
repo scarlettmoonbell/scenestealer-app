@@ -33,7 +33,17 @@ head_sampling_rate = 1
 # Dev environment for the paused account-management/billing work — see
 # scenestealer-infra's neon.tf `scenestealer_dev` resources and
 # apps/api/wrangler.toml's own [env.dev] block, same pattern. Reached at
-# its own workers.dev subdomain; no custom domain.
+# dev.scenestealer.app (scenestealer-infra's cloudflare-dns.tf `web_dev`
+# custom domain, added 2026-09-18) as well as its own workers.dev
+# subdomain — both resolve to the same Worker.
+#
+# This Worker has its OWN CLERK_SECRET_KEY, separate from apps/api's —
+# easy to miss, bit us for real 2026-09-18 when dev's Clerk Application
+# was split from production's: only apps/api's secret got updated at
+# first, leaving apps/web verifying real sessions/handshakes from the
+# new Clerk app against the old app's JWKS ("kid" mismatch, 500 on
+# every page). Both Workers' CLERK_SECRET_KEY must be updated together
+# any time dev's Clerk Application changes.
 [env.dev]
 name = "scenestealer-web-dev"
 

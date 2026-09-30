@@ -1,12 +1,9 @@
-import {
-  ClerkProvider,
-  OrganizationSwitcher,
-  Show,
-  UserButton,
-} from "@clerk/nextjs";
+import { ClerkProvider, Show } from "@clerk/nextjs";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import "./globals.css";
+import { AccountMenu } from "./account-menu";
+import { DevBanner } from "./dev-banner";
 import { SiteHeader } from "./site-header";
 import { SocialLinks } from "./social-links";
 
@@ -53,14 +50,12 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <body>
+        <DevBanner />
         <ClerkProvider>
           <SiteHeader
             right={
               <Show when="signed-in">
-                <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-                  <OrganizationSwitcher hidePersonal />
-                  <UserButton />
-                </div>
+                <AccountMenu />
               </Show>
             }
           />

@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { clips, createDb, sourceVideos } from "@scenestealer/db";
 import { FfmpegRenderer } from "@scenestealer/pipeline";
 import { createPresignedGetUrl, uploadToR2 } from "./r2.js";
+import { chargeBurstSeconds } from "./burst.js";
 
 const renderer = new FfmpegRenderer();
 
@@ -112,8 +113,17 @@ export async function runRender(
 
     await db
       .update(clips)
-      .set({ status: "ready", renderedR2Key })
+      .set({ status: "ready", renderedR2Key, fileSizeBytes: output.length })
       .where(eq(clips.id, clipId));
+    if (clip.burstModeUsed) {
+      await chargeBurstSeconds(
+        db,
+        clip.tenantId,
+        (Date.now() - startedAt) / 1000,
+      ).catch((e) =>
+        console.error("Burst-seconds charge failed (non-fatal):", e),
+      );
+    }
 
     logStep(clipId, startedAt, "done");
     return { renderedR2Key };
@@ -130,6 +140,17 @@ export async function runRender(
       .update(clips)
       .set({ status: "accepted", renderError: message })
       .where(eq(clips.id, clipId));
+    // Charged even on failure — the fast Machine was still spent
+    // regardless of outcome.
+    if (clip.burstModeUsed) {
+      await chargeBurstSeconds(
+        db,
+        clip.tenantId,
+        (Date.now() - startedAt) / 1000,
+      ).catch((e) =>
+        console.error("Burst-seconds charge failed (non-fatal):", e),
+      );
+    }
     throw err;
   } finally {
     await rm(tmpDir, { recursive: true, force: true });

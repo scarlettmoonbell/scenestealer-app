@@ -91,9 +91,17 @@ export default function SettingsPage() {
       notifyOnFailure !== settings.notifyOnPublishFailure);
 
   return (
-    <main style={{ maxWidth: 720, margin: "0 auto", padding: "24px" }}>
+    <>
       <DashboardTabs />
-      <h1>Settings</h1>
+      {/* Outer frame matches DashboardTabs' own 1160px width so this
+          page's content starts at the same left edge as the tabs above
+          it and every other dashboard page — the inner div below is
+          what actually keeps the settings form narrow and readable,
+          rather than centering a separate, narrower box independently
+          (which used to leave tabs and content visibly misaligned). */}
+      <main style={{ maxWidth: 1160, margin: "0 auto", padding: "24px" }}>
+        <div style={{ maxWidth: 720 }}>
+        <h1>Settings</h1>
       <p style={{ marginTop: "1rem", color: "var(--muted)" }}>
         Notification preferences for this organization.
       </p>
@@ -156,6 +164,8 @@ export default function SettingsPage() {
           </div>
         </div>
       )}
-    </main>
+        </div>
+      </main>
+    </>
   );
 }
