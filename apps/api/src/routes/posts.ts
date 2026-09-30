@@ -13,6 +13,7 @@ import { notifyPublishFailure } from "../notify.js";
 import { getPostizPublishedPost } from "../postiz-db.js";
 import {
   CommentNotOnPostError,
+  PostGoneError,
   getEngagement,
   replyToComment,
 } from "../meta-engagement.js";
@@ -263,6 +264,10 @@ postsRoute.get("/:id/engagement", async (c) => {
     );
     return c.json({ platform: provider, ...engagement });
   } catch (err) {
+    if (err instanceof PostGoneError) {
+      const name = provider === "facebook" ? "Facebook" : "Instagram";
+      return c.json({ error: `This post has been removed from ${name}.` }, 404);
+    }
     console.error("GET /posts/:id/engagement failed", err);
     return c.json({ error: "Couldn't load comments from the platform" }, 502);
   }
@@ -302,7 +307,7 @@ postsRoute.post("/:id/comments/:commentId/replies", async (c) => {
     );
     return c.json({ id: reply.id });
   } catch (err) {
-    if (err instanceof CommentNotOnPostError) {
+    if (err instanceof CommentNotOnPostError || err instanceof PostGoneError) {
       return c.json({ error: err.message }, 404);
     }
     console.error("POST /posts/:id/comments/:commentId/replies failed", err);

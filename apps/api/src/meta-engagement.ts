@@ -45,11 +45,21 @@ async function graphGet<T>(
   url.searchParams.set("access_token", accessToken);
   const res = await fetch(url);
   if (!res.ok) {
-    throw new Error(
-      `Graph API GET /${path} failed: ${res.status} ${await res.text()}`,
-    );
+    const text = await res.text();
+    // Code 100 / subcode 33: the object is gone (e.g. the post was
+    // deleted on the platform after SceneStealer published it).
+    if (/"code":100,[^}]*"error_subcode":33/.test(text)) {
+      throw new PostGoneError();
+    }
+    throw new Error(`Graph API GET /${path} failed: ${res.status} ${text}`);
   }
   return res.json<T>();
+}
+
+export class PostGoneError extends Error {
+  constructor() {
+    super("This post no longer exists on the platform");
+  }
 }
 
 async function graphPost<T>(
@@ -101,12 +111,16 @@ function mapFbComment(c: FbComment): EngagementComment {
   };
 }
 
-const FB_STAT_LABELS: Record<string, string> = {
-  fb_reels_total_plays: "Plays",
-  post_impressions_unique: "Reach",
-  total_video_views: "Views",
-  total_video_views_unique: "Unique viewers",
-};
+// Which /video_insights rows to show, in display order. A Reel reports
+// the fb_reels_* set, a classic video the total_video_* set; whichever
+// is present is used.
+const FB_STATS: { metric: string; label: string }[] = [
+  { metric: "fb_reels_total_plays", label: "Plays" },
+  { metric: "total_video_views", label: "Views" },
+  { metric: "post_impressions_unique", label: "Reach" },
+  { metric: "total_video_impressions_unique", label: "Reach" },
+  { metric: "post_video_likes_by_reaction_type", label: "Reactions" },
+];
 
 async function getFacebookComments(
   videoId: string,
@@ -130,32 +144,33 @@ async function getFacebookStats(
   videoId: string,
   token: string,
 ): Promise<EngagementStat[]> {
-  // Postiz publishes clips as Reels, whose metrics differ from classic
-  // video metrics; fall back to the classic set for a non-Reel video.
-  const metricSets = [
-    "fb_reels_total_plays,post_impressions_unique",
-    "total_video_views,total_video_views_unique",
-  ];
-  let lastError: unknown;
-  for (const metric of metricSets) {
-    try {
-      const { data } = await graphGet<{ data: InsightRow[] }>(
-        `${videoId}/video_insights`,
-        { metric },
-        token,
-      );
-      const stats = data
-        .map((row) => ({
-          label: FB_STAT_LABELS[row.name] ?? row.name,
-          value: insightValue(row),
-        }))
-        .filter((s): s is EngagementStat => s.value !== null);
-      if (stats.length > 0) return stats;
-    } catch (err) {
-      lastError = err;
-    }
+  // Deliberately no `metric` filter: requesting post_impressions_unique by
+  // name is rejected as "not a valid insights metric" even though Meta
+  // returns it unfiltered (confirmed live on a Page Reel, 2026-09-30),
+  // and one rejected name fails the whole request.
+  const { data } = await graphGet<{
+    data: { name: string; values?: { value: unknown }[] }[];
+  }>(`${videoId}/video_insights`, {}, token);
+
+  const byName = new Map(data.map((row) => [row.name, row.values?.[0]?.value]));
+  const stats: EngagementStat[] = [];
+  for (const { metric, label } of FB_STATS) {
+    if (stats.some((s) => s.label === label)) continue;
+    const raw = byName.get(metric);
+    // Reactions come back as { REACTION_LIKE: n, REACTION_LOVE: n, ... }.
+    const value =
+      typeof raw === "number"
+        ? raw
+        : raw && typeof raw === "object"
+          ? Object.values(raw as Record<string, number>).reduce(
+              (sum, n) => sum + (typeof n === "number" ? n : 0),
+              0,
+            )
+          : null;
+    if (value !== null) stats.push({ label, value });
   }
-  throw lastError ?? new Error("No insights available yet");
+  if (stats.length === 0) throw new Error("No insights available yet");
+  return stats;
 }
 
 // --- Instagram ------------------------------------------------------------
