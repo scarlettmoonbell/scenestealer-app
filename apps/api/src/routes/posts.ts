@@ -173,7 +173,10 @@ postsRoute.get("/published", async (c) => {
     .innerJoin(clips, eq(posts.clipId, clips.id))
     .leftJoin(sourceVideos, eq(clips.sourceVideoId, sourceVideos.id))
     .where(
-      and(eq(socialConnections.tenantId, tenantId), eq(posts.status, "published")),
+      and(
+        eq(socialConnections.tenantId, tenantId),
+        eq(posts.status, "published"),
+      ),
     )
     .orderBy(desc(posts.publishedAt))
     .limit(50);

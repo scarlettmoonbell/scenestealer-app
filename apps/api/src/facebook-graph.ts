@@ -30,7 +30,9 @@ export async function getPagePosts(
   const res = await fetch(url);
   if (!res.ok) {
     const body = await res.text();
-    throw new Error(`Facebook Graph API GET /${pageId}/posts failed: ${res.status} ${body}`);
+    throw new Error(
+      `Facebook Graph API GET /${pageId}/posts failed: ${res.status} ${body}`,
+    );
   }
   const { data } = await res.json<{
     data: Array<{

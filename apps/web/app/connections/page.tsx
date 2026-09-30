@@ -320,7 +320,8 @@ export default function ConnectionsPage() {
                         flexShrink: 0,
                       }}
                       onMouseEnter={(e) => {
-                        e.currentTarget.style.background = "var(--accent-hover)";
+                        e.currentTarget.style.background =
+                          "var(--accent-hover)";
                       }}
                       onMouseLeave={(e) => {
                         e.currentTarget.style.background = "var(--accent)";
