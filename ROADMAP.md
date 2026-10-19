@@ -932,14 +932,14 @@ unpinning.
   not yet designed: there's no admin/operator role at all today —
   every route's auth is `requireTenant` (Clerk org-scoped, see
   `apps/api/src/auth.ts`), which is the wrong shape for a view that
-  needs to read *across* tenants rather than being scoped to one: needs
+  needs to read _across_ tenants rather than being scoped to one: needs
   its own authorization model, not just a page. Scope (what's
   read-only reporting vs. what takes real support actions against
   live tenant data) not yet decided.
 - **Built on dev (2026-09-25): graceful downgrade to Free.** "Switch to
   Free" on `/account` schedules the subscription to end at the close of
   the period already paid for (`cancel_at_period_end`), with a "Keep
-  <plan>" undo until then; `customer.subscription.deleted` moves the
+  [plan name]" undo until then; `customer.subscription.deleted` moves the
   tenant to Free when it actually ends. Payment lapse is handled the
   same way: `customer.subscription.updated` keeps the paid tier while
   the subscription is `past_due` (Smart Retries still trying — a grace
@@ -1166,12 +1166,12 @@ unpinning.
      untouched rather than marking it either done or failed, since
      whichever run is still genuinely in flight owns that write. This is
      a single-process guard, not a durable lock — it only protects
-     duplicates landing on the *same* machine, which is what actually
+     duplicates landing on the _same_ machine, which is what actually
      happened here, not the general case of two different Machines.
      **Still open**: the deeper issue is that a legitimate job can take
      longer than the Queue's own ~15-minute ceiling, which this guard
      papers over (no more wasted duplicate work / OOM) without fixing —
-     a large enough video can still have its *first* invocation
+     a large enough video can still have its _first_ invocation
      abandoned by Cloudflare before ever writing a final status,
      leaving `sourceVideos.status` stuck on "analyzing" indefinitely if
      the retried invocation's own run happens to also get skipped or
@@ -1267,12 +1267,12 @@ unpinning.
   through `@clerk/hono`) and sends via Resend's HTTP API. Skips quietly
   (never errors the callback) when `RESEND_API_KEY` is unset, which it
   currently is everywhere — needs a verified sending domain on Resend's
-  side first. The in-app "analyzing" copy deliberately does *not* yet
+  side first. The in-app "analyzing" copy deliberately does _not_ yet
   promise an email for this reason; update it once the key and domain
   are live. Chosen over SMS (real per-message cost, US A2P 10DLC
   registration overhead) and Web Push (no service worker exists in this
   app today, real Safari/iOS reliability gaps) — Web Push documented as
-  a possible *supplementary* channel to revisit if alpha tester feedback
+  a possible _supplementary_ channel to revisit if alpha tester feedback
   specifically asks for it, not a replacement for email.
 - **Fixed (2026-09-07): scene detection alone ran for over an hour on a
   17-minute recording, with no crash to blame — genuinely just slow,
@@ -1290,7 +1290,7 @@ unpinning.
   Considered and ruled out first: PySceneDetect's own `-d/--downscale`
   flag — checked its actual source (`scene_manager.py`'s
   `compute_downscale_factor`) and confirmed it already auto-downscales
-  to a ~256px effective width *by default* with no flag at all, so an
+  to a ~256px effective width _by default_ with no flag at all, so an
   explicit `-d` wouldn't have changed anything; downscaling only
   reduces post-decode resize cost, not the decode itself, which is
   where the time was actually going. A GPU/hardware-decode compute
@@ -1343,12 +1343,12 @@ unpinning.
   **Decision: don't just bump the always-on machine to a `performance`
   size.** With `/analyze` now dispatch-only (see the "independent of
   any HTTP connection" fix above), a job's real CPU usage is bursty
-  again from the *app's* perspective — an always-on dedicated-vCPU
+  again from the _app's_ perspective — an always-on dedicated-vCPU
   machine would sit idle (still fully billed) between uploads, which
   directly works against the goal of controlling per-job compute cost
   as usage grows past one alpha tester. The plan going forward is Fly's
-  Machines API spawning a disposable `performance`-CPU Machine *per
-  job*, billed per-second only while it's actually running —
+  Machines API spawning a disposable `performance`-CPU Machine _per
+  job_, billed per-second only while it's actually running —
   `auto_destroy: true` cleans it up the moment the process exits, no
   idle cost between jobs, no throttling during them.
   `apps/worker/src/index.ts`'s one-shot CLI entry point already exists
@@ -1446,7 +1446,7 @@ unpinning.
   deploy`) is the new dispatch credential, set manually via `wrangler
   secret put` — **not yet provisioned as of this writing**, so
   dispatch will fail until that's done. `WORKER_SHARED_SECRET` itself
-  stays: it's still what verifies the *inbound* completion-notify
+  stays: it's still what verifies the _inbound_ completion-notify
   callback from a spawned worker Machine (`routes/internal.ts`), just
   no longer used for the outbound direction.
 
@@ -1475,7 +1475,7 @@ unpinning.
   made the latter fail outright — "Output file #0 does not contain any
   stream" — the instant it tried to extract audio from a video-only
   file; and it never forced `-pix_fmt yuv420p`, so `libx264` silently
-  inherited the *source's* 10-bit depth, producing a still-10-bit H.264
+  inherited the _source's_ 10-bit depth, producing a still-10-bit H.264
   proxy that undermined much of the point (the local sanity test that
   validated the original command used an 8-bit synthetic source and
   never exercised this path). Confirmed the whole reliability chain
@@ -1509,7 +1509,7 @@ unpinning.
   by reading `snapToScenes`'s actual source (the separate
   `scenestealer-pipeline` repo): it independently snaps a candidate
   highlight's start and end to whichever scene boundary is nearest
-  *each*, with no guard against both landing on the same one — a
+  _each_, with no guard against both landing on the same one — a
   pre-existing gap, not something this session's changes introduced,
   but far more likely to bite now that the proxy's scene detection
   found only a handful of distinct boundaries for the whole ~17-minute
@@ -1534,7 +1534,7 @@ unpinning.
   Fixed `snapToScenes` directly in `scenestealer-pipeline` (commit
   `1b9bb7c`, separate repo): `startSec`/`endSec` no longer snap to
   their nearest boundary independently — `endSec` now only considers
-  boundaries strictly *after* the snapped `startSec`, so the two can
+  boundaries strictly _after_ the snapped `startSec`, so the two can
   never collide or invert. Falls back to the candidate's own original
   duration, anchored at the snapped start, on the rare case where no
   later boundary exists at all. Bumped `scenestealer-app`'s lockfile
@@ -1688,7 +1688,7 @@ unpinning.
      `DATABASE_URL` secret was a separate, out-of-band value from
      `apps/api`'s Worker secret (no shared config between a Pages
      project and a Workers script) — re-synced it to the known-good
-     value and redeployed. This did *not* turn out to be why the video
+     value and redeployed. This did _not_ turn out to be why the video
      wasn't showing (a straightforward reload turned out to already
      have it — see the item below), but there was never a legitimate
      reason for the two to differ given this app has a single
@@ -1715,7 +1715,7 @@ unpinning.
      number as a fallback).
   6. **Real render-side cost win, found while watching a render job's
      own logs**: it spent 582 of 648 total seconds (89%) downloading
-     the *entire* source video just to encode a 15s clip — the analyze
+     the _entire_ source video just to encode a 15s clip — the analyze
      pipeline already solved the analogous "download the whole file"
      problem with parallel ranged GETs, but a render only ever needs a
      small window of the source regardless of file size, so the real
@@ -1745,7 +1745,7 @@ unpinning.
      actually posted to a platform that has the constraint;
      `scenestealer-pipeline` bumped to drop the render-time gate,
      `FfmpegRenderer.render()` now always produces the platform's
-     *format* regardless of duration). A clip can now be rendered and
+     _format_ regardless of duration). A clip can now be rendered and
      downloaded at any length; only posting to Instagram specifically
      still enforces the real 5-90s ceiling.
   2. Download no longer needs a "Get rendered clip" click first — the
@@ -1861,7 +1861,7 @@ unpinning.
   "Media upload has failed with error code 2207076" — each its own
   follow-up investigation, not yet resolved) — but this app's own
   `POST /clips/:id/publish` (`clips.ts`) had already written
-  `status: "published"` the instant Postiz's API merely *accepted*
+  `status: "published"` the instant Postiz's API merely _accepted_
   the create-post request, which is all a "now" publish or a
   "schedule" request ever confirms — Postiz's own `Post.state` starts
   at `QUEUE` regardless, and actual delivery happens later,
@@ -1872,7 +1872,7 @@ unpinning.
   migration `0011`) written instead of `"published"` for an immediate
   publish, and a new `GET /posts/:id/status` (`posts.ts`) that checks
   Postiz's real per-post state before confirming either outcome —
-  called via `getPostStatus` (`postiz.ts`), which hits a *different*,
+  called via `getPostStatus` (`postiz.ts`), which hits a _different_,
   unversioned Postiz route (`/api/public/posts/:id`, not the
   `/api/public/v1/posts` list endpoint already used elsewhere) since
   that's the only one that returns an actual error message rather than
@@ -1903,7 +1903,7 @@ unpinning.
     (and the reverse: a HEAD-signed URL 403s on `GET`). Postiz's
     `youtubeMediaSize` (read straight from its source on GitHub) does
     exactly a `HEAD` to size the upload, then ranged `GET`s to stream
-    it, against the *same* URL — something no single R2 presigned URL
+    it, against the _same_ URL — something no single R2 presigned URL
     can satisfy, which is the entire cause of this error. Fixed by
     adding a `GET`/`HEAD` `/media` proxy route (`routes/media.ts`)
     that live-signs a fresh, real per-method R2 request on every
@@ -1921,7 +1921,7 @@ unpinning.
     tampered signature gets a 403.
 
     **Follow-up regression caught by a real retry (2026-09-08)**: the
-    very next live publish attempt hit a *new* error — Postiz's own
+    very next live publish attempt hit a _new_ error — Postiz's own
     request validation (`libraries/helpers/src/utils/
     valid.url.path.ts`'s `ValidUrlExtension`) rejects a post's media
     URL outright unless the part before its `?` ends in
@@ -1947,21 +1947,21 @@ unpinning.
     real cause was the Facebook page-picker race condition documented
     a few entries down ("Facebook connection stuck on the tenant's
     personal profile," fixed for real 2026-09-11): every publish
-    attempt up to that point was against the tenant's *personal
-    Facebook profile*, not the linked "SceneStealer App" Page, because
+    attempt up to that point was against the tenant's _personal
+    Facebook profile_, not the linked "SceneStealer App" Page, because
     `beginPolling` was closing the OAuth popup before Postiz's two-step
     Page-picker ever got to save the real selection — `(#100)` was
     Facebook's own response to that, not an Advanced-Access gate. App
     Review for `pages_manage_posts`/the rest of the permission set is
     still genuinely needed eventually — not for this account's own
     testing, which now works fine as a listed Developer/Tester, but for
-    any *other* real tenant's Facebook/Instagram account, which
+    any _other_ real tenant's Facebook/Instagram account, which
     Development mode doesn't cover — see the "Submit Meta App Review"
     section above for that.
   - **Instagram — root-caused and fixed for real (2026-09-08),
     scenestealer-pipeline commit `5478250`.** A real retry (after the
     two fixes above) reproduced the same `Media upload has failed with
-    error code 2207076` on a *different* clip, ruling out the
+    error code 2207076` on a _different_ clip, ruling out the
     low-resolution theory from the first investigation — this one was
     real theater-show footage at a normal resolution. `ffprobe`'d the
     actual rendered R2 object directly and found a third stream beyond
@@ -2036,7 +2036,7 @@ unpinning.
   linked `data` stream), then tested candidate fixes against it one at
   a time. `-map 0:v:0 -map 0:a:0?` alone left the data stream in the
   output every time — confirmed the mov demuxer puts the timecode
-  value on the *video stream's own metadata* (a `timecode` tag,
+  value on the _video stream's own metadata_ (a `timecode` tag,
   visible via `ffprobe -show_entries stream_tags`), and ffmpeg's mov
   muxer regenerates a fresh `tmcd` track from that tag on output,
   independent of whether the original standalone timecode stream was
@@ -2105,7 +2105,7 @@ unpinning.
   help**: `apps/web/app/connections/page.tsx`'s own `beginPolling` —
   completely independent of `postiz-proxy` — was calling
   `opened.close()` itself the instant `POST /social/:platform/finalize`
-  saw *any* new Postiz integration ID appear. Postiz creates that
+  saw _any_ new Postiz integration ID appear. Postiz creates that
   integration row (using the placeholder personal-profile info) the
   moment its OAuth callback runs, before the two-step Page-picker that
   's supposed to replace it ever gets a chance to render — so our own
@@ -2243,7 +2243,7 @@ unpinning.
   full story. Traced through Postiz's own source
   (`instagram.provider.ts`'s `igContainerStatus`): the message shown
   in our UI is Meta's own raw `status` text for a container whose
-  `status_code` is `ERROR`, returned while *polling* a container
+  `status_code` is `ERROR`, returned while _polling_ a container
   that's already been created — meaning Instagram had already fetched
   the file by then, and the failure is in its own async processing,
   not our HTTP serving of it. Pulled the actual rendered object back
@@ -2303,7 +2303,7 @@ unpinning.
   Meta's own error response echoed it back verbatim into this
   session's tool output — a real credential exposure, immediately
   disclosed. The probe script was fixed to split the token correctly
-  *and* to redact it from every logged response regardless of why it
+  _and_ to redact it from every logged response regardless of why it
   might reappear, before being run again.
 
   Root cause, traced through Postiz's real source: Instagram's
@@ -2311,7 +2311,7 @@ unpinning.
   (`InstagramProvider.postPending`, embeds `video_url` right there),
   but the actual async fetch/transcode and the later
   `checkPostStatus`/`igContainerStatus` poll that can surface `ERROR`
-  are a *separate*, Temporal-orchestrated step — decoupled in time
+  are a _separate_, Temporal-orchestrated step — decoupled in time
   from container creation, not synchronous with it. This exact Postiz
   instance has a documented, recurring pattern of its Temporal
   orchestrator hanging (see the `FRONTEND_URL`/orchestrator-hang entry
@@ -2329,7 +2329,7 @@ unpinning.
   green. _Not yet re-verified against a real end-to-end publish_ — the
   next attempt is the real test; if Temporal is healthy at request
   time this was always going to work regardless, so the meaningful
-  confirmation is specifically a publish attempt that lands *after* an
+  confirmation is specifically a publish attempt that lands _after_ an
   orchestrator delay.
 
   **Also surfaced, not chased further**: `posts.created_at` (and other
@@ -2356,7 +2356,7 @@ unpinning.
   every single time, was our own signed media URL's query string
   getting mangled by Postiz's own request construction, not the file
   or timing at all.** The tenant published again right after the TTL
-  deploy and hit the identical error within *45 seconds* of the
+  deploy and hit the identical error within _45 seconds_ of the
   request — Postiz's own `Post.createdAt`/`updatedAt` (read directly
   from its database, not guessed) proved this wasn't a stale-URL race;
   a signature that had been valid for barely a minute cannot be the
@@ -2370,7 +2370,7 @@ unpinning.
   — with **no `encodeURIComponent` around `m.path`**. `m.path` is our
   own signed media URL, which (at the time) was itself
   `.../media/clip.mp4?key=...&exp=...&sig=...` — a URL with its own
-  query string. Splicing that whole string into Postiz's *own* query
+  query string. Splicing that whole string into Postiz's _own_ query
   string means the first bare `&` inside our URL (right after
   `key=...`) terminates the `video_url` value early, right there in
   the request Meta actually receives — `exp` and `sig` become
@@ -2450,7 +2450,7 @@ unpinning.
   when it doesn't yet (routine here, since the seed loop runs the
   moment video/waveform data resolves), it defers via a one-time
   `"ready"` listener instead — so every pre-existing clip's own
-  `region-created` fires *later*, in a batch, by which point the
+  `region-created` fires _later_, in a batch, by which point the
   "is this a genuinely new drag?" listener (registered "after" the
   seed loop — looked like it should have been enough, wasn't) is
   already attached. Fixed by tracking seeded clip ids explicitly
@@ -2461,7 +2461,7 @@ unpinning.
   region exists, only re-arm after Create/Cancel, so a second drag
   can't orphan the first with no way back to it) that the tenant
   explicitly wants inverted: only one pending selection should exist,
-  but redrawing should *replace* it, not be blocked by it. Drag-
+  but redrawing should _replace_ it, not be blocked by it. Drag-
   selection now stays armed continuously; `region-created` removes any
   still-pending region before adopting the new one (via a functional
   `setState` updater, since the handler is registered once and would
@@ -2490,7 +2490,7 @@ unpinning.
   (shipped the same day, earlier) never actually fired, even on a
   confirmed-real successful Instagram publish.** Root cause wasn't the
   banner itself — `Scheduler`'s poll after "publish now" only ran for
-  12 attempts at 3s (~36s) before giving up. Every *failure* this
+  12 attempts at 3s (~36s) before giving up. Every _failure_ this
   session resolved well inside that window (Instagram's own error
   paths short-circuit fast), which is exactly why the error banner
   always looked like it worked — but a genuine success apparently
@@ -2529,7 +2529,7 @@ unpinning.
   separate, also-stale bug: Instagram's required `post_type` setting
   (post/story) 400s at Postiz if left on the Scheduler's unselected
   `"Select…"` placeholder — confirmed that placeholder was never a
-  valid choice for a *required* enum field, only a trap. Fixed at the
+  valid choice for a _required_ enum field, only a trap. Fixed at the
   source: required settings dropdowns now default to their own first
   real option instead of a blank placeholder. `GET /posts/scheduled`
   had no way to clear an old failure short of its own 7-day display

@@ -2,7 +2,7 @@
 // genuinely exercise the pages_read_engagement permission (reading real
 // content posted by a connected Page), not to build out a general
 // Facebook integration. Publishing still goes through Postiz, unchanged.
-const GRAPH_API_VERSION = "v26.0";
+export const GRAPH_API_VERSION = "v26.0";
 
 export interface FacebookPagePost {
   id: string;

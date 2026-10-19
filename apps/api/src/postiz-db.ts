@@ -47,3 +47,55 @@ export async function getPostizFacebookToken(
   }
   return row ?? null;
 }
+
+export interface PostizPublishedPost {
+  provider: "facebook" | "instagram";
+  // The platform's own id for what Postiz published: a Facebook video id
+  // (Postiz publishes clips via /{page}/videos) or an Instagram media id
+  // (from media_publish).
+  releaseId: string;
+  pageAccessToken: string;
+}
+
+// Looks up one post Postiz published, by Postiz's own post id (what
+// posts.externalPostId stores), along with the Page token needed to read
+// its comments/insights. Scoped by integration id too, so a post id can
+// only resolve through the connection it was actually published with.
+export async function getPostizPublishedPost(
+  env: Env,
+  postizPostId: string,
+  postizIntegrationId: string,
+): Promise<PostizPublishedPost | null> {
+  if (!env.POSTIZ_DATABASE_URL) {
+    console.error("getPostizPublishedPost: POSTIZ_DATABASE_URL is not set");
+    return null;
+  }
+
+  const sql = neon(env.POSTIZ_DATABASE_URL);
+  const rows = await sql`
+    select p."releaseId" as "releaseId",
+           i."providerIdentifier" as "provider",
+           i.token as "token"
+    from public."Post" p
+    join public."Integration" i on i.id = p."integrationId"
+    where p.id = ${postizPostId}
+      and p."integrationId" = ${postizIntegrationId}
+      and p."deletedAt" is null
+      and i."deletedAt" is null
+      and i."providerIdentifier" in ('facebook', 'instagram')
+    limit 1
+  `;
+  const row = rows[0] as
+    { releaseId: string | null; provider: string; token: string } | undefined;
+  if (!row?.releaseId) return null;
+
+  return {
+    provider: row.provider as "facebook" | "instagram",
+    releaseId: row.releaseId,
+    // Postiz's Instagram (via Facebook Login) integration stores
+    // "<pageToken>___<userToken>"; the Page token is what the Instagram
+    // Graph API calls need. Facebook integrations store the Page token
+    // alone, which split() leaves unchanged.
+    pageAccessToken: row.token.split("___")[0],
+  };
+}

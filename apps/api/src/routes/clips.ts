@@ -197,13 +197,12 @@ clipsRoute.delete("/:id", async (c) => {
     );
   }
 
-  await db.transaction(async (tx) => {
-    await tx
-      .update(posts)
-      .set({ clipId: null })
-      .where(eq(posts.clipId, clipId));
-    await tx.delete(clips).where(eq(clips.id, clipId));
-  });
+  // batch, not transaction: the neon-http driver has no interactive
+  // transactions, but runs a batch atomically as one transaction.
+  await db.batch([
+    db.update(posts).set({ clipId: null }).where(eq(posts.clipId, clipId)),
+    db.delete(clips).where(eq(clips.id, clipId)),
+  ]);
 
   return c.json({ deleted: true });
 });

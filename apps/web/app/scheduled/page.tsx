@@ -7,6 +7,7 @@ import { describeFetchError } from "../fetch-error";
 import { useAuthedFetch } from "../use-authed-fetch";
 import { TABLE_HEADER_STYLE } from "../table-header-style";
 import { Scheduler, type VideoMetadata } from "./scheduler";
+import { EngagementPanel } from "./engagement-panel";
 
 interface ReadyClip {
   id: string;
@@ -434,6 +435,7 @@ function SchedulingContent() {
                   key={post.id}
                   style={{
                     display: "flex",
+                    flexWrap: "wrap",
                     alignItems: "center",
                     gap: "0.75rem",
                     padding: "0.75rem 0",
@@ -544,6 +546,10 @@ function SchedulingContent() {
                       Manage on {PLATFORM_LABEL[post.platform] ?? post.platform}{" "}
                       &rarr;
                     </a>
+                  )}
+                  {(post.platform === "facebook" ||
+                    post.platform === "instagram") && (
+                    <EngagementPanel postId={post.id} />
                   )}
                 </li>
               ))}
