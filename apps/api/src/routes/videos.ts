@@ -359,30 +359,35 @@ videos.delete("/:id", async (c) => {
   }
   await deleteR2Object(r2Config, video.r2Key);
 
-  await db.transaction(async (tx) => {
-    const removedClipIds = removedClips.map((clip) => clip.id);
-    if (removedClipIds.length > 0) {
-      await tx
-        .update(posts)
-        .set({ clipId: null })
-        .where(inArray(posts.clipId, removedClipIds));
-    }
-    await tx
+  // batch, not transaction: the neon-http driver has no interactive
+  // transactions, but runs a batch atomically as one transaction. Order
+  // matters (references cleared before the rows they point at go).
+  const removedClipIds = removedClips.map((clip) => clip.id);
+  const keptClipIds = keptClips.map((clip) => clip.id);
+  await db.batch([
+    db
       .update(posts)
       .set({ sourceVideoId: null })
-      .where(eq(posts.sourceVideoId, video.id));
-    if (removedClipIds.length > 0) {
-      await tx.delete(clips).where(inArray(clips.id, removedClipIds));
-    }
-    const keptClipIds = keptClips.map((clip) => clip.id);
-    if (keptClipIds.length > 0) {
-      await tx
-        .update(clips)
-        .set({ sourceVideoId: null })
-        .where(inArray(clips.id, keptClipIds));
-    }
-    await tx.delete(sourceVideos).where(eq(sourceVideos.id, video.id));
-  });
+      .where(eq(posts.sourceVideoId, video.id)),
+    ...(removedClipIds.length > 0
+      ? [
+          db
+            .update(posts)
+            .set({ clipId: null })
+            .where(inArray(posts.clipId, removedClipIds)),
+          db.delete(clips).where(inArray(clips.id, removedClipIds)),
+        ]
+      : []),
+    ...(keptClipIds.length > 0
+      ? [
+          db
+            .update(clips)
+            .set({ sourceVideoId: null })
+            .where(inArray(clips.id, keptClipIds)),
+        ]
+      : []),
+    db.delete(sourceVideos).where(eq(sourceVideos.id, video.id)),
+  ]);
 
   return c.json({ deleted: true, retainedClips: keptClips.length });
 });

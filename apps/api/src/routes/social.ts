@@ -288,23 +288,24 @@ social.delete("/connections/:id", async (c) => {
   // post has no value once its connection is gone, so those are deleted
   // outright; a genuinely "published" post is real history worth
   // keeping, so its reference is nulled instead of destroying the row.
-  await db.transaction(async (tx) => {
-    await tx
+  // batch, not transaction: the neon-http driver has no interactive
+  // transactions (db.transaction throws), but runs a batch atomically as
+  // one transaction.
+  await db.batch([
+    db
       .delete(posts)
       .where(
         and(
           eq(posts.socialConnectionId, connection.id),
           inArray(posts.status, ["queued", "scheduled", "failed", "cancelled"]),
         ),
-      );
-    await tx
+      ),
+    db
       .update(posts)
       .set({ socialConnectionId: null })
-      .where(eq(posts.socialConnectionId, connection.id));
-    await tx
-      .delete(socialConnections)
-      .where(eq(socialConnections.id, connection.id));
-  });
+      .where(eq(posts.socialConnectionId, connection.id)),
+    db.delete(socialConnections).where(eq(socialConnections.id, connection.id)),
+  ]);
 
   return c.json({ deleted: true });
 });
