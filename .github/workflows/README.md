@@ -76,6 +76,15 @@ ecosystem; majors stay one-per-package so each gets its own review.
 in pnpm's own style, which used to fail every npm Dependabot PR's
 `pnpm format` step.
 
+## Deploy concurrency
+
+`deploy.yml` and `deploy-dev.yml` each have a `concurrency` group
+(`deploy-production`, `deploy-dev`) with `cancel-in-progress: false`:
+one deploy runs at a time per environment and is never cancelled
+midway. GitHub keeps at most one waiting run per group, so several
+merges in a row deploy the newest commit once the running one finishes,
+instead of overlapping deploys finishing in an arbitrary order.
+
 ## actionlint.yml
 
 **Triggers:** `push`/`pull_request` on changes under
