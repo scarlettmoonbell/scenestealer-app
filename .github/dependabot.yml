@@ -1,13 +1,29 @@
 version: 2
 updates:
+  # Minor/patch updates arrive as one grouped PR per week instead of one
+  # PR per package; majors stay individual so each gets its own review.
+  # Security fixes are separate again (applies-to: security-updates),
+  # once Dependabot security updates are enabled in repo settings.
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
       interval: "weekly"
+    groups:
+      npm-minor-and-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+      npm-security:
+        applies-to: security-updates
+        patterns: ["*"]
+
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
+    groups:
+      actions-minor-and-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
 
   - package-ecosystem: "gitsubmodule"
     directory: "/"
