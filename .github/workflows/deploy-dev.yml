@@ -13,6 +13,17 @@ on:
   push:
     branches: [dev]
 
+# One deploy at a time, in order. Without this, merging several PRs in a
+# row started overlapping deploys that could finish out of order, so an
+# older commit's deploy could land last and overwrite a newer one (seen
+# 2026-10-19: four merges, four simultaneous deploys). A running deploy
+# is never cancelled midway; GitHub keeps at most one waiting run per
+# group, so if several merges queue up behind it, only the newest
+# waiting one runs — which is exactly the commit that should end up live.
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: false
+
 jobs:
   verify:
     runs-on: ubuntu-latest
