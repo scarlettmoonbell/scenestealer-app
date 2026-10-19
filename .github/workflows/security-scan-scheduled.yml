@@ -1,0 +1,83 @@
+name: Scheduled security scan
+
+# Same Trivy scan as checks.yml's security-scan job, but daily against
+# main, so a newly published advisory against something already in the
+# lockfile is flagged the morning after it lands — instead of surfacing
+# as an unrelated red check on whichever PR happens to be open next.
+on:
+  schedule:
+    - cron: "0 13 * * *" # 13:00 UTC = 08:00 Central (CDT)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: scheduled-security-scan
+  cancel-in-progress: false
+
+jobs:
+  trivy:
+    runs-on: ubuntu-latest
+    env:
+      LABEL: security-scan
+      GH_TOKEN: ${{ github.token }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Trivy filesystem scan
+        id: scan
+        continue-on-error: true
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: "fs"
+          scan-ref: "."
+          hide-progress: true
+          exit-code: "1"
+          severity: "CRITICAL,HIGH"
+          format: "table"
+          output: "trivy-report.txt"
+
+      - name: Open or update the tracking issue
+        if: steps.scan.outcome == 'failure'
+        run: |
+          gh label create "$LABEL" --color B60205 \
+            --description "Opened by the scheduled Trivy scan" --force
+          {
+            echo "The daily Trivy scan of \`main\` found HIGH/CRITICAL vulnerabilities."
+            echo
+            echo "Run: $RUN_URL"
+            echo
+            echo "Usual fix: bump the package, or add a \`pnpm.overrides\` entry"
+            echo "pinning the patched version if it's only pulled in indirectly."
+            echo "This issue closes itself after the next clean scan."
+            echo
+            echo '```'
+            head -c 60000 trivy-report.txt
+            echo '```'
+          } > issue-body.md
+          existing=$(gh issue list --label "$LABEL" --state open --json number --jq '.[0].number')
+          if [ -n "$existing" ]; then
+            gh issue edit "$existing" --body-file issue-body.md
+            gh issue comment "$existing" --body "Still failing as of $(date -u +%Y-%m-%d): $RUN_URL"
+          else
+            gh issue create --title "Security scan: vulnerable dependencies on main" \
+              --label "$LABEL" --body-file issue-body.md
+          fi
+
+      - name: Close the tracking issue once clean
+        if: steps.scan.outcome == 'success'
+        run: |
+          existing=$(gh issue list --label "$LABEL" --state open --json number --jq '.[0].number')
+          if [ -n "$existing" ]; then
+            gh issue close "$existing" --comment "Scan is clean as of $(date -u +%Y-%m-%d): $RUN_URL"
+          fi
+
+      - name: Fail the run when vulnerabilities were found
+        if: steps.scan.outcome == 'failure'
+        run: |
+          echo "::error::Trivy found HIGH/CRITICAL vulnerabilities — see the tracking issue."
+          exit 1

@@ -52,6 +52,30 @@ since then just... didn't go out, silently, until someone actually
 looked at the live site. See `ROADMAP.md`'s Accepted Gaps section for
 the incident that surfaced it.
 
+## security-scan-scheduled.yml
+
+**Triggers:** daily at 13:00 UTC (08:00 Central), plus manual
+`workflow_dispatch`.
+
+Runs the same Trivy scan as `checks.yml`'s **security-scan** job, but
+against `main` every day, so an advisory newly published against a
+package already in the lockfile is flagged the morning after it lands,
+instead of first appearing as an unrelated red check on whichever PR is
+open next. On findings it opens (or updates) one issue labeled
+`security-scan` with the report and fails the run, which emails the repo
+owner; the next clean run closes that issue. The usual fix for an
+indirect dependency is a `pnpm.overrides` entry pinning the patched
+version (see the existing ones in the root `package.json`).
+
+## Dependabot (`.github/dependabot.yml`)
+
+Weekly version updates for npm, GitHub Actions and the `.conventions`
+submodule. Minor and patch updates are grouped into one PR per
+ecosystem; majors stay one-per-package so each gets its own review.
+`pnpm-lock.yaml` is in `.prettierignore` because Dependabot rewrites it
+in pnpm's own style, which used to fail every npm Dependabot PR's
+`pnpm format` step.
+
 ## actionlint.yml
 
 **Triggers:** `push`/`pull_request` on changes under

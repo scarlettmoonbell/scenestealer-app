@@ -7,3 +7,9 @@
 # excluding this file rather than let `pnpm format`/CI block on a tool
 # bug. Revisit if a later Prettier release fixes the underlying case.
 ROADMAP.md
+
+# Machine-generated. pnpm and Dependabot both rewrite this in pnpm's own
+# YAML style (single quotes), so checking it with Prettier failed every
+# npm Dependabot PR's `pnpm format` step regardless of what it updated
+# (confirmed 2026-10-19 on #32-#35, open since 2026-09-01).
+pnpm-lock.yaml
